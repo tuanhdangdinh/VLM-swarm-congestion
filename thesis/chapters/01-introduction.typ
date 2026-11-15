@@ -39,7 +39,7 @@ The studies that were run answer narrower questions, which Chapter 5 states per 
     stroke: 0.4pt + luma(160),
     fill: (_, y) => if y == 0 { luma(235) },
     table.header([*Study*], [*What it compares*], [*Informs*]),
-    [Registered five-robot pilot (21 Oct 2026)], [Coordination layer on vs off in the five-robot pickup-and-delivery scene #ev("1.14"); 5 seed pairs (10 episodes) of 20 planned per arm #ev("1.08"). Decision measures exist only for the on arm.], [RQ2; RQ1 in part],
+    [Registered five-robot pilot (21 Oct 2026)], [Coordination layer on vs off in the five-robot pickup-and-delivery scene #ev("1.14")\; 5 seed pairs (10 episodes) of 20 planned per arm #ev("1.08"). Decision measures exist only for the on arm.], [RQ2; RQ1 in part],
     [Intersection run 1: coordination layer on vs off (13 Nov 2026)], [Four-robot intersection; 5 episodes per arm #ev("1.09").], [RQ2],
     [Intersection run 2: live VLM vs scripted default plan (14 Nov 2026)], [Same scene; the scripted arm is handed the strategy and robot set and makes no VLM call; 5 slots per arm #ev("1.10").], [Share of RQ2 credited to the grounder],
     [Offline decision benchmark and live per-group shadow run], [Prompt and input variants on recorded analyses, against a first-option chooser and a classical chooser; a shadow call in 7 live episodes, never dispatched #ev("1.11").], [RQ1, RQ3 (decision level)],
@@ -51,7 +51,7 @@ The studies that were run answer narrower questions, which Chapter 5 states per 
   caption: [Which research questions each study informs.],
 ) <tab:intro-rq-map>
 
-The studies do not test every registered question. RQ4 and RQ5 are not tested. RQ2 and RQ3 are not tested against the comparators registered for them in the first design (a per-type policy table, and a first-come-first-served rule with a commitment tiebreak), because from the third design on the control is the coordination layer switched off. RQ3 is informed only at the decision level. Pilot probes showed that the robot one model named to yield followed the robot listed first in the prompt, which under ascending listing is also the lowest identifier, so the listing order was randomised and recorded from then on #ev("1.12"); the later live comparisons nevertheless listed robots in ascending order #ev("1.15"), so their yielder choices cannot separate the two priors.
+The studies do not test every registered question. RQ4 and RQ5 are not tested. RQ2 and RQ3 are not tested against the comparators registered for them in the first design (a per-type policy table, and a first-come-first-served rule with a commitment tiebreak), because from the third design on the control is the coordination layer switched off. RQ3 is informed only at the decision level. Pilot probes showed that the robot one model named to yield followed the robot listed first in the prompt, which under ascending listing is also the lowest identifier, so the listing order was randomised and recorded from then on #ev("1.12")\; the later live comparisons nevertheless listed robots in ascending order #ev("1.15"), so their yielder choices cannot separate the two priors.
 
 == Contributions <sec:intro-contributions>
 
