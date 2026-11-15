@@ -22,7 +22,7 @@
 
 ### Names Used in This Document
 
-The canonical naming glossary is `docs/guides/naming_glossary.md` on `demo/campaign-kits`, written by another job and checked against the thesis's own names. At the time of writing it existed only as an uncommitted draft in the v7j worktree; the names below were aligned with that draft (for example "central layer", not "coordination layer", and "registered as confirmatory" only for the 21 October five-robot pilot). **The glossary supersedes this table** once committed.
+The canonical naming glossary is `docs/guides/naming_glossary.md` on `demo/campaign-kits`, written by another job and checked against the thesis's own names. It was committed as `8565fe0` while this page was being written; the names below were aligned with its draft (for example "central layer", not "coordination layer", and "registered as confirmatory" only for the 21 October five-robot pilot). **The glossary supersedes this table** once committed.
 
 | Name in this document | Internal ids (repo) |
 |---|---|
