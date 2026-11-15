@@ -71,7 +71,7 @@
   #image("assets/images/vgu_logo.png", width: 3cm)
   #v(2cm)
 
-  #text(size: 13pt, weight: "bold")[Bachelor Thesis]
+  #text(size: 13pt, weight: "bold")[Project Report]
   #v(1cm)
   #text(size: 15pt, weight: "bold")[Leveraging Vision-Language Models (VLM) for Congestion Management in Warehouse Swarm Robotics]
   #v(1cm)
@@ -84,7 +84,7 @@
     row-gutter: 8pt,
     align: left,
     [_Students:_], [Dang Dinh Tu Anh - 10422086],
-    [], [Nguyễn Khánh Tường - 10422121],
+    [], [Nguyen Khanh Tuong - 10422121],
   )
 
   #v(1fr)
