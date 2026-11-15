@@ -531,17 +531,37 @@ def trigger_caption(text: str) -> str | None:
     )
 
 
+_REFUSED = re.compile(r"yield refused request=\S+ reason=yield refused: (.*)$")
+
+
+def generic_caption(text: str) -> str | None:
+    """Generic caption for a trigger, refusal or no-congestion line, else None.
+
+    Each restates only the line's own content, so a script caption from an
+    earlier step never stays on screen over a newer one.
+    """
+    cap = trigger_caption(text)
+    if cap is not None:
+        return cap
+    m = _REFUSED.search(text)
+    if m is not None:
+        return f"Check: a grounding check refused this proposal ('{m.group(1)}')."
+    if "no dispatch" in text and "congestion_detected=false" in text:
+        return "The model answered 'no congestion', so nothing is sent."
+    return None
+
+
 def merged_caption_schedule(
     schedule: Sequence[tuple[float, str]], texts: Sequence[str], reveal: Sequence[float]
 ) -> list[tuple[float, str]]:
-    """Add a generic trigger caption at every `starting analysis` line no script caption covers.
+    """Add a generic caption at each trigger, refusal or no-congestion line left uncovered.
 
     A script caption anchored at (or after) the same moment wins.
     """
     starts = [t0 for t0, _ in schedule]
     out = list(schedule)
     for i, text in enumerate(texts):
-        cap = trigger_caption(text)
+        cap = generic_caption(text)
         if cap is None:
             continue
         nxt = next((t0 for t0 in starts if t0 >= reveal[i] - 1e-9), None)

@@ -58,7 +58,7 @@
   },
   {
    "at": {
-    "match": "starting analysis request=fbaa01a8"
+    "match": "request=fbaa01a8 no dispatch"
    },
    "text": "robot_2's own drive stalled. The model is asked three times and answers 'no congestion'; nothing is sent."
   },

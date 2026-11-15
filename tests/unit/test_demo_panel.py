@@ -820,3 +820,21 @@ def test_present_compositor_rejects_header_overlapping_disclosure(tmp_path):
     bad = pr.PresentScript.model_validate({**SCRIPT, "header": "x" * 120})
     with pytest.raises(ValueError, match="overlap"):
         PresentCompositor(p.pt, p.timeline, p.scene, p.pane, bad)
+
+
+def test_generic_caption_quotes_refusal_reason_and_no_congestion():
+    assert pr.generic_caption(pr.shorten_line(GATE_LINE)) is None
+    refused = (
+        "orchestrator: yield refused request=c93f4150 reason=yield refused: both robots outside"
+    )
+    assert pr.generic_caption(refused) == (
+        "Check: a grounding check refused this proposal ('both robots outside')."
+    )
+    nd = "orchestrator: request=1 no dispatch stage=vlm reason=congestion_detected=false"
+    assert pr.generic_caption(nd) == "The model answered 'no congestion', so nothing is sent."
+
+
+def test_merged_schedule_keeps_script_caption_at_same_line():
+    texts = ["orchestrator: yield refused request=a reason=yield refused: x"]
+    sched = pr.merged_caption_schedule([(3.0, "scripted")], texts, [3.0])
+    assert pr.caption_at(sched, 3.5) == "scripted"
