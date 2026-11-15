@@ -360,14 +360,14 @@ Appended 2026-11-15; sections 1–5 above are unchanged and stay as written. Nam
 | Branch (worktree) | Tip | Fork | What it adds | Stage |
 |---|---|---|---|---|
 | `fix/m4-stall-abort` (v7p) | `1016e0b` | `8933863` (safety fix) | stall abort, M4 only, key `safety.stall_abort.enabled` off | 4, after the two Stage 4 branches |
-| `fix/plan-dispatch-mismatch-visibility` (v7r) | `93655fc` | `8933863` | plan-versus-dispatch mismatch record, M5/M3, key `plan_dispatch_mismatch_visibility` off | 4, last; one hand resolution of `orchestrator_node.py` (A.2) |
+| `fix/plan-dispatch-mismatch-visibility` (v7r) | `93655fc` | `8933863` | plan-dispatch mismatch record, M5/M3, key `plan_dispatch_mismatch_visibility` off | 4, last; one hand resolution of `orchestrator_node.py` (A.2) |
 | `analysis/failure-cause-classification` (v7q) | `0b6a91b` | `demo/campaign-kits@b70d925` | failure-cause classification, interception table; scripts and tests | 5, after `demo/campaign-kits` |
-| `demo/validation-guard-contacts` (v7n) | `a412949` (was `9a68539` in the plan) | `demo/campaign-kits@cc1313d` + escort check + contact logging | safety validation take report | 5, item 3 as planned |
-| `test/safety-mechanisms-scripted` (v7s, **in progress**) | `99edbf3` at 13:49Z | `demo/validation-guard-contacts@a412949`, merges the reverse obstacle check (`527707a`) and the stall abort (`af5a9df`) | scripted safety tests (kit `sft`) | 5, after `demo/validation-guard-contacts`; wait for the job |
+| `demo/validation-guard-contacts` (v7n) | `a412949` (was `9a68539` in the plan) | `demo/campaign-kits@cc1313d` + escort guard + contact logging | five-robot validation take report | 5, item 3 as planned |
+| `test/safety-mechanisms-scripted` (v7s, **in progress**) | `99edbf3` at 13:49Z | `demo/validation-guard-contacts@a412949`, merges the reverse obstacle guard (`527707a`) and the stall abort (`af5a9df`) | scripted safety tests (kit `sft`) | 5, after `demo/validation-guard-contacts`; wait for the job |
 | `fix/convoy-hold-queued-robots` (v7o) | `d85d1ed` (no own commit in the plan) | `demo/campaign-kits@4e5476b` | queued-robot hold, key `grounding_hold_queued_crossers` off | 5, item 4 as planned |
 | `fix/convoy-yielder-feasibility` (v7t, **in progress**) | `d85d1ed`, uncommitted changes in `command_grounder.py`, `swarm_orchestrator/models.py`, `orchestrator_node.py`, `reasoning_pipeline.py` and a new test | `fix/convoy-hold-queued-robots@d85d1ed` | convoy yielder-feasibility fix | 5, after the hold; not checkable until it commits |
 
-Tips that moved since the plan's snapshot: `feat/v4-per-cluster-parity` `f39bc8c` (plan `b534d17`), `feat/demo-panel-renderer` `d43028d` (`8069734`), `demo/campaign-kits` `4cacf55` before this addendum's commit (`41f1e13`), `fix/escort-obstacle-guard` `92158d3` (`72c08c8`, now also the reverse obstacle check), `docs/thesis` `7e589d8` (`90b03d9`, clean at 13:49Z).
+Tips that moved since the plan's snapshot: `feat/v4-per-cluster-parity` `f39bc8c` (plan `b534d17`), `feat/demo-panel-renderer` `d43028d` (`8069734`), `demo/campaign-kits` `4cacf55` before this addendum's commit (`41f1e13`), `fix/escort-obstacle-guard` `92158d3` (`72c08c8`, now also the reverse obstacle guard), `docs/thesis` `7e589d8` (`90b03d9`, clean at 13:49Z).
 
 [[PENDING: TIPS-1 — final tips of `test/safety-mechanisms-scripted` and `fix/convoy-yielder-feasibility`, and the merge-tree rows for them against `demo/campaign-kits`, `fix/plan-dispatch-mismatch-visibility` and `feat/v4-refusal-feedback` once committed]]
 
@@ -385,7 +385,7 @@ Each pair was run once, sequentially, with `git merge-tree --write-tree --name-o
 | **`fix/escort-obstacle-guard` + `fix/plan-dispatch-mismatch-visibility`** | **`ros2_ws/src/swarm_orchestrator/swarm_orchestrator/orchestrator_node.py`** | no | **new** |
 | `demo/validation-guard-contacts` + `fix/escort-obstacle-guard` | none | yes | — |
 | `demo/validation-guard-contacts` + `fix/m4-stall-abort` | none | no | — |
-| **`demo/validation-guard-contacts` + `fix/plan-dispatch-mismatch-visibility`** | **`orchestrator_node.py`** (carried in through the escort check) | no | new (same hunk as above) |
+| **`demo/validation-guard-contacts` + `fix/plan-dispatch-mismatch-visibility`** | **`orchestrator_node.py`** (carried in through the escort guard) | no | new (same hunk as above) |
 | **`test/safety-mechanisms-scripted` + `fix/plan-dispatch-mismatch-visibility`** | **`orchestrator_node.py`** | no | new (same hunk) |
 | `demo/campaign-kits` + `fix/plan-dispatch-mismatch-visibility` | none | no | — |
 | `demo/campaign-kits` + `analysis/failure-cause-classification` | none | yes | — |
@@ -412,11 +412,11 @@ Each pair was run once, sequentially, with `git merge-tree --write-tree --name-o
 
 **Real conflicts, summarised.**
 
-- New: `orchestrator_node.py` between the mismatch record and the escort obstacle check (and every branch that contains the check: validation take, scripted safety tests); `orchestrator_node.py` and `reasoning_pipeline.py` between the mismatch record and both v4 branches; `reasoning_pipeline.py` between the queued-robot hold and the parity branch.
+- New: `orchestrator_node.py` between the mismatch record and the escort obstacle guard (and every branch that contains the check: validation take, scripted safety tests); `orchestrator_node.py` and `reasoning_pipeline.py` between the mismatch record and both v4 branches; `reasoning_pipeline.py` between the queued-robot hold and the parity branch.
 - Inherited: the plan's four-file Stage 7 conflict between `feat/v4-refusal-feedback` and the demo line, now also seen through the hold and the scripted safety-test branch.
 - Trivial: `docs/implementation_notes.md` in most pairs (keep both sides' bullets, newest first, as in section 3).
 
-**A textually clean merge is not a verified one.** `reasoning/rag/command_grounder.py` merged without conflict in every pair checked (the escort and reverse checks, the hold, the mismatch record and the in-progress yielder fix all edit it), but each stage still needs the unit tests of every feature that touches it and a zero-delta full suite. The mismatch report (section 7) already notes that a kit carrying another branch's `command_grounder.py` must merge its one `"plan=overridden": None` entry by hand. Every kit md5 table in the reports (v7l §8.9, v7p §8, v7r §7) describes one branch's files and goes stale after any merge.
+**A textually clean merge is not a verified one.** `reasoning/rag/command_grounder.py` merged without conflict in every pair checked (the escort and reverse guards, the hold, the mismatch record and the in-progress yielder fix all edit it), but each stage still needs the unit tests of every feature that touches it and a zero-delta full suite. The mismatch report (section 7) already notes that a kit carrying another branch's `command_grounder.py` must merge its one `"plan=overridden": None` entry by hand. Every kit md5 table in the reports (v7l §8.9, v7p §8, v7r §7) describes one branch's files and goes stale after any merge.
 
 ### A.3 Order After the Addendum
 
@@ -427,4 +427,4 @@ Each pair was run once, sequentially, with `git merge-tree --write-tree --name-o
 
 ### A.4 Owner Rule for Safety Mechanisms
 
-New safety mechanisms stay **default-off**, and they are **enabled one at a time**: a first validation run does not enable a new mechanism together with other new mechanisms (owner requirement quoted in v7p `docs/reports/2026-11-15-m4-stall-abort.md`, Scope). This applies to the scoped clearing exemption, the escort and reverse obstacle checks, the stall abort, the queued-robot hold and the mismatch record. Obstacle-contact logging is the exception: it has no key (Q4 above). Merging a branch does not enable its key; every merge must keep the default-off value and the byte-identical key-off behaviour the branch's tests pin.
+New safety mechanisms stay **default-off**, and they are **enabled one at a time**: a first validation run does not enable a new mechanism together with other new mechanisms (owner requirement quoted in v7p `docs/reports/2026-11-15-m4-stall-abort.md`, Scope). This applies to the safety-exemption scope fix, the escort and reverse obstacle guards, the stall abort, the queued-robot hold and the mismatch record. Geometric contact logging is the exception: it has no key (Q4 above). Merging a branch does not enable its key; every merge must keep the default-off value and the byte-identical key-off behaviour the branch's tests pin.
