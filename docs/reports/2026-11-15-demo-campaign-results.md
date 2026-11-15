@@ -16,6 +16,7 @@
 - Rev 10 (2026-11-15): rendered the ER2LIVE panel video and combined video v3 with it as a new excerpt after the head-on take; the previous combined set is kept with a `_v2` suffix. Section 11.5 records the render, the frame-map validation and the hard-floor metric finding (the 0.20 m floor is on centre distance, not body gap); the Rev 9 decoder claim (0 of 3745 frames) did not reproduce. Updated section 9 and the final summary's video table.
 
 - Rev 11 (2026-11-15): added section 12, convoy takes 4–5 with the M3 queued-robot hold (both Unresolved failure: the model chose robot_1 as yielder both times, the latch the scene file names; the grounder held robot_3 and robot_4 as designed), and the simulator-only test (pytest installed beside Isaac's Python; the `pxr` test SKIPPED: no `pxr` in a bare `python.sh`). Updated the final summary's convoy rows, the three-way count and the archive index.
+- Rev 12 (2026-11-15): added section 13, a presentation cut of the five demo videos and a combined presentation video for an audience (offline, renderer profile `presentation`); the engineering cuts stay the record and are unchanged.
 ---
 
 ## Final Summary (Campaign Closed, 2026-11-15)
@@ -1057,3 +1058,83 @@ Nothing has been rendered (another agent owns the renderer).
 | Contact figures | verified (offline recompute, footprint model `urdf_footprint_v1`) |
 | The robot_2 variant would resolve live under the hold | not shown (did not occur; smoke n = 1 only) |
 | `pxr` importable only under Kit | inferred from the probe and the build path; not tested |
+
+---
+
+## 13. Presentation Cut of the Demo Videos (Added 2026-11-15, Rev 12)
+
+**Status.** An audience version of the same five takes, for judges and lecturers. Offline post-processing only: no VM and no API call; the bundles were read, never written. **The engineering cuts (sections 5.6, 6.5, 7.3, 8.5, 9 and 11.5) remain the record.** Re-hashed after this work, unchanged: `ibD_t05_a1_panel.mp4` `fdf07a82…`, `cvD_t01_a1_panel.mp4` `82431944…`, `hoD_t01_a1_panel.mp4` `2aa6534a…`, `m5D_t01_a1_panel.mp4` `33e9f5ee…`, `ER2LIVE_20260930_panel.mp4` `93cbfe71…`, `demo_campaign_combined.mp4` `de8cb6ed…`. Every take stays an illustrative demo, not controlled experimental evidence.
+
+**Renderer.** v7g `feat/demo-panel-renderer`, `render --profile presentation` (commits `bb37be0`, `7cae7b8`, `e8c609f`, `0e799d6`, `a4bbbce`, `575b396`, `74dfe63`). The default profile is unchanged: its transcripts for the five bundles regenerate equal to the stored ones, apart from the `time_map.method` wording that `0212306` changed earlier. Unit tests `test_demo_panel.py` and `test_demo_combine.py`: 108 passed (53 before); ruff clean. Method: v7g `docs/guides/demo_panel_video.md`, section "Presentation Profile". Every caption, card line and zoom crop: v7g `config/demo_presentation/<label>.json`.
+
+### 13.1 Files (v7g `data/demo/campaign/presentation/`, git-ignored)
+
+ffprobe (verified): all H.264, yuv420p, 24 fps. No `_small` copy was needed (all under 28 MB). Each video has its transcript, eight stills (intro, trigger, response, check, dispatch, mid, outcome, outro) and a `.md5` file beside it.
+
+| File | md5 | Size | Frames, duration |
+|---|---|---|---|
+| `ibD_t05_a1_presentation.mp4` | `8c09f71fa34b727b82d6757692df76d7` | 9.9 MB | 3152, 131.33 s |
+| `cvD_t01_a1_presentation.mp4` | `f96210bc7958884a49b8f17ca7bc287e` | 27.6 MB | 9095, 378.96 s |
+| `hoD_t01_a1_presentation.mp4` | `32176fba6aeb7411a0036da51baf34f1` | 5.6 MB | 2706, 112.75 s |
+| `m5D_t01_a1_presentation.mp4` | `f8e6da69a1dd97389a0acab3b9a76dd9` | 20.2 MB | 7007, 291.96 s |
+| `ER2LIVE_20260930_presentation.mp4` | `30e514a9eca0e03b80cd17d4732d1780` | 6.0 MB | 2677, 111.54 s |
+| `presentation_combined.mp4` (1920x1124) | `a48bd2d0db222056f4f9d1e994ee1ec7` | 23.3 MB | 9373, 390.54 s |
+
+Each video is a 13 s intro card, the full take uncut (same camera segments and frame maps as the engineering cuts) and a 10 s outro card.
+
+### 13.2 What Differs From the Engineering Cut
+
+- **Terminal, log lines.** The filter adds M5's `yield re-grounded|yield refused|refusal withheld` lines and ends in a displayed `sed -E` stage. The stage cuts the `[proc] [LEVEL] [epoch] [name_node]:` prefix to `name:` and keeps 8 of 32 hex characters per id. Safety-stop repeats are collapsed as before and drawn dim, not yellow. Decision and plan lines are bold yellow, check lines bold orange, and `action=` lines bold green.
+- **Terminal, decision block.** The block now prints:
+  - the model's plan (`plan: robot_3 reverse, robot_4 reverse, robot_1 yield, robot_2 cross`) and `crossing_order`. Without a plan channel it prints `yield_robot`. A nulled plan prints `plan: null`;
+  - the check verdict (`provenance=… reason=… dispatch_order_source=…`, or `{yield_robot_grounded_from[, dispatch_order_source]}`);
+  - the image input: `file -b frames/<id>.png`, the frame M5 dumped as the one the model sees, plus `image_tokens` where recorded.
+
+  It drops the prompt hash and length, `backend_id`, `total_tokens` and `degradations`. `dispatch_order=` (`dispatched_robot_ids`) is removed: it held the first phase's recipients and was filled for withheld decisions too. The `cost.log` poll lines are kept, dim.
+- **Timing.** The sim clock holds 7 s on the model's answer and 4 s on the check. The engineering cut held one 4 s pause per block.
+- **Outside the terminal.**
+  - A stage strip (Trigger, VLM request, VLM response, Check, Dispatch, Execution) driven by the log anchors in the guide.
+  - Plain-language header and captions, revealed at their anchor lines. A caption is never shown before its event, and the outcome line appears only at the last arrival (or the end for unresolved takes).
+  - A legend for verbatim terms.
+  - A zoom inset beside the camera: a 4:3 crop of the same frame, ×2.7 to ×4.0, labelled. Nothing is drawn on the camera image.
+  - Intro and outro cards: what was the model's and what was the system's.
+  - The kept wording: the disclosure, the outcome labels and takes, the intersection sentences (allowed actions, the back-out order, a default order computed offline in captions only, take 5 of 5), the five-robot escort-into-island line, and every ER2LIVE caveat (earlier run; model's yielder kept by the gate; escort and Nav2 recovery are the system's; predates the 0.20 m floor on centre distance and the safety-exemption fix; 0.264 m / 0.19 m). The retreat pick is not shown.
+
+### 13.3 Transcript Check Against the Engineering Cut (Verified)
+
+Log items were compared by source (`m5.log:N` / `m4.log:N`) with the stored engineering transcripts:
+
+| Take | Engineering log lines | Presentation | Added (all gate lines) | Removed | Order | Collapse markers |
+|---|---|---|---|---|---|---|
+| ib take 5 | 75 | 75 | 0 | 0 | same | 3 = 3, identical |
+| cv take 1 | 88 | 96 | 8 `yield refused` | 0 | same | 20 = 20 |
+| ho take 1 | 27 | 28 | 1 `yield re-grounded` | 0 | same | 2 = 2 |
+| m5 take 1 | 47 | 59 | 6 `yield refused` + 6 `refusal withheld` | 0 | same | 56 = 56 |
+| ER2LIVE | 23 | 23 | 0 | 0 | same | 1 = 1 |
+
+- Every shown line equals the `sed` stage applied to its source line (0 mismatches). The displayed commands, run for real on a fixture, give the displayed lines (unit tests).
+- The default back-out order appears in no intersection terminal line.
+- At all 58 clock holds, the decision, plan and check lines are on screen.
+- The terminal has 26 body rows at 20 px (about 99 columns).
+
+### 13.4 Combined Presentation Video
+
+Manifest `presentation_combined_manifest.json` (md5 `e2eb5c3b660e8d6ac8ebe4718b427fe1`), sidecar `presentation_combined_sources.json`, `--crf 26`. New combine mode `outcome_reveal: "after"`: title cards and the caption bar carry no outcome label. Three outcome cards follow the last excerpt of cv, ER2LIVE and m5. The ib and ho excerpts end 3 s after their own outcome line. Clip order follows v3, with excerpts:
+
+1. ib 35.8–116.4 s;
+2. cv 17.9–55.0 s;
+3. cv 339.8–368.9 s, then an outcome card;
+4. ho 46.0–97.6 s;
+5. ER2LIVE 17.8–52.5 s;
+6. ER2LIVE 92.3–97.3 s, then an outcome card;
+7. m5 19.6–99.0 s (decisions 1 and 2, with the escort into the island; v3's excerpts 5 and 5b are contiguous here);
+8. m5 241.8–281.9 s, then an outcome card.
+
+Each take's excerpts contain the call, the answer, the check, the dispatch (for m5's last excerpt, the withheld refusal) and the outcome. Total 6 min 31 s, about 30 s over the 6 min target: each shown decision now holds about 11 s.
+
+### 13.5 Known Limits
+
+- The five-robot bundle has an empty `frames/` directory. Its image input is shown only by `image_tokens` 1064.
+- The camera pane is blank after the last recorded frame (cv after sim 259.97 s, m5 after 600.23 s), as in the engineering cut.
+- The five-robot escort caption (kept wording) says the escort later timed out, about 55 sim-s before that happens.
+- The robot ids in the zoom are the perception overlay's own small red labels. They are legible at ×2.7–×4 but low in contrast.
