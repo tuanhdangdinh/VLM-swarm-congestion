@@ -16,7 +16,11 @@
   (2026-11-15).
 - **Evidence grade:**
   - Unit tests (geometry, scene boxes, logger, recompute tool).
-  - Parity with the static-map generator, run here.
+  - Parity with the static-map generator, run here. It is cell-level, on a
+    0.05 m grid: it proves the box set and placement to one cell, not to the
+    millimetre. Millimetre exactness rests on the shared `config.py` helpers
+    (`rack_quadrant_rects`, `rack_clearance_remnants`), the explicit wall and
+    barrier extent assertions, and the m5D regression (section 5.2).
   - Offline recompute over 44 recorded bundles, read-only.
   - **No Isaac Sim run.** A live validation run is still needed; it is not
     part of this work.
@@ -149,7 +153,7 @@ The existing field names and list shape are kept. Entries became objects:
   error fails before the sim loop rather than inside the runner's broad
   `except`.
 
-The spec (`docs/specs/module6_simulation.md` §7, Rev 6) now records this as
+The spec (`docs/specs/module6_simulation.md` §4.4, Rev 6) now records this as
 implemented. Its frozen model had declared robot-id tuples and id pairs,
 which were never implemented.
 
@@ -333,20 +337,24 @@ early or never brought robots together. That was not examined further here.
   - 266.6 s: 1 row, 4.8 mm;
   - 266.8–267.4 s: 7 rows, minimum 0.06 mm;
   - 268.1–600.0 s: 3320 rows, median 0.02 mm, maximum 0.1 mm.
-- The 8 rows outside 5 mm fall at 266.5–268.0 s, while the line-hold servo
-  turned the robot against the face.
+- The 8 rows outside 5 mm are 266.5 s (5.9 mm), 266.7 s (5.5 mm) and
+  267.5–268.0 s (8.1 to 13.45 mm). This is while the line-hold servo turned
+  the robot against the face, its heading swinging from −1.57 to −3.07 rad.
 - **Empirical noise floor:** while the robot is pressed against the face, the
   gap is at most 0.1 mm in the last event, and the 95th percentile over all
   in-contact rows is 0.06 mm. Isaac held the contact at essentially zero gap,
   so the 5 mm threshold is generous, not tight.
 
-**Regression against §8.7.2 (the ad hoc 5 mm-sampled recompute).** Every
-number reproduces:
+**Regression against §8.7.2 (the ad hoc 5 mm-sampled recompute).**
 
-- 4526 of 4534 rows from 146.7 s;
-- −0.2 mm minimum (−0.16 mm here);
-- the 8-row exception at 266.5–267.7 s;
-- robot_2 at 3.8 mm at 270.7–270.9 s.
+- Reproduced:
+  - 4526 of 4534 rows within 5 mm from 146.7 s;
+  - the −0.2 mm minimum (−0.16 mm here);
+  - 8 exception rows with a 13.5 mm maximum (13.45 mm here);
+  - robot_2 at 3.8 mm at 270.7–270.9 s (270.7–271.0 s here).
+- Differs: §8.7.2 dates the exception rows 266.5–267.7 s. Here they run to
+  268.0 s (rows 267.8–268.0 s at 13.45, 9.4 and 7.0 mm). The count and the
+  maximum agree, so the earlier span reads as approximate.
 
 The convoy minimum is 96.8 mm here, against §8.7.4's 0.097 m. The tranche-1
 minima are at least 7 mm except E30 Arm A (7.1 mm in E29 A), as §8.7.4 found.
@@ -377,6 +385,12 @@ Why not contact:
   the turn rate does not change, and the heading does not square up.
 - But both are inside the 5 mm threshold and within the URDF-vs-USD collider
   uncertainty. A real touch cannot be ruled out either.
+- Scale: both sit inside the 5 mm model-fidelity threshold, but 10× (0.97 mm)
+  and 38× (3.8 mm) above the pressed-contact floor of at most 0.1 mm measured
+  in section 5.2.
+- The threshold was set in code before the recompute ran. The brief had
+  already given the approximate graze values (about 1.2 mm and 3.8 mm), so
+  this is not a blind choice.
 
 E30 Arm B passed the same corner at a 10.0 mm minimum (47.8–47.9 s).
 
@@ -414,8 +428,17 @@ E30 Arm B passed the same corner at a 10.0 mm minimum (47.8–47.9 s).
   has not been run.
 - Bundles do not record `WarehouseConfig`. Both builders and this module use
   its defaults, which equal `isaac/config/warehouse.yaml`.
-- `robot_visual_no_marker` props are not modelled. None of the recomputed
-  bundles has timed obstacles.
+- `robot_visual_no_marker` props are not modelled. A computed empty list in
+  a scene with such a prop (blocked-path scenes) says nothing about contact
+  with it. None of the recomputed bundles has timed obstacles.
+- **No real-data positive control for robot–robot.** The static path is
+  anchored by m5D. The robot–robot path is tested only on synthetic poses:
+  nose to nose at 0.076 m, and side by side. "No robot–robot footprint
+  contact in any bundle" has not been checked against a recorded robot–robot
+  contact. Candidates are the 2026-09-25 G4/K1 wedge bundles, or the IB10
+  lead-flip bundle with a 0.084 m centre distance; neither was among the
+  bundles run here.
+- The map-generator parity is cell-level (0.05 m); see Scope.
 - **Not validated in Isaac Sim.** A live run is needed to confirm that
   logged entries appear when a robot is pinned, and that the per-row cost
   does not slow the sim loop measurably. Offline, about 6000 rows of a

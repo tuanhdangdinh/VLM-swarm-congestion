@@ -17,7 +17,7 @@
   `docs/superpowers/specs/2026-09-18-head-on-asymmetric-family-design.md`.
   Hardware verification: `docs/reports/2026-09-18-head-on-family-validity.md`.
 - Rev 5 (2026-09-27): FR6.6.8 unchanged, but the implementation now conforms: the camera image and camera_info helpers switched from system time to simulation time (`useSystemTime=False`).
-- Rev 6 (2026-11-15): §7 ground-truth contact fields are now computed (URDF footprint geometry, `isaac/vgu_sim/contact_geometry.py`) instead of the literal `[]` stub; entries carry ids and a signed gap, and rows gain `min_static_gap_m`, `min_robot_robot_gap_m` and `contact_model`. Report: `docs/reports/2026-11-15-gt-contact-logging.md`.
+- Rev 6 (2026-11-15): §4.4 ground-truth contact fields are now computed (URDF footprint geometry, `isaac/vgu_sim/contact_geometry.py`) instead of the literal `[]` stub; entries carry ids and a signed gap, and rows gain `min_static_gap_m`, `min_robot_robot_gap_m` and `contact_model`. Report: `docs/reports/2026-11-15-gt-contact-logging.md`.
 
 ---
 
@@ -815,6 +815,11 @@ The gap is measured between the TurtleBot3 Burger URDF collision shapes at the
 logged `base_link` pose and the authored boxes; negative is overlap. It is a
 geometric proximity measure, not a physics contact report. The lists stay
 lists, so the Section 9.4 "non-empty fails" reading is unchanged.
+
+**Not covered:** `robot_visual_no_marker` timed props (the robot meshes
+scaled 1.82, used in blocked-path scenes) are not boxes and are not checked,
+so an empty list in a scene that has one says nothing about contact with it.
+The floor is excluded by design.
 `conflict_active` records whether the scenario's conflict oracle held at that
 timestamp.
 
