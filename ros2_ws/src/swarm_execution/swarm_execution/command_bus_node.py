@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import time
+from pathlib import Path
 from typing import NamedTuple
 
 try:
@@ -25,6 +26,13 @@ from swarm_execution.nav2_adapter import (
     backup_deadline_sec,
     backup_line_turn,
     sidestep_deadline_sec,
+)
+from swarm_execution.stall_abort import (
+    STALL_ABORT_DETAIL_PREFIX,
+    StallAbortConfig,
+    StallWatch,
+    config_from_safety,
+    startup_suffix,
 )
 from swarm_execution.yield_phase import HOLD_STARTED_DETAIL, PULL_OFF_DETAIL
 
@@ -74,6 +82,15 @@ class CommandBusNode(Node):
         # carries `fresh_latch_fast_fail`, so a node that never sees the key
         # never subscribes to /safety/holds.
         self._fresh_latch: FreshLatchWatch | None = None
+        # Stall abort (report 2026-11-15-m4-stall-abort.md), default off. With
+        # the key on, the bus also follows /safety/holds: a held robot's
+        # wheels get zero from the Isaac relay whatever the primitive
+        # publishes, so the detector must see zero too.
+        self._stall_config = load_stall_abort_config(self)
+        self._held: frozenset[str] = frozenset()
+        self._holds_sub = None
+        if self._stall_config.enabled:
+            self._ensure_holds_subscription()
         self._status_pub = self.create_publisher(CoordinationStatus, "/coordination/status", 10)
         self.create_subscription(
             CoordinationCommand,
@@ -82,14 +99,47 @@ class CommandBusNode(Node):
             10,
         )
         self.create_timer(self.NAV_WATCHDOG_SWEEP_PERIOD_SEC, self._sweep_nav_watchdogs)
-        self.get_logger().info("Command bus started.")
+        self.get_logger().info("Command bus started." + startup_suffix(self._stall_config))
 
     def _fresh_latch_watch(self) -> FreshLatchWatch:
         """The B3 holds tracker, subscribing to /safety/holds on first use."""
         if getattr(self, "_fresh_latch", None) is None:
             self._fresh_latch = FreshLatchWatch()
-            self.create_subscription(String, "/safety/holds", self._on_safety_holds, 10)
+            self._ensure_holds_subscription()
         return self._fresh_latch
+
+    def _ensure_holds_subscription(self) -> None:
+        """Subscribe to /safety/holds once, for B3 and the stall abort alike."""
+        if getattr(self, "_holds_sub", None) is None:
+            self._holds_sub = self.create_subscription(
+                String, "/safety/holds", self._on_safety_holds, 10
+            )
+
+    def _stall_kwargs(self, robot_id: str, command_id: str, primitive: str) -> dict:
+        """`stall_watch=` for one raw-cmd_vel primitive, or {} with the key off.
+
+        Args:
+            robot_id: The robot the primitive drives.
+            command_id: The coordination command it executes.
+            primitive: `backup`, `pull_off` or `escort` (log line field).
+
+        Returns:
+            `{}` when the stall abort is off, so every adapter call is the
+            key-off call; else `{"stall_watch": StallWatch(...)}`.
+        """
+        config = getattr(self, "_stall_config", None)
+        if config is None or not config.enabled:
+            return {}
+        return {
+            "stall_watch": StallWatch(
+                config,
+                robot_id=robot_id,
+                command_id=command_id,
+                primitive=primitive,
+                is_held=lambda: robot_id in getattr(self, "_held", frozenset()),
+                log=self.get_logger().warning,
+            )
+        }
 
     def _on_safety_holds(self, msg) -> None:
         try:
@@ -97,6 +147,8 @@ class CommandBusNode(Node):
         except (ValueError, TypeError, AttributeError) as exc:
             self.get_logger().warning(f"safety/holds parse failed: {exc}")
             return
+        if isinstance(held, list):
+            self._held = frozenset(r for r in held if isinstance(r, str))
         watch = getattr(self, "_fresh_latch", None)
         if watch is not None:
             watch.on_holds(held, time.monotonic())
@@ -382,6 +434,13 @@ class CommandBusNode(Node):
                     if passer.escort_m is not None:
                         def on_escort(status: str, detail: str, rid=passer.robot_id) -> None:
                             self.get_logger().info(f"escort {rid}: {status} {detail}")
+                            if status == "FAILED" and detail.startswith(
+                                STALL_ABORT_DETAIL_PREFIX
+                            ):
+                                # The escort has no status of its own: the
+                                # passer's linked wait carries the abort to
+                                # M5 instead of later reading COMPLETED.
+                                self._fail_wait(command.command_id, rid, detail)
 
                         turn_rad = passer.escort_turn_rad
                         if turn_rad is None:
@@ -393,6 +452,9 @@ class CommandBusNode(Node):
                                 target_yaw_rad=0.0,
                                 distance_m=float(passer.escort_m),
                                 on_result=on_escort,
+                                **self._stall_kwargs(
+                                    passer.robot_id, command.command_id, "escort"
+                                ),
                             )
                         else:
                             # prereg-v3 A11(iii): in S1 task streams the goal is
@@ -405,6 +467,9 @@ class CommandBusNode(Node):
                                 distance_m=float(passer.escort_m),
                                 on_result=on_escort,
                                 relative_to_start=True,
+                                **self._stall_kwargs(
+                                    passer.robot_id, command.command_id, "escort"
+                                ),
                             )
                     elif chain.is_multi_passer:
                         self._release_wait(command.command_id, passer.robot_id, release_detail)
@@ -476,6 +541,7 @@ class CommandBusNode(Node):
                         float(pull_off_lateral),
                         on_result=_on_pull_off_result,
                         **_abort_kwargs("pull_off"),
+                        **self._stall_kwargs(robot_id, command.command_id, "pull_off"),
                     )
                     return
                 if _hold_sec <= 0.0:
@@ -503,10 +569,15 @@ class CommandBusNode(Node):
                     hold_start_line=True,
                     **line_kwargs,
                     **_abort_kwargs("backup"),
+                    **self._stall_kwargs(robot_id, msg.command_id, "backup"),
                 )
             else:
                 self._adapter.backup(
-                    robot_id, distance_m, on_result=_on_backup_result, **_abort_kwargs("backup")
+                    robot_id,
+                    distance_m,
+                    on_result=_on_backup_result,
+                    **_abort_kwargs("backup"),
+                    **self._stall_kwargs(robot_id, msg.command_id, "backup"),
                 )
             return True
         if action in {"wait", "temporary_wait", "stop"}:
@@ -669,6 +740,26 @@ class CommandBusNode(Node):
             self.destroy_timer(timer)
         self._publish_status(wait.command, "COMPLETED", detail)
 
+    def _fail_wait(self, command_id: str, robot_id: str, detail: str) -> None:
+        """End one still-active linked wait FAILED with `detail` (stall abort).
+
+        Only an escort stall abort calls this: the escorted passer's wait is
+        its only status channel to M5. No-op when the wait already ended.
+
+        Args:
+            command_id: Command identifier shared by the yield and the wait.
+            robot_id: The escorted passer.
+            detail: The `stall_abort: ...` detail.
+        """
+        wait = self._active_waits.pop((command_id, robot_id), None)
+        if wait is None:
+            return
+        timer = wait.timer_ref.get("timer")
+        if timer is not None:
+            timer.cancel()
+            self.destroy_timer(timer)
+        self._publish_status(wait.command, "FAILED", detail)
+
     def _update_in_flight_registry(self, robot_id: str, command_id: str, status: str) -> None:
         """Keep `_in_flight` in sync with the status that is about to publish.
 
@@ -719,6 +810,36 @@ class CommandBusNode(Node):
             self.destroy_timer(timer)
             self._status_republish_timers.remove(timer)
         return super().destroy_node()
+
+
+def load_stall_abort_config(node: Node) -> StallAbortConfig:
+    """Read `safety.stall_abort` from the installed M4 safety file.
+
+    The same `config/safety.yaml` the safety monitor reads; the base file has
+    no `stall_abort` block, so it stays off unless a kit merges
+    `config/safety/stall_abort.fragment.yaml`. Kits assert the key from the
+    command bus startup line, not from the yaml.
+
+    Args:
+        node: The node, for the warning on an unreadable file.
+
+    Returns:
+        The config; off when the file cannot be read.
+
+    Raises:
+        pydantic.ValidationError: If the block is enabled with an invalid
+            parameter.
+    """
+    try:
+        import yaml
+        from ament_index_python.packages import get_package_share_directory
+
+        share = get_package_share_directory("swarm_execution")
+        data = yaml.safe_load((Path(share) / "config" / "safety.yaml").read_text())["safety"]
+    except Exception as exc:  # noqa: BLE001 - off is the documented default
+        node.get_logger().warning(f"stall_abort config unreadable ({exc}); stall abort off")
+        return StallAbortConfig()
+    return config_from_safety(data)
 
 
 def main(args=None):
