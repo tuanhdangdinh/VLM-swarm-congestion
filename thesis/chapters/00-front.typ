@@ -7,8 +7,6 @@
 #[
   #set par(first-line-indent: 0pt)
 
-  #v(1cm)
-
   #align(center)[
     #heading(numbering: none, outlined: false)[Acknowledgements]
   ]
