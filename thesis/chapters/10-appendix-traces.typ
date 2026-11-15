@@ -13,7 +13,7 @@ This appendix gives the full decision trace of intersection take 5, the further 
   vlm-flow-figure(),
   kind: image,
   placement: auto,
-  caption: flex-caption([Decision flow of one live take, annotated with its real output.], [Decision flow of one live run, annotated with its real output (four-robot intersection, demonstration take 5 of 5, selected as the only take labelled VLM-driven execution); text is copied from the run and trimmed (…). Only the back-out order was the model's, a near-tie: back-out costs 0.981 m (`robot_3`) and 0.971 m (`robot_4`) differ by 0.010 m, within the verifier's 0.15 m tolerance; the distances in the back-out phases are commanded distances, and the reason for the difference was not established. The bottom strip is from a different take (two-robot head-on corridor with obstacle, decision 2, n = 1), in which the feasibility gate replaced the model's yielder. Safety rested on robot-pair distance only: the execution and safety monitor (M4) has no obstacle check, no stage checked escort or back-out paths against obstacles, and the scene declares no static obstacles to the grounder (M3) #ev("6.43") #ev("6.13"). Illustrative, not controlled evidence.#fig-source("6.01")]),
+  caption: flex-caption([Decision flow of one live take, annotated with its real output.], [Decision flow of one live run, annotated with its real output (four-robot intersection, demonstration take 5 of 5, selected as the only take labelled VLM-driven execution); text is copied from the run and trimmed (…). Only the back-out order was the model's, a near-tie: back-out costs 0.981 m (`robot_3`) and 0.971 m (`robot_4`) differ by 0.010 m, within the verifier's 0.15 m tolerance; the distances in the back-out phases are commanded distances, and the reason for the difference was not established. The bottom strip is from a different take (two-robot head-on corridor with obstacle, decision 2, n = 1), in which the feasibility gate replaced the model's yielder. Safety rested on robot-pair centre distance: the execution and safety monitor (M4) has no obstacle check, no stage checked escort or back-out paths against obstacles, and the scene declares no static obstacles to the grounder (M3)#ev("6.43")#ev("6.13"). Illustrative, not controlled evidence.#fig-source("6.01")]),
 ) <fig:app-flow-take5>
 
 == Further Demonstration Stills <sec:app-stills>
@@ -72,7 +72,7 @@ The stills below complete the demonstration takes of @sec:res-demo and the earli
 
 == Demonstration Videos <sec:app-videos>
 
-The demonstration videos are kept outside the repository, on one of the authors' machines; each is identified by its file name and md5 (@tab:app-videos). Each video is an illustrative demo, not controlled evidence. The panel videos show the annotated camera stream beside the run's own log lines, as in @fig:ch6-demo-panel #ev("6.01").
+The demonstration videos are kept outside the repository, on one of the authors' machines; each is identified by its file name and md5 (@tab:app-videos). Each video is an illustrative demo, not controlled evidence. The panel videos show the annotated camera stream beside the run's own log lines, as in @fig:ch6-demo-panel#ev("6.01").
 
 #[
 #show raw: set text(size: 7pt)

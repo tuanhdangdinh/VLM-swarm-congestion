@@ -4,11 +4,11 @@
 
 #show raw.where(block: true): set text(size: 7.5pt)
 
-This appendix records the communication setup of the physical demonstration (@sec:impl-physical) so that it can be reproduced. The values are as recorded in the team's testbed notes of 15 November 2026, which describe the 12 November 2026 runs and are not in the repository #ev("4.41"). The laptop's IP address is replaced by the placeholder `<CURRENT_HOST_IP>`, and in the client configuration `N` stands for the robot number (2 to 5).
+This appendix records the communication setup of the physical demonstration (@sec:impl-physical) so that it can be reproduced. The values are as recorded in the team's testbed notes of 15 November 2026, which describe the 12 November 2026 runs and are not in the repository#ev("4.41"). The laptop's IP address is replaced by the placeholder `<CURRENT_HOST_IP>`, and in the client configuration `N` stands for the robot number (2 to 5).
 
 == Zenoh Router on the Laptop <sec:app-physical-router>
 
-The laptop runs one bridge in router mode, configured by the file `zenoh_host_tb25.json5`. It forwards the four velocity-command topics to the robots and receives the four odometry topics; every pattern is anchored with `^` and `$`. The two allowlist arrays are wrapped over several lines here; the entries are unchanged #ev("4.41").
+The laptop runs one bridge in router mode, configured by the file `zenoh_host_tb25.json5`. It forwards the four velocity-command topics to the robots and receives the four odometry topics; every pattern is anchored with `^` and `$`. The two allowlist arrays are wrapped over several lines here; the entries are unchanged#ev("4.41").
 
 ```json5
 {
@@ -39,7 +39,7 @@ The laptop runs one bridge in router mode, configured by the file `zenoh_host_tb
 
 == Zenoh Client on Each Robot <sec:app-physical-client>
 
-Each robot runs one client bridge from `$HOME/zenoh_config.json5`, which allows only that robot's own two topics (@tab:app-physical-routing) #ev("4.41").
+Each robot runs one client bridge from `$HOME/zenoh_config.json5`, which allows only that robot's own two topics (@tab:app-physical-routing)#ev("4.41").
 
 ```json5
 {
@@ -79,7 +79,7 @@ Each robot runs one client bridge from `$HOME/zenoh_config.json5`, which allows 
 
 == Bring-Up and Validation Commands <sec:app-physical-commands>
 
-The commands below start the router, bring up each robot with its client bridge, and check communication before execution #ev("4.41").
+The commands below start the router, bring up each robot with its client bridge, and check communication before execution#ev("4.41").
 
 ```bash
 # all machines
@@ -103,7 +103,7 @@ for id in 2 3 4 5; do
 done
 ```
 
-The team's procedure required, for each robot, before execution #ev("4.41"):
+The team's procedure required, for each robot, before execution#ev("4.41"):
 
 - odometry (`/tb3_N/odom`) arrives continuously on the laptop;
 - the velocity-command topic (`/tb3_N/cmd_vel`) has a subscriber on the robot;
@@ -111,4 +111,4 @@ The team's procedure required, for each robot, before execution #ev("4.41"):
 - exactly one client bridge runs on the robot and one router on the laptop;
 - node names are unique.
 
-Only one router may listen on port 7447: a second router, or a bridge connecting to the same endpoint, causes `CONNECTION_TO_SELF`, duplicate routes or multiple ROS 2 publishers #ev("4.41").
+Only one router may listen on port 7447: a second router, or a bridge connecting to the same endpoint, causes `CONNECTION_TO_SELF`, duplicate routes or multiple ROS 2 publishers#ev("4.41").

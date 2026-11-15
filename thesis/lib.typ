@@ -31,12 +31,12 @@
 // Caption with a short form for the List of Figures/Tables and the full form under the figure.
 #let flex-caption(short, long) = context if in-outline.get() { short } else { long }
 
-// Evidence tags stay in the source (every number keeps its Evidence Index id, checked by check.sh) but are not printed;
-// set show-evidence-tags to true to print them again. A hidden tag is a weak space, so it also swallows the space before it.
+// Evidence tags stay in the source (every number keeps its Evidence Index id, checked by check.sh) but are not printed.
+// Tags are written glued to the preceding word (`word#ev("6.02")`); when shown, ev() adds its own leading space.
 #let show-evidence-tags = false
-#let ev(id) = context if in-outline.get() { none } else if not show-evidence-tags { h(0pt, weak: true) } else {
+#let ev(id) = context if in-outline.get() or not show-evidence-tags { none } else {
   let l = label("ev:" + id)
-  if query(l).len() > 0 { link(l)[\[#id\]] } else [\[#id\]]
+  if query(l).len() > 0 [ #link(l)[\[#id\]]] else [ \[#id\]]
 }
 
 #let ev-cols = (14mm, 1fr, 1fr)
