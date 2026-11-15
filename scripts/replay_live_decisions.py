@@ -482,6 +482,8 @@ def _apparatus_kwargs(artifact: Artifact, image_path: Path) -> dict[str, Any]:
         kwargs["plan_grammar_rules"] = True
     if conditions.get("plan_grammar_release_rule"):
         kwargs["plan_grammar_release_rule"] = True
+    if conditions.get("held_robot_ids") is not None:
+        kwargs["held_robot_ids"] = list(conditions["held_robot_ids"])
     return kwargs
 
 
