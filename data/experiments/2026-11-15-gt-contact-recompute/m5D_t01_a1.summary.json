@@ -1,0 +1,189 @@
+{
+ "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7j/data/logs/vm_runs/demo_campaign/m5/runs/m5D_t01_a1",
+ "category_min_gap_within_near_cutoff": {
+  "rack": {
+   "min_gap_m": 0.01981,
+   "obstacle_id": "rack/SW_west",
+   "robot_id": "robot_1",
+   "sim_s": 78.5
+  },
+  "static_obstacle": {
+   "min_gap_m": -0.00016,
+   "obstacle_id": "obstacle_2",
+   "robot_id": "robot_3",
+   "sim_s": 191.4
+  }
+ },
+ "contact_model": "urdf_footprint_v1",
+ "declared_static_obstacles": [
+  "obstacle_1",
+  "obstacle_2"
+ ],
+ "family": "bottleneck",
+ "ground_truth": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7j/data/logs/vm_runs/demo_campaign/m5/runs/m5D_t01_a1/gt/ground_truth.jsonl",
+ "logged_rows_nonempty": {
+  "robot_robot_contacts": 0,
+  "robot_static_contacts": 0
+ },
+ "logged_rows_with_contact_model": 0,
+ "min_robot_robot_gap": {
+  "min_gap_m": 0.08499,
+  "robot_ids": [
+   "robot_1",
+   "robot_4"
+  ],
+  "sim_s": 42.6
+ },
+ "n_boxes": 14,
+ "n_rows": 6001,
+ "near_cutoff_m": 0.02,
+ "robot_min_static_gap": {
+  "robot_1": {
+   "category": "rack",
+   "min_gap_m": 0.01981,
+   "obstacle_id": "rack/SW_west",
+   "sim_s": 78.5
+  },
+  "robot_2": {
+   "category": "static_obstacle",
+   "min_gap_m": 0.00379,
+   "obstacle_id": "obstacle_2",
+   "sim_s": 270.8
+  },
+  "robot_3": {
+   "category": "static_obstacle",
+   "min_gap_m": -0.00016,
+   "obstacle_id": "obstacle_2",
+   "sim_s": 191.4
+  },
+  "robot_4": {
+   "category": "rack",
+   "min_gap_m": 0.04873,
+   "obstacle_id": "rack/SW_west",
+   "sim_s": 100.5
+  },
+  "robot_5": {
+   "category": "static_obstacle",
+   "min_gap_m": 0.03036,
+   "obstacle_id": "obstacle_1",
+   "sim_s": 201.2
+  }
+ },
+ "robot_pairs": {},
+ "robot_robot_verdict": "clear",
+ "row_dt_s": 0.1,
+ "scenario": "mapd_5_s1b_seed21",
+ "sim_span_s": [
+  0.0333,
+  600.0
+ ],
+ "static_pairs": {
+  "robot_2|obstacle_2": {
+   "category": "static_obstacle",
+   "events": [
+    {
+     "class": "brief_graze",
+     "end_sim_s": 271.0,
+     "max_gap_m": 0.00446,
+     "max_speed_mps": 0.1653,
+     "median_gap_m": 0.00412,
+     "min_gap_m": 0.00379,
+     "min_gap_sim_s": 270.8,
+     "n_rows": 4,
+     "row_resolution_m": 0.0165,
+     "span_s": 0.4,
+     "speed_at_min_mps": 0.1543,
+     "start_sim_s": 270.7
+    }
+   ],
+   "first_sim_s": 270.7,
+   "gap_p50_m": 0.00412,
+   "gap_p95_m": 0.00422,
+   "last_sim_s": 271.0,
+   "longest_span_s": 0.4,
+   "min_gap_m": 0.00379,
+   "n_events": 1,
+   "obstacle_id": "obstacle_2",
+   "robot_id": "robot_2",
+   "rows_in_contact": 4,
+   "verdict": "brief_graze"
+  },
+  "robot_3|obstacle_2": {
+   "category": "static_obstacle",
+   "events": [
+    {
+     "class": "sustained_contact",
+     "end_sim_s": 266.4,
+     "max_gap_m": 0.00366,
+     "max_speed_mps": 0.0895,
+     "median_gap_m": -0.0,
+     "min_gap_m": -0.00016,
+     "min_gap_sim_s": 191.4,
+     "n_rows": 1198,
+     "row_resolution_m": 0.009,
+     "span_s": 119.8,
+     "speed_at_min_mps": 0.0004,
+     "start_sim_s": 146.7
+    },
+    {
+     "class": "brief_graze",
+     "end_sim_s": 266.6,
+     "max_gap_m": 0.00483,
+     "max_speed_mps": 0.0006,
+     "median_gap_m": 0.00483,
+     "min_gap_m": 0.00483,
+     "min_gap_sim_s": 266.6,
+     "n_rows": 1,
+     "row_resolution_m": 0.0001,
+     "span_s": 0.1,
+     "speed_at_min_mps": 0.0006,
+     "start_sim_s": 266.6
+    },
+    {
+     "class": "brief_graze",
+     "end_sim_s": 267.4,
+     "max_gap_m": 0.00409,
+     "max_speed_mps": 0.0136,
+     "median_gap_m": 0.00031,
+     "min_gap_m": 6e-05,
+     "min_gap_sim_s": 267.0,
+     "n_rows": 7,
+     "row_resolution_m": 0.0014,
+     "span_s": 0.7,
+     "speed_at_min_mps": 0.0084,
+     "start_sim_s": 266.8
+    },
+    {
+     "class": "sustained_contact",
+     "end_sim_s": 600.0,
+     "max_gap_m": 0.0001,
+     "max_speed_mps": 0.0519,
+     "median_gap_m": 2e-05,
+     "min_gap_m": -4e-05,
+     "min_gap_sim_s": 405.8,
+     "n_rows": 3320,
+     "row_resolution_m": 0.0052,
+     "span_s": 332.0,
+     "speed_at_min_mps": 0.0,
+     "start_sim_s": 268.1
+    }
+   ],
+   "first_sim_s": 146.7,
+   "gap_p50_m": -0.0,
+   "gap_p95_m": 6e-05,
+   "last_sim_s": 600.0,
+   "longest_span_s": 332.0,
+   "min_gap_m": -0.00016,
+   "n_events": 4,
+   "obstacle_id": "obstacle_2",
+   "robot_id": "robot_3",
+   "rows_in_contact": 4526,
+   "verdict": "sustained_contact"
+  }
+ },
+ "static_verdict": "sustained_contact",
+ "sustained_min_sec": 1.0,
+ "threshold_m": 0.005,
+ "timed_obstacles": [],
+ "unmodelled_obstacles": []
+}

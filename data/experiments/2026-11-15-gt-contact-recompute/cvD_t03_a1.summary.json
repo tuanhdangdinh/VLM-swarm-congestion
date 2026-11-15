@@ -1,0 +1,64 @@
+{
+ "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7j/data/logs/vm_runs/demo_campaign/cv/runs/cvD_t03_a1",
+ "category_min_gap_within_near_cutoff": {},
+ "contact_model": "urdf_footprint_v1",
+ "declared_static_obstacles": [],
+ "family": "convoy",
+ "ground_truth": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7j/data/logs/vm_runs/demo_campaign/cv/runs/cvD_t03_a1/gt/ground_truth.jsonl",
+ "logged_rows_nonempty": {
+  "robot_robot_contacts": 0,
+  "robot_static_contacts": 0
+ },
+ "logged_rows_with_contact_model": 0,
+ "min_robot_robot_gap": {
+  "min_gap_m": 0.1901,
+  "robot_ids": [
+   "robot_1",
+   "robot_2"
+  ],
+  "sim_s": 26.1
+ },
+ "n_boxes": 10,
+ "n_rows": 2601,
+ "near_cutoff_m": 0.02,
+ "robot_min_static_gap": {
+  "robot_1": {
+   "category": "aisle_barrier",
+   "min_gap_m": 0.15083,
+   "obstacle_id": "aisle_barrier/south",
+   "sim_s": 26.1
+  },
+  "robot_2": {
+   "category": "rack",
+   "min_gap_m": 0.12558,
+   "obstacle_id": "rack/SE",
+   "sim_s": 53.6
+  },
+  "robot_3": {
+   "category": "aisle_barrier",
+   "min_gap_m": 0.11574,
+   "obstacle_id": "aisle_barrier/north",
+   "sim_s": 68.3
+  },
+  "robot_4": {
+   "category": "aisle_barrier",
+   "min_gap_m": 0.09676,
+   "obstacle_id": "aisle_barrier/north",
+   "sim_s": 65.5
+  }
+ },
+ "robot_pairs": {},
+ "robot_robot_verdict": "clear",
+ "row_dt_s": 0.1,
+ "scenario": "convoy_counterflow_slip",
+ "sim_span_s": [
+  0.0333,
+  260.0
+ ],
+ "static_pairs": {},
+ "static_verdict": "clear",
+ "sustained_min_sec": 1.0,
+ "threshold_m": 0.005,
+ "timed_obstacles": [],
+ "unmodelled_obstacles": []
+}
