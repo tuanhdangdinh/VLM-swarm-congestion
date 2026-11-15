@@ -385,8 +385,8 @@ Each pair was run once, sequentially, with `git merge-tree --write-tree --name-o
 | **`fix/escort-obstacle-guard` + `fix/plan-dispatch-mismatch-visibility`** | **`ros2_ws/src/swarm_orchestrator/swarm_orchestrator/orchestrator_node.py`** | no | **new** |
 | `demo/validation-guard-contacts` + `fix/escort-obstacle-guard` | none | yes | — |
 | `demo/validation-guard-contacts` + `fix/m4-stall-abort` | none | no | — |
-| **`demo/validation-guard-contacts` + `fix/plan-dispatch-mismatch-visibility`** | **`orchestrator_node.py`** (carried in through the escort guard) | no | new (same hunk as above) |
-| **`test/safety-mechanisms-scripted` + `fix/plan-dispatch-mismatch-visibility`** | **`orchestrator_node.py`** | no | new (same hunk) |
+| **`demo/validation-guard-contacts` + `fix/plan-dispatch-mismatch-visibility`** | **`orchestrator_node.py`** (both contain the escort guard) | no | new (same file as above; hunks not inspected) |
+| **`test/safety-mechanisms-scripted` + `fix/plan-dispatch-mismatch-visibility`** | **`orchestrator_node.py`** | no | new (same file; hunks not inspected) |
 | `demo/campaign-kits` + `fix/plan-dispatch-mismatch-visibility` | none | no | — |
 | `demo/campaign-kits` + `analysis/failure-cause-classification` | none | yes | — |
 | `demo/campaign-kits` + `fix/convoy-hold-queued-robots` | none | yes | — |
