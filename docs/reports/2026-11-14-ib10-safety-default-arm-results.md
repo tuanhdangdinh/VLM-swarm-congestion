@@ -17,7 +17,7 @@ Ground truth's two contact lists, `robot_static_contacts` and `robot_robot_conta
 - **What the statements rested on.** The scorer (`data/logs/vm_runs/ib10_safety/kit/score_ibs.py`, lines 16, 49 and 188) defines `gt_contact` as GT minimum pairwise centre distance < 0.18 m, "never the GT contacts field". This report's own recompute is the same distance count. In this report, "contact frames" means GT frames with a robot pair closer than 0.18 m. Those statements stand.
 - **Affected statements.** The parenthesis "the GT contact lists are also empty in all 10" (Per-episode table notes), "0 GT contact entries" (Re-run section, Safety), the "GT contacts" label in the two pooled tables, and the unqualified "0 contacts" (e02 chain, step 5) and "no contact" (Interpretation). Each is now scoped in place and marked "(corrected 2026-11-15, see erratum)".
 - **What remains supported.** Robot-robot only, by distance: 0 GT frames with a pair closer than 0.18 m in all 10 episodes and in e02 a2. The lowest pair is 0.3008 m in Arm A (e01), 0.2965 m in Arm C (e10) and 0.3060 m in e02 a2; e02 a1 never came below 2.0136 m. 0 floor stops. Every verdict and number is unchanged.
-- **Static obstacles.** IB10 declares no static obstacles (`intersection_bottleneck.yaml` has no `static_obstacles`; "No obstacles"), so the gap is not material in the way it is for the S1b rack-island scenes. Contact with the warehouse rack blocks and walls that bound the aisles is not logged either and was not checked (inferred to be absent from the aisle-centreline lanes, not measured).
+- **Static obstacles.** IB10 declares no static obstacles (`intersection_bottleneck.yaml` has no `static_obstacles`; "No obstacles"), so the gap is not material in the way it is for the S1b rack-island scenes. Contact with the warehouse rack blocks and walls that bound the aisles is not logged either and was not checked.
 
 ---
 
@@ -71,7 +71,7 @@ All 10 slots, in registered order. "Onset" is the formed-jam onset (copied from 
 | e09 | A | 18.7 / 29.3 | 32.2 (`repaired`) | 4/4 | yes | 116.7 | 0.3365 r1+r3 @29.4 | 0.0074 |
 | e10 | C | 17.7 / 27.9 | 34.1 (`m3_default`) | 4/4 | yes | 118.6 | 0.2965 r2+r3 @27.9 | 0 |
 
-Every valid episode had 0 floor stops and 0 GT frames with any robot pair closer than 0.18 m (verified over all frames and all six pairs; robot-robot only. The GT contact lists are hard-coded empty and are not evidence; IB10 declares no static obstacles. Corrected 2026-11-15, see erratum). In nine of ten episodes the closest approach is the jam pose at formation, before any dispatch. In e01 the minimum (0.3008 m, r3+r4 at 109.6 s) occurs during the manoeuvre, after the first dispatch. Time from onset equals last arrival minus onset (verified from the arrivals and the onset).
+Every valid episode had 0 floor stops and 0 GT frames with any robot pair closer than 0.18 m (verified over all frames and all six pairs; robot-robot only. The GT contact lists are hard-coded empty and are not evidence; IB10 declares no static obstacles; corrected 2026-11-15, see erratum). In nine of ten episodes the closest approach is the jam pose at formation, before any dispatch. In e01 the minimum (0.3008 m, r3+r4 at 109.6 s) occurs during the manoeuvre, after the first dispatch. Time from onset equals last arrival minus onset (verified from the arrivals and the onset).
 
 ### Pooled per arm
 
