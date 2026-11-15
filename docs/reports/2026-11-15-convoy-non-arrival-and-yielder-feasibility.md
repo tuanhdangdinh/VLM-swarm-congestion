@@ -25,7 +25,7 @@
 
   Hold-only reaches 27 of 49. Every one of 43 later convoy decisions and 15 head-on, intersection and five-robot decisions is unchanged.
 - **Live, still uncertain.** The robot_2 sequence has resolved once (smoke, n = 1, not owner-accepted). Its closest non-exempt pair was 0.495 m, 0.045 m above the latch distance, and earlier scene replicates cleared it by only 0.013–0.025 m. Four-stack bring-up fails about 3 times in 8.
-- **Kit.** `demo_campaign/cvy/kit` is built and `TEST_DRY_DMC cvy OK`. It has not been launched. Under the 5,400 s sub-cap it allows one take, not two (section 7.3).
+- **Kit.** `demo_campaign/cvy/kit` is built and `TEST_DRY_DMC cvy OK`. It has not been launched. Under the 5,400 s sub-cap it reliably allows one take; a second take is marginal (section 7.3).
 
 ---
 
@@ -219,6 +219,21 @@ The 1 failure, `test_write_decision_artifact_preserves_m2_result_on_grounding_fa
 
 **Import path check.** Pytest from v7t imports v7t's `command_grounder.py` and M5 `models.py`; the paths were printed.
 
+**Cross-branch identity with the key off (verified by running).** The key-off unit tests compare the same code path, so they are not proof on their own. The independent check was to run the hold branch's own `scripts/convoy_queued_crosser_replay.py` (`first`, `later` and `other`) from v7t, writing to the scratchpad. It reproduces the hold report's three summaries byte for byte (`68bbc8f7`, `9285b8de`, `bd858c9f`) and its three `.jsonl` row files. That covers the shared `_ops` change at the level of whole rows, including provenance and edits.
+
+**Wider targeted suites (one file at a time): 22 more files, all passing.**
+
+- `test_a25_backup_axis`, `test_a26_retreat_shield`, `test_a28_escort_park` and `test_a29_filter_parity`;
+- `test_candidate_options`, `test_command_grounder_derived`, `test_dynamic_grounding` and `test_intersection_bottleneck_scenario`;
+- `test_junction_clear_grounding`, `test_m5_node_junction_clear` and `test_m5_retreat_stage2` (1 skipped);
+- `test_mapd_5_s1b_scenario`, `test_plan_metrics`, `test_plan_offlane_hold` and `test_plan_yield_retry_parity`;
+- `test_prompt_held_robot_state`, `test_prompt_plan_grammar_rules`, `test_s1_crossing_guard` and `test_s1_episode_loop`;
+- `test_s1_resolvability`, `test_s1_retreat_room` and `test_s1b_rulings_a20`.
+
+Together: 1,142 passed and 1 skipped. Another job's pytest process was sometimes running at the same time. These files are short and targeted; the full suite was not run.
+
+**Lint.** `ruff check` passes on every touched file.
+
 **Full unit suite: pending.** Swap free was 0.45–1.5 GB, below the 2 GB rule.
 
 ---
@@ -375,7 +390,7 @@ No threshold, exemption or distance rule changed.
   - a two-line overlay fragment;
   - arm-check rows plus `c.grounding_yield_counterflow_swap True`.
 - **Kit.** `demo_campaign/cvy/spec/` and the assembled `demo_campaign/cvy/kit/`:
-  - kit md5 lists `194a09b7` (VM, 36 entries) and `7a745d5f` (all, 55 entries);
+  - kit md5 lists `194a09b7` (VM, 36 entries) and `80676a0c` (all, 55 entries);
   - VM home `~/dmc_cvy`, labels `cvY_tNN_aK`, tag `demo_campaign_cvy`;
   - ledger key `cvy`;
   - `REPO_ROOT` v7t;
@@ -417,10 +432,10 @@ No threshold, exemption or distance rule changed.
 
 **Booking.** The rerun is booked under `cvy`: wall 5,400 s, $0.25, 2 valid takes. Adding the queued 7,200 s session gives 25,667 + 5,400 + 7,200 = 38,267 s ≤ 43,200 s, so both sessions fit, with 4,933 s left.
 
-**5,400 s allows one take, not two.**
+**5,400 s reliably allows one take; a second is marginal.**
 
 - Each invocation needs 4,800 s of headroom (prep 900 + take budget 3,000 + teardown 900).
-- The chain admits a take only if it can end 900 s before the cap deadline. So a second take in the same invocation would have to start within 1,500 s of VM start, which is impossible after a roughly 1,200 s take.
+- The chain admits a take only if it can end 900 s before the cap deadline. So a second take in the same invocation (`--episodes 2`) is admitted only if it starts within 1,500 s of VM start. In the `cvh` invocations the take ended 1,453 s after VM start (take 5, which would just have qualified) and 1,595 s (take 4, after a bring-up retry, which would not). Also, the chain does not stop on resolution, so `--episodes 2` would run the second take even after a resolved first one.
 - A second invocation is refused once the first has booked more than 600 s. The `cvh` invocations booked 1,602 s and 1,718 s.
 - **Two valid takes need `wall_sec_cvy` of at least about 6,600 s; 7,200 s is suggested.** With the other session: 25,667 + 7,200 + 7,200 = 40,067 s ≤ 43,200 s.
 
@@ -445,5 +460,5 @@ cd /Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7j/data/logs/vm_runs/demo_campa
 | Smoke separations and exempt pairs | verified (smoke GT and m4 log) |
 | The swapped sequence resolves live | not shown (smoke n = 1) |
 | The goal-side margin is the main live risk | inferred (smoke 0.495 m, scene header 0.463 / 0.475 m) |
-| 5,400 s allows one take | verified from the driver's arithmetic and the dry test's ledger paths; not run on the VM |
+| 5,400 s reliably allows one take; a second in the same invocation is marginal | verified from the driver's arithmetic, the dry test's ledger paths and the `cvh` driver-log times (1,453 / 1,595 s); not run on the VM |
 | Full unit suite | pending (swap below 2 GB) |
