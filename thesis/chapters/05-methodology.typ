@@ -325,7 +325,7 @@ Two independent raters code every unit, each a separate agent given the frozen r
 
 === Strata, frozen outcomes and the Layer-2-off arm <sec:ch5-fc-strata>
 
-The analysis covers 33 episodes in three strata that are never pooled: the 10 episodes of registered prereg-v3 tranche 1 (five seed pairs, Arm A and Arm B), the 21 ER-2 pilot episodes that preceded it, and two November takes, one demonstration and one validation. Pilot episodes that the batch stop rule ended early are tabulated apart from those that ran to the horizon. The pilot episodes with a scripted echo model and the bundles of the v4 shadow are excluded #ev("6.61") #ev("6.62"). The registered episodes are never pooled with the exploratory runs, in any table.
+The analysis covers 33 episodes in three strata that are never pooled: the 10 episodes of registered prereg-v3 tranche 1 (five seed pairs, Arm A and Arm B), the 21 ER-2 pilot episodes that preceded it, and two November takes, one demonstration and one validation (the two are tabulated together only for coding; no outcome is pooled). Pilot episodes that the batch stop rule ended early are tabulated apart from those that ran to the horizon. The pilot episodes with a scripted echo model and the bundles of the v4 shadow are excluded #ev("6.61") #ev("6.62"). The registered episodes are never pooled with the exploratory runs, in any table.
 
 The outcome fields of every episode (tasks completed, completeness status, censor reason, end time, the conflict and detection measures and the ground-truth minimum pair distance) were copied from the scorer files and frozen before coding. No episode is rescored, no historical record is changed, and the original outcome of every episode stands as reported in Chapter 6 #ev("6.60").
 
