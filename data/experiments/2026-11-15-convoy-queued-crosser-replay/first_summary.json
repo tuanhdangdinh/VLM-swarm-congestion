@@ -1,0 +1,207 @@
+{
+ "recorded|live_cvD": {
+  "edits_prefixed": 3,
+  "equals_all_four": 3,
+  "full_off": 0,
+  "full_on": 3,
+  "full_on_y1": 1,
+  "full_on_y2": 2,
+  "kind_on": {
+   "yield": 3
+  },
+  "match_on": 3,
+  "n": 3,
+  "prov_off": {
+   "vlm_verbatim": 3
+  },
+  "prov_on": {
+   "repaired": 3
+  },
+  "valid": 3,
+  "withheld": 0,
+  "yielder_on": {
+   "robot_1": 1,
+   "robot_2": 2
+  }
+ },
+ "recorded|smoke_armC": {
+  "edits_prefixed": 1,
+  "equals_all_four": 1,
+  "full_off": 1,
+  "full_on": 1,
+  "full_on_y1": 0,
+  "full_on_y2": 1,
+  "kind_on": {
+   "yield": 1
+  },
+  "match_on": 1,
+  "n": 1,
+  "prov_off": {
+   "m3_default": 1
+  },
+  "prov_on": {
+   "m3_default": 1
+  },
+  "valid": 1,
+  "withheld": 0,
+  "yielder_on": {
+   "robot_2": 1
+  }
+ },
+ "stored|C|live_cvD": {
+  "edits_prefixed": 18,
+  "equals_all_four": 18,
+  "full_off": 0,
+  "full_on": 18,
+  "full_on_y1": 6,
+  "full_on_y2": 12,
+  "kind_on": {
+   "yield": 18
+  },
+  "match_on": 18,
+  "n": 18,
+  "prov_off": {
+   "vlm_verbatim": 18
+  },
+  "prov_on": {
+   "repaired": 18
+  },
+  "valid": 18,
+  "withheld": 0,
+  "yielder_on": {
+   "robot_1": 6,
+   "robot_2": 12
+  }
+ },
+ "stored|C|smoke_armC": {
+  "edits_prefixed": 4,
+  "equals_all_four": 4,
+  "full_off": 0,
+  "full_on": 4,
+  "full_on_y1": 3,
+  "full_on_y2": 1,
+  "kind_on": {
+   "yield": 4
+  },
+  "match_on": 4,
+  "n": 4,
+  "prov_off": {
+   "vlm_verbatim": 4
+  },
+  "prov_on": {
+   "repaired": 4
+  },
+  "valid": 4,
+  "withheld": 0,
+  "yielder_on": {
+   "robot_1": 3,
+   "robot_2": 1
+  }
+ },
+ "stored|H|live_cvD": {
+  "edits_prefixed": 17,
+  "equals_all_four": 17,
+  "full_off": 0,
+  "full_on": 17,
+  "full_on_y1": 7,
+  "full_on_y2": 10,
+  "kind_on": {
+   "reverse": 1,
+   "yield": 17
+  },
+  "match_on": 17,
+  "n": 18,
+  "prov_off": {
+   "repaired": 1,
+   "vlm_verbatim": 17
+  },
+  "prov_on": {
+   "repaired": 18
+  },
+  "valid": 18,
+  "withheld": 0,
+  "yielder_on": {
+   "None": 1,
+   "robot_1": 7,
+   "robot_2": 10
+  }
+ },
+ "stored|H|smoke_armC": {
+  "edits_prefixed": 4,
+  "equals_all_four": 4,
+  "full_off": 0,
+  "full_on": 4,
+  "full_on_y1": 3,
+  "full_on_y2": 1,
+  "kind_on": {
+   "yield": 4
+  },
+  "match_on": 4,
+  "n": 4,
+  "prov_off": {
+   "vlm_verbatim": 4
+  },
+  "prov_on": {
+   "repaired": 4
+  },
+  "valid": 4,
+  "withheld": 0,
+  "yielder_on": {
+   "robot_1": 3,
+   "robot_2": 1
+  }
+ },
+ "stored|all|live_cvD": {
+  "edits_prefixed": 35,
+  "equals_all_four": 35,
+  "full_off": 0,
+  "full_on": 35,
+  "full_on_y1": 13,
+  "full_on_y2": 22,
+  "kind_on": {
+   "reverse": 1,
+   "yield": 35
+  },
+  "match_on": 35,
+  "n": 36,
+  "prov_off": {
+   "repaired": 1,
+   "vlm_verbatim": 35
+  },
+  "prov_on": {
+   "repaired": 36
+  },
+  "valid": 36,
+  "withheld": 0,
+  "yielder_on": {
+   "None": 1,
+   "robot_1": 13,
+   "robot_2": 22
+  }
+ },
+ "stored|all|smoke_armC": {
+  "edits_prefixed": 8,
+  "equals_all_four": 8,
+  "full_off": 0,
+  "full_on": 8,
+  "full_on_y1": 6,
+  "full_on_y2": 2,
+  "kind_on": {
+   "yield": 8
+  },
+  "match_on": 8,
+  "n": 8,
+  "prov_off": {
+   "vlm_verbatim": 8
+  },
+  "prov_on": {
+   "repaired": 8
+  },
+  "valid": 8,
+  "withheld": 0,
+  "yielder_on": {
+   "robot_1": 6,
+   "robot_2": 2
+  }
+ }
+}
