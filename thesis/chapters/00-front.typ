@@ -38,10 +38,6 @@
 
 #pagebreak()
 
-#heading(numbering: none, outlined: false)[Declaration of Authorship]
-#todo[Declaration of authorship text, to be provided by the owner.]
-
-#pagebreak()
 #[
   #set par(first-line-indent: 0pt)
 
