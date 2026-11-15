@@ -38,9 +38,9 @@ Terms used throughout:
 |---|---|---|
 | Merge base of W and the pin | `4307aa1` | `git merge-base fix/deadlock-collision-resolution 68e67b5` |
 | W commits not in the pin / pin commits not in W | 84 / 445 | `git rev-list --left-right --count W...68e67b5` |
-| What W's 84 commits change against `4307aa1` | 15 files under `docs/` plus one `research_notes/` file; no runtime, test, script or config file | `git diff --name-only 4307aa1 W` |
+| What W's 84 commits change against `4307aa1` | 14 files under `docs/` plus one `research_notes/` file; no runtime, test, script or config file | `git diff --name-only 4307aa1 W` |
 | `main` | `f2ca3c6` (2026-09-19), an ancestor of W, 0/0 against `origin/main` | `git branch -vv` |
-| Fork point of every November branch | the pin `68e67b5` (all contain it) | `git merge-base --is-ancestor 68e67b5 <b>` |
+| Fork point of every November branch | the pin `68e67b5` (all contain it); merge base with W is `4307aa1` and with `main` is `f2ca3c6` for every one | `git merge-base --is-ancestor 68e67b5 <b>` |
 | Tags | `prereg-v1` only; no tag at `68e67b5` | `git tag` |
 
 So W is ahead of the pin only in documentation. All November code descends from the pin, not from W.
@@ -193,6 +193,12 @@ main f2ca3c6 ── ... ── 4307aa1 ─┬─ W fix/deadlock-collision-resolu
 | `docs/thesis` + `v4-refusal-feedback` | none | yes |
 | `docs/thesis` + `v4-per-cluster-parity` | none | yes |
 | W + `feat/v3-integration` | `docs/superpowers/specs/2026-09-30-prereg-v2-design.md` (docs) | yes |
+| W + `demo/campaign-kits` | `docs/superpowers/specs/2026-09-30-prereg-v2-design.md` (docs) | yes |
+| W + `feat/v3-design` | none | no (clean) |
+| `feat/v3-design` + `demo/campaign-kits` | `docs/superpowers/specs/2026-09-30-prereg-v2-design.md` (docs) | no |
+| `v4-refusal-feedback` + `exp/head-on-json-only-replay` | none | yes |
+| `v4-per-cluster-parity` + `exp/head-on-json-only-replay` | none | yes |
+| `feat/demo-panel-renderer` + `feat/v4-gf-cluster` | `.gitignore` (both add ignore lines; keep both) | yes |
 
 ### Stage 0 — Backup Without Merging (Owner Decision)
 
@@ -200,7 +206,9 @@ main f2ca3c6 ── ... ── 4307aa1 ─┬─ W fix/deadlock-collision-resolu
 - **Safe to push as-is:** branches whose diff against their fork is docs, tests or scripts only, plus default-off code. Each still needs a secret scan of its tracked files first:
   - docs only: `feat/ib10-live-resolution`, `feat/ib10-safety-default-arm`, `docs/head-on-vlm-vs-rule`, `docs/vlm-plan-influence-trace`, `demo/ib10-recorded-demo`, `feat/convoy-live-resolution`;
   - tests, docs and scripts: `feat/demo-panel-renderer`, `feat/v4-gf-cluster` (remote exists), `feat/v4-vlm-bench` (remote 0/0) and `feat/v4-per-cluster` (1 commit ahead);
-  - default-off code: `fix/safety-exemption-scope` (a default-off key and a fragment).
+  - default-off code: `fix/safety-exemption-scope` (`scoped_clearing_exemption: bool = False`, `safety.py:265`, verified with `git grep`) and a fragment;
+  - older unmerged branches with no remote that exist only on this Mac: `feat/trail-probe-pilot` (183 commits not in W, not in the pin) and `feat/v3-vjepa-probe` (not in the pin). Their content was not reviewed here.
+- **Remote-only branches** (no local branch, as of last fetch): `origin/claude/laughing-volta-fwnqvs`, `origin/feat/v2-audit-fixes`, `origin/feat/v2-conformance-fixes`, `origin/feat/v2-gpt56-sol`, `origin/feat/v2-harness-optionb`. They are listed only, and nothing is proposed for them.
 - **Needs review first:**
   - The branches that track `data/experiments/` with model call logs: `exp/head-on-*`, `demo/vlm-order-channel`, `demo/campaign-kits` and `demo/validation-guard-contacts`. The `calls.jsonl` files need a secret and payload review; CLAUDE.md forbids logging base64 images and secrets.
   - `feat/gt-contact-logging` (behaviour not default-off).
@@ -213,7 +221,7 @@ main f2ca3c6 ── ... ── 4307aa1 ─┬─ W fix/deadlock-collision-resolu
 - **Contains.** `fix/safety-exemption-scope`: the default-off `scoped_clearing_exemption`, the fragment and one test file.
 - **Why first.** It is the base of 14 November branches (§1.2). Merging it first makes every later merge smaller.
 - **Expected conflicts.** None. It is a fast-forward of the pin.
-- **Verify after.** `tests/unit` for `swarm_execution` safety, then the full `make test` with zero delta against a pin baseline. With the key off, the M4 startup line must still read `scoped_clearing_exemption=False`.
+- **Verify after.** `tests/unit` for `swarm_execution` safety, then the full `make test` with zero delta against a pin baseline. The key defaults to False in code (`safety.py:265`). With it off, M4 behaviour must equal the pin's; the branch's key-off identity re-run over 68 bundles (`8933863`) is the existing evidence.
 - **Not into the pinned lineage.** The deployed `safety.yaml` must stay `598396622ca50baddc3e19b4608fa3e3`. Do not merge the fragment into it.
 
 ### Stage 2 — Frozen IB10 Evidence Branches
@@ -243,7 +251,7 @@ main f2ca3c6 ── ... ── 4307aa1 ─┬─ W fix/deadlock-collision-resolu
   - the full suite at zero delta.
 - **Stale items to fix when the contact-logging branch lands:**
   - `docs/specs/module6_simulation.md` already describes `robot_static_contacts` as populated (at the pin, line 794: "lists robot IDs in contact with a wall or rack"). Until this branch lands, `isaac/vgu_sim/acceptance_logging.py:99-100` hard-codes the lists to `[]`, so the spec overstates the runtime. The contact branch edits the spec (adding a field description at line 804), so recheck it after the merge.
-  - `_assert_no_static_contacts` in `tests/simulation/test_m6_scenarios.py` (pin lines 65 and 88) passes trivially on the empty field until then. After the merge it starts to assert something, and it may begin to fail on scenes with near-rack poses.
+  - `_assert_no_static_contacts` in `tests/simulation/test_m6_scenarios.py` (pin lines 65 and 88) passes trivially on the empty field until then. After the merge it starts to assert something, and (inferred, not tested) it may begin to fail on scenes with near-rack poses.
 - **Not into the pinned lineage.** GT contact logging is not default-off: it changes GT rows. Runs made from the pin must stay as they are. A rerun of a registered experiment from the integration branch would produce different GT rows and must be registered as such.
 
 ### Stage 5 — Demo Line
@@ -256,7 +264,7 @@ main f2ca3c6 ── ... ── 4307aa1 ─┬─ W fix/deadlock-collision-resolu
 - **Why here.** Each contains the previous stages. Merging after Stages 1 to 4 keeps each merge to its own delta.
 - **Expected conflicts:**
   - notes;
-  - `docs/reports/2026-11-14-ib10-safety-default-arm-results.md` if Stage 2 is skipped (take the newer, erratum-bearing side, blob `c3151bc1e3`).
+  - possibly `docs/reports/2026-11-14-ib10-safety-default-arm-results.md`: the validation branch holds the pre-erratum mirror, and the pairwise check against `ib10-safety-default-arm` conflicts. Take the erratum-bearing side, blob `c3151bc1e3`, which equals today's `demo/campaign-kits` and `feat/ib10-safety-default-arm`.
 - **Verify after:**
   - `tests/unit/test_prompt_plan_grammar_rules.py` and `test_prompt_held_robot_state.py`, especially the byte-identical-default tests;
   - `tests/unit/test_dispatch_order_source.py`;
@@ -270,6 +278,7 @@ main f2ca3c6 ── ... ── 4307aa1 ─┬─ W fix/deadlock-collision-resolu
 - **Contains.** `feat/demo-panel-renderer`: scripts and tests only. It contains `feat/convoy-live-resolution`.
 - **Expected conflicts.** Notes only.
 - **Verify after.** The renderer's two test files. The videos it renders are git-ignored (`data/demo/` in `.gitignore`).
+- **Later conflict.** In Stage 7, `.gitignore` conflicts with `feat/v4-gf-cluster`, because both add lines. Keep both.
 
 ### Stage 7 — v4 Line
 
@@ -290,7 +299,7 @@ main f2ca3c6 ── ... ── 4307aa1 ─┬─ W fix/deadlock-collision-resolu
 
 ### Stage 8 — Reconcile With W
 
-- **Contains.** A merge of `fix/deadlock-collision-resolution` into the integration branch: its 84 docs-only commits.
+- **Contains.** A merge of `fix/deadlock-collision-resolution` into the integration branch: its 84 docs-only commits. Then `feat/v3-design`, which has 28 commits in neither W nor the pin. Its net diff against its merge base with W (`2c81cbd`) is one file under `docs/`, and it merges into W cleanly.
 - **Expected conflicts.**
   - Notes.
   - `docs/superpowers/specs/2026-09-30-prereg-v2-design.md` (docs): both lineages edited this registered spec. Resolve it by keeping both texts' amendments. A registered spec's frozen sections must not be reworded.
