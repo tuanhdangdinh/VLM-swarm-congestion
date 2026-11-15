@@ -309,6 +309,7 @@ Decision 2's escort drove `robot_3` along a straight segment that crossed rack i
 
 === Failure Causes of the Five-Robot Episodes <sec:res-failure-causes>
 
+#[
 #show figure.where(kind: table): set block(breakable: true)
 
 This section reports the classification of @sec:ch5-failure-cause. It is an exploratory, post hoc analysis of 33 episodes in three strata that are never pooled, and it explains outcomes that are reported in the previous sections without changing any of them. The original tranche-1 outcome, 0 of 10 episodes complete, stands as reported #ev("6.14"). The rating was not complete when this report was written; every value below is a placeholder.
@@ -433,6 +434,7 @@ Interception is reported per stratum, and only for the strata in which commands 
 - *Contact evidence.* The ground-truth contact fields were empty in the October runs, so every contact in them is an offline geometric recomputation of the planar footprint at 10 Hz, not a logged event #ev("6.12").
 - *Size and status.* The strata hold 10, 21 and 2 episodes, so the counts are small. The analysis is exploratory and not confirmatory, no test is registered for it, and the registered tranche-1 episodes are never pooled with the exploratory runs.
 - *Original outcome.* The registered pilot's original outcome, 0 of 10 episodes complete, stands as reported.
+]
 
 == Safety Findings <sec:res-safety>
 
