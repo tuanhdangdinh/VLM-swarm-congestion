@@ -295,7 +295,7 @@ The demonstration campaign (14–15 November 2026, UTC) ran live ER-2 takes in f
     fill: (_, y) => if y == 0 { luma(235) },
     table.header([*Scene*], [*Valid takes*], [*Outcome per take (label)*]),
     [Four-robot intersection], [5], [take 1 unresolved, 3/4 arrived; takes 2 to 4 grounder-default resolution; take 5 resolved 4/4, labelled VLM-driven execution],
-    [Four-robot convoy counterflow], [6], [takes 1 to 3 unresolved, 0/4 arrived each; takes 4 and 5, with the queued-robot hold, unresolved, 1/4 arrived each; rerun take resolved 4/4 (grounder held the queued robots)],
+    [Four-robot convoy counterflow], [6], [takes 1 to 3 unresolved, 0/4 arrived each; takes 4 and 5, with the queued-robot hold, unresolved, 1/4 arrived each; rerun take resolved 4/4 (resolved: grounder held the queued robots; model chose strategy and yielder)],
     [Two-robot head-on corridor with obstacle], [1], [resolved 2/2, grounder-default resolution (grounder-corrected)],
     [Five-robot pickup-and-delivery, seed position 21], [1], [unresolved, 1/5 arrived (limitation demonstration)],
   ),
@@ -343,9 +343,9 @@ In the four-robot convoy counterflow scene, `robot_1` meets the counter-flow `ro
 
 Takes 4 and 5 used the queued-robot hold, a grounder key (off by default) that holds unnamed queued robots whose goals lie across the corridor #ev("6.19"). It held both as built, but the model named `robot_1` as yielder, the variant the scene is built to defeat: `robot_2`'s escort west stopped 0.418 m and 0.419 m from the held `robot_3` and latched; 1 of 4 arrived in each #ev("6.41").
 
-Why the five failed #ev("6.85"): a corridor yield escorts every crosser to the yielder's park side, so it works only if every queued robot is held and every later crosser starts opposite that side (takes 2, 4 and 5 had the platoon-side yielder `robot_1`). The feasibility gate checks only retreat room against static obstacles, and the scene declares none.
+Why the five failed #ev("6.85"): a corridor yield escorts every crosser to the yielder's park side, so it works only if every queued robot is held and every later crosser starts opposite that side; takes 2, 4 and 5 had the platoon-side yielder `robot_1`. The feasibility gate checks only retreat room against static obstacles, and the scene declares none.
 
-A separately registered rerun take also armed the yielder correction (@sec:impl-later) #ev("6.85"). The model chose a yield by `robot_2`, again naming only the standoff pair; the hold added the queued robots, which crossed after `robot_1`, and all four arrived, labelled resolved: grounder held the queued robots, model chose strategy and yielder #ev("6.84"). No floor stop occurred; after dispatch only exempted pairs came under 0.45 m (0.374–0.379 m), the closest other pair was 0.497 m, and the offline recompute, pending validation, puts `robot_2`'s return 0.0185 m from a barrier #ev("6.84"). *Caveat:* one take; the resolution depended on the grounder's hold, the model named `robot_1` in three of the five earlier takes, and the correction did not fire, so it is untested live #ev("6.84") #ev("6.85").
+A rerun take, added by amendment, also armed the yielder correction (@sec:impl-later) #ev("6.85"). The model chose a yield by `robot_2`, again naming only the standoff pair; the hold added the queued robots, which crossed after `robot_1`, and all four arrived (label in @tab:res-demo) #ev("6.84"). After dispatch only exempted pairs came under 0.45 m (0.374–0.379 m), the closest other pair was 0.497 m, and the offline recompute, pending validation, puts `robot_2`'s return 0.0185 m from a barrier #ev("6.84"). *Caveat:* one take; the resolution depended on the grounder's hold, and the correction did not fire, so it is untested live #ev("6.84") #ev("6.85").
 
 #figure(
   image("../assets/images/fig_convoy_latched_t149p90.png", width: 75%),
