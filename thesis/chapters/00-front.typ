@@ -66,10 +66,9 @@
 
 #pagebreak()
 #heading(numbering: none, outlined: false)[Abstract]
-Warehouse robot fleets can jam: local reactive navigation keeps each robot safe but does not decide which robot gives way, so a deadlock stays in place. This report studies whether a vision-language model (VLM), called on a stall and given the annotated overhead camera frame and a text list of robot states, can supply that decision. It presents a two-layer coordinator: fast local control on every robot, and a slow central layer that detects the stall, asks the VLM to classify the congestion and choose a strategy, and passes the decision to a deterministic grounding layer. That layer checks the decision against the scene, repairs or replaces an infeasible plan, refuses when no safe manoeuvre exists, and labels the provenance of every dispatch.
+Warehouse robots can jam: local reactive navigation keeps each robot safe but does not decide who gives way. This report asks whether a vision-language model (VLM), shown the annotated overhead camera frame and robot states on a stall, can supply that decision. It presents a two-layer coordinator: local navigation on every robot, and a slow coordination layer that detects the stall, asks the VLM for a congestion type and strategy, and passes the decision to a deterministic grounder. The grounder checks it against the scene, repairs, replaces or refuses infeasible plans, and labels every dispatch.
 
-The evaluation comprises two exploratory intersection runs, a registered five-robot pilot, head-on decision analyses, a plan-influence trace and an illustrative demonstration campaign. In a four-robot intersection jam the full pipeline cleared the intersection in 4 of 5 episodes, against 0 of 5 with the central layer off; in a separate run the live-VLM arm cleared it in 5 of 5 (4 of 4 without the smoke episode) and a scripted arm that skipped the VLM call and ran the grounder's default plan in 4 of 4 valid episodes (5 of 5 after a post hoc re-run), in similar time; in both runs the commands that ran were the grounder's default plan for the strategy and robot set it was given, not the model's plan. In the registered five-robot pilot no episode of either arm completed its tasks (0 of 10), and the throughput difference had an interval that includes zero. In the campaign the model returned a valid decision in all 67 analyses, but its plan was accepted unchanged in 6 of 65 as recorded, 5 of them dispatched as written, and at the intersection, the only scene where this was computed, it changed the executed commands once, by reordering two near-equivalent back-out manoeuvres. In the head-on scenes the grounder's feasibility gate, not the model, made the grounded yielder correct. Safety evidence is limited to robot-pair distance; one sustained robot-obstacle contact was confirmed. All results come from simulation, small samples and one VLM in the live comparisons.
-
+At a simulated four-robot intersection jam, the coordination layer cleared the jam in 4 of 5 episodes, against 0 of 5 when off; in a second run a scripted arm that skipped the VLM call and ran the grounder's default plan matched the live-VLM arm. Both are exploratory five-episode-per-arm pilots, and in both the grounder's default plan ran. In a registered five-robot pilot no episode of either arm completed its tasks (0 of 10). In an illustrative demonstration campaign the model answered validly in all 67 analyses, but its plan was accepted unchanged in 6 of 65 as recorded (5 after offline correction) and changed execution once, by reordering two near-equivalent back-outs. In head-on scenes the grounder's feasibility gate, not the model, made the yielder correct. Safety evidence is robot-pair distance only; one sustained robot-obstacle contact was confirmed. All results come from simulation, small samples and one VLM in the live comparisons.
 #pagebreak()
 #outline(title: "Contents", indent: auto)
 
@@ -85,7 +84,6 @@ The evaluation comprises two exploratory intersection runs, a registered five-ro
   columns: (auto, 1fr),
   stroke: none,
   table.header([*Abbreviation*], [*Meaning*]),
-  [A$n$], [Numbered amendment (prereg-v1) or addendum (prereg-v3), e.g. A33],
   [AI], [Artificial Intelligence],
   [API], [Application Programming Interface],
   [ArUco], [Square fiducial marker system],
@@ -100,10 +98,10 @@ The evaluation comprises two exploratory intersection runs, a registered five-ro
   [GPU], [Graphics Processing Unit],
   [GT], [Ground truth],
   [HTTP], [Hypertext Transfer Protocol],
-  [IB10], [Name of the four-robot intersection scene (Chapter 5)],
   [JSON], [JavaScript Object Notation],
+  [Layer 1, Layer 2], [Local navigation and the coordination layer of the two-layer architecture],
   [LLM], [Large Language Model],
-  [M1--M6], [Modules 1 to 6 of the system],
+  [M1--M6], [Modules of the system: perception (M1), VLM reasoning (M2), grounder (M3), execution and safety monitor (M4), orchestrator (M5), simulation (M6)],
   [MAPD], [Multi-Agent Pickup and Delivery],
   [MAPF], [Multi-Agent Path Finding],
   [MD5], [Message-Digest Algorithm 5 (checksum)],
@@ -116,7 +114,6 @@ The evaluation comprises two exploratory intersection runs, a registered five-ro
   [ROS 2], [Robot Operating System 2],
   [RQ], [Research Question],
   [RTX], [NVIDIA ray-tracing renderer used by Isaac Sim],
-  [S1b], [Name of the five-robot task-stream scene (Chapter 5)],
   [SHA-256], [Secure Hash Algorithm with a 256-bit digest],
   [UDP], [User Datagram Protocol],
   [USD], [Universal Scene Description],
