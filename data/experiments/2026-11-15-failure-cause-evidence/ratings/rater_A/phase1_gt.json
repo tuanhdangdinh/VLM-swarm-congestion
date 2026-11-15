@@ -1,0 +1,2762 @@
+{
+ "rater": "A",
+ "phase": 1,
+ "source": "rater_gt sheets only",
+ "records": [
+  {
+   "sheet_id": "GT-00408f",
+   "unit_id": "FU1",
+   "kind": "conflict",
+   "robots": [
+    "robot_1",
+    "robot_2",
+    "robot_3",
+    "robot_4",
+    "robot_5"
+   ],
+   "t0_rel": 23.607,
+   "end_rel": 569.807,
+   "t_end_rel": 569.807,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "parked_finished_listed_separately": false,
+   "T2_t0": true,
+   "T2_t0_shortest": {
+    "distance_m": 0.01,
+    "heading_deg": 0,
+    "robot": "robot_3"
+   },
+   "T2_t0_snapshot_rel": 23.867,
+   "T2_t0_start_within_clearance_robots": [],
+   "X3_gt_input_present": true,
+   "X3_gt_pairs": [
+    [
+     [
+      "robot_1",
+      "robot_2"
+     ],
+     69.71
+    ],
+    [
+     [
+      "robot_2",
+      "robot_4"
+     ],
+     89.41
+    ],
+    [
+     [
+      "robot_2",
+      "robot_5"
+     ],
+     73.11
+    ],
+    [
+     [
+      "robot_3",
+      "robot_5"
+     ],
+     82.31
+    ]
+   ],
+   "gt_contacts": [
+    {
+     "pair": "robot_1|box:rack/NW_west",
+     "from_rel": 67.51,
+     "to_rel": 569.81,
+     "min_gap_m": -0.0,
+     "other_class": "undeclared_box",
+     "overlaps_t0minus60_to_end": true,
+     "open_at_censor": true
+    }
+   ],
+   "X5_candidate_gt_contact": true,
+   "EG2_candidate_undeclared_contact": [
+    "robot_1|box:rack/NW_west"
+   ],
+   "notes": "X5 vs G5 attribution and EG2 role decided in Phase 2 (needs leg evidence); X3 GT input recorded only as GT input, X3 itself requires a completed command (Phase 2)."
+  },
+  {
+   "sheet_id": "GT-0daa00",
+   "unit_id": "FU1",
+   "kind": "conflict",
+   "robots": [
+    "robot_2",
+    "robot_3"
+   ],
+   "t0_rel": 12.073,
+   "end_rel": 570.473,
+   "t_end_rel": 570.473,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "parked_finished_listed_separately": false,
+   "T2_t0": true,
+   "T2_t0_shortest": {
+    "distance_m": 0.13,
+    "heading_deg": 135,
+    "robot": "robot_2"
+   },
+   "T2_t0_snapshot_rel": 12.4,
+   "T2_t0_start_within_clearance_robots": [],
+   "X3_gt_input_present": true,
+   "X3_gt_pairs": [
+    [
+     [
+      "robot_2",
+      "robot_3"
+     ],
+     12.57
+    ]
+   ],
+   "gt_contacts": [],
+   "X5_candidate_gt_contact": false,
+   "EG2_candidate_undeclared_contact": [],
+   "notes": ""
+  },
+  {
+   "sheet_id": "GT-0daa00",
+   "unit_id": "FU2",
+   "kind": "conflict",
+   "robots": [
+    "robot_1",
+    "robot_4",
+    "robot_5"
+   ],
+   "t0_rel": 69.773,
+   "end_rel": 570.473,
+   "t_end_rel": 570.473,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "parked_finished_listed_separately": false,
+   "T2_t0": true,
+   "T2_t0_shortest": {
+    "distance_m": 0.01,
+    "heading_deg": 0,
+    "robot": "robot_1"
+   },
+   "T2_t0_snapshot_rel": 69.867,
+   "T2_t0_start_within_clearance_robots": [
+    "robot_4"
+   ],
+   "X3_gt_input_present": true,
+   "X3_gt_pairs": [
+    [
+     [
+      "robot_1",
+      "robot_4"
+     ],
+     70.07
+    ],
+    [
+     [
+      "robot_1",
+      "robot_5"
+     ],
+     99.87
+    ]
+   ],
+   "gt_contacts": [],
+   "X5_candidate_gt_contact": false,
+   "EG2_candidate_undeclared_contact": [],
+   "notes": ""
+  },
+  {
+   "sheet_id": "GT-14b9fe",
+   "unit_id": "FU1",
+   "kind": "conflict",
+   "robots": [
+    "robot_1",
+    "robot_2",
+    "robot_3",
+    "robot_4",
+    "robot_5"
+   ],
+   "t0_rel": 22.803,
+   "end_rel": 568.803,
+   "t_end_rel": 568.803,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "parked_finished_listed_separately": false,
+   "T2_t0": true,
+   "T2_t0_shortest": {
+    "distance_m": 0.01,
+    "heading_deg": 0,
+    "robot": "robot_1"
+   },
+   "T2_t0_snapshot_rel": 22.933,
+   "T2_t0_start_within_clearance_robots": [],
+   "X3_gt_input_present": true,
+   "X3_gt_pairs": [
+    [
+     [
+      "robot_1",
+      "robot_2"
+     ],
+     84.0
+    ],
+    [
+     [
+      "robot_1",
+      "robot_5"
+     ],
+     102.3
+    ],
+    [
+     [
+      "robot_2",
+      "robot_3"
+     ],
+     23.3
+    ],
+    [
+     [
+      "robot_2",
+      "robot_4"
+     ],
+     81.3
+    ]
+   ],
+   "gt_contacts": [],
+   "X5_candidate_gt_contact": false,
+   "EG2_candidate_undeclared_contact": [],
+   "notes": ""
+  },
+  {
+   "sheet_id": "GT-162c10",
+   "unit_id": "FU1",
+   "kind": "conflict",
+   "robots": [
+    "robot_1",
+    "robot_3",
+    "robot_4",
+    "robot_5"
+   ],
+   "t0_rel": 17.373,
+   "end_rel": 570.673,
+   "t_end_rel": 570.673,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "parked_finished_listed_separately": false,
+   "T2_t0": true,
+   "T2_t0_shortest": {
+    "distance_m": 0.01,
+    "heading_deg": 0,
+    "robot": "robot_1"
+   },
+   "T2_t0_snapshot_rel": 17.667,
+   "T2_t0_start_within_clearance_robots": [],
+   "X3_gt_input_present": true,
+   "X3_gt_pairs": [
+    [
+     [
+      "robot_1",
+      "robot_5"
+     ],
+     73.97
+    ],
+    [
+     [
+      "robot_3",
+      "robot_4"
+     ],
+     17.87
+    ],
+    [
+     [
+      "robot_3",
+      "robot_5"
+     ],
+     49.27
+    ]
+   ],
+   "gt_contacts": [],
+   "X5_candidate_gt_contact": false,
+   "EG2_candidate_undeclared_contact": [],
+   "notes": ""
+  },
+  {
+   "sheet_id": "GT-162c10",
+   "unit_id": "FU2",
+   "kind": "lone_stall",
+   "robots": [
+    "robot_2"
+   ],
+   "t0_rel": 107.673,
+   "end_rel": 570.673,
+   "t_end_rel": 570.673,
+   "tool_excluded": false,
+   "tool_flags": [
+    "finished_all_or_between_tasks_at_censor (tool flag; rubric silent)"
+   ],
+   "is_failure_unit": false,
+   "parked_finished_listed_separately": true,
+   "T2_t0": true,
+   "T2_t0_shortest": {
+    "distance_m": 0.01,
+    "heading_deg": 0,
+    "robot": "robot_2"
+   },
+   "T2_t0_snapshot_rel": 107.967,
+   "T2_t0_start_within_clearance_robots": [],
+   "X3_gt_input_present": false,
+   "X3_gt_pairs": [],
+   "gt_contacts": [],
+   "X5_candidate_gt_contact": false,
+   "EG2_candidate_undeclared_contact": [],
+   "notes": "Lone stall flagged by tool as finished_all_or_between_tasks_at_censor; per protocol coded as not a failure unit and listed separately."
+  },
+  {
+   "sheet_id": "GT-190651",
+   "unit_id": "FU1",
+   "kind": "conflict",
+   "robots": [
+    "robot_2",
+    "robot_4",
+    "robot_5"
+   ],
+   "t0_rel": 184.407,
+   "end_rel": 570.907,
+   "t_end_rel": 570.907,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "parked_finished_listed_separately": false,
+   "T2_t0": true,
+   "T2_t0_shortest": {
+    "distance_m": 0.01,
+    "heading_deg": 0,
+    "robot": "robot_4"
+   },
+   "T2_t0_snapshot_rel": 184.467,
+   "T2_t0_start_within_clearance_robots": [],
+   "X3_gt_input_present": true,
+   "X3_gt_pairs": [
+    [
+     [
+      "robot_2",
+      "robot_5"
+     ],
+     184.61
+    ],
+    [
+     [
+      "robot_4",
+      "robot_5"
+     ],
+     195.11
+    ]
+   ],
+   "gt_contacts": [],
+   "X5_candidate_gt_contact": false,
+   "EG2_candidate_undeclared_contact": [],
+   "notes": ""
+  },
+  {
+   "sheet_id": "GT-190651",
+   "unit_id": "FU2",
+   "kind": "conflict",
+   "robots": [
+    "robot_1",
+    "robot_3"
+   ],
+   "t0_rel": 219.007,
+   "end_rel": 570.907,
+   "t_end_rel": 570.907,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "parked_finished_listed_separately": false,
+   "T2_t0": true,
+   "T2_t0_shortest": {
+    "distance_m": 0.04,
+    "heading_deg": 0,
+    "robot": "robot_1"
+   },
+   "T2_t0_snapshot_rel": 219.367,
+   "T2_t0_start_within_clearance_robots": [],
+   "X3_gt_input_present": true,
+   "X3_gt_pairs": [
+    [
+     [
+      "robot_1",
+      "robot_3"
+     ],
+     223.01
+    ]
+   ],
+   "gt_contacts": [
+    {
+     "pair": "robot_1|robot_3",
+     "from_rel": 222.31,
+     "to_rel": 570.91,
+     "min_gap_m": -0.0003,
+     "other_class": "robot",
+     "overlaps_t0minus60_to_end": true,
+     "open_at_censor": true
+    }
+   ],
+   "X5_candidate_gt_contact": true,
+   "EG2_candidate_undeclared_contact": [],
+   "notes": "X5 vs G5 attribution and EG2 role decided in Phase 2 (needs leg evidence); X3 GT input recorded only as GT input, X3 itself requires a completed command (Phase 2)."
+  },
+  {
+   "sheet_id": "GT-352840",
+   "unit_id": "FU1",
+   "kind": "conflict",
+   "robots": [
+    "robot_1",
+    "robot_5"
+   ],
+   "t0_rel": 14.507,
+   "end_rel": 108.807,
+   "t_end_rel": 108.807,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "parked_finished_listed_separately": false,
+   "T2_t0": true,
+   "T2_t0_shortest": {
+    "distance_m": 0.03,
+    "heading_deg": 0,
+    "robot": "robot_1"
+   },
+   "T2_t0_snapshot_rel": 14.8,
+   "T2_t0_start_within_clearance_robots": [],
+   "X3_gt_input_present": true,
+   "X3_gt_pairs": [
+    [
+     [
+      "robot_1",
+      "robot_5"
+     ],
+     15.31
+    ]
+   ],
+   "gt_contacts": [],
+   "X5_candidate_gt_contact": false,
+   "EG2_candidate_undeclared_contact": [],
+   "notes": ""
+  },
+  {
+   "sheet_id": "GT-354e83",
+   "unit_id": "FU1",
+   "kind": "conflict",
+   "robots": [
+    "robot_1",
+    "robot_3",
+    "robot_5"
+   ],
+   "t0_rel": 12.74,
+   "end_rel": 570.14,
+   "t_end_rel": 570.14,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "parked_finished_listed_separately": false,
+   "T2_t0": true,
+   "T2_t0_shortest": {
+    "distance_m": 0.01,
+    "heading_deg": 0,
+    "robot": "robot_5"
+   },
+   "T2_t0_snapshot_rel": 12.833,
+   "T2_t0_start_within_clearance_robots": [],
+   "X3_gt_input_present": true,
+   "X3_gt_pairs": [
+    [
+     [
+      "robot_1",
+      "robot_3"
+     ],
+     12.94
+    ],
+    [
+     [
+      "robot_1",
+      "robot_5"
+     ],
+     89.64
+    ]
+   ],
+   "gt_contacts": [],
+   "X5_candidate_gt_contact": false,
+   "EG2_candidate_undeclared_contact": [],
+   "notes": ""
+  },
+  {
+   "sheet_id": "GT-354e83",
+   "unit_id": "FU2",
+   "kind": "conflict",
+   "robots": [
+    "robot_2",
+    "robot_4"
+   ],
+   "t0_rel": 40.44,
+   "end_rel": 570.14,
+   "t_end_rel": 570.14,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "parked_finished_listed_separately": false,
+   "T2_t0": true,
+   "T2_t0_shortest": {
+    "distance_m": 0.02,
+    "heading_deg": 90,
+    "robot": "robot_2"
+   },
+   "T2_t0_snapshot_rel": 40.767,
+   "T2_t0_start_within_clearance_robots": [
+    "robot_4"
+   ],
+   "X3_gt_input_present": true,
+   "X3_gt_pairs": [
+    [
+     [
+      "robot_2",
+      "robot_4"
+     ],
+     40.94
+    ]
+   ],
+   "gt_contacts": [
+    {
+     "pair": "robot_2|box:rack/NW_north",
+     "from_rel": 27.24,
+     "to_rel": 33.94,
+     "min_gap_m": -0.0015,
+     "other_class": "undeclared_box",
+     "overlaps_t0minus60_to_end": true,
+     "open_at_censor": false
+    }
+   ],
+   "X5_candidate_gt_contact": true,
+   "EG2_candidate_undeclared_contact": [
+    "robot_2|box:rack/NW_north"
+   ],
+   "notes": "X5 vs G5 attribution and EG2 role decided in Phase 2 (needs leg evidence); X3 GT input recorded only as GT input, X3 itself requires a completed command (Phase 2)."
+  },
+  {
+   "sheet_id": "GT-36197b",
+   "unit_id": "FU1",
+   "kind": "conflict",
+   "robots": [
+    "robot_2",
+    "robot_4"
+   ],
+   "t0_rel": 148.937,
+   "end_rel": 577.437,
+   "t_end_rel": 577.437,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "parked_finished_listed_separately": false,
+   "T2_t0": true,
+   "T2_t0_shortest": {
+    "distance_m": 0.04,
+    "heading_deg": 135,
+    "robot": "robot_2"
+   },
+   "T2_t0_snapshot_rel": 149.067,
+   "T2_t0_start_within_clearance_robots": [],
+   "X3_gt_input_present": true,
+   "X3_gt_pairs": [
+    [
+     [
+      "robot_2",
+      "robot_4"
+     ],
+     149.24
+    ]
+   ],
+   "gt_contacts": [],
+   "X5_candidate_gt_contact": false,
+   "EG2_candidate_undeclared_contact": [],
+   "notes": ""
+  },
+  {
+   "sheet_id": "GT-36197b",
+   "unit_id": "FU2",
+   "kind": "conflict",
+   "robots": [
+    "robot_1",
+    "robot_3",
+    "robot_5"
+   ],
+   "t0_rel": 162.237,
+   "end_rel": 577.437,
+   "t_end_rel": 577.437,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "parked_finished_listed_separately": false,
+   "T2_t0": true,
+   "T2_t0_shortest": {
+    "distance_m": 0.01,
+    "heading_deg": 0,
+    "robot": "robot_1"
+   },
+   "T2_t0_snapshot_rel": 162.4,
+   "T2_t0_start_within_clearance_robots": [
+    "robot_3"
+   ],
+   "X3_gt_input_present": true,
+   "X3_gt_pairs": [
+    [
+     [
+      "robot_1",
+      "robot_3"
+     ],
+     173.54
+    ],
+    [
+     [
+      "robot_1",
+      "robot_5"
+     ],
+     166.34
+    ]
+   ],
+   "gt_contacts": [
+    {
+     "pair": "robot_3|box:rack/SW_south",
+     "from_rel": 143.54,
+     "to_rel": 577.44,
+     "min_gap_m": -0.0015,
+     "other_class": "undeclared_box",
+     "overlaps_t0minus60_to_end": true,
+     "open_at_censor": true
+    },
+    {
+     "pair": "robot_3|box:rack/SW_west",
+     "from_rel": 20.84,
+     "to_rel": 49.84,
+     "min_gap_m": -0.0,
+     "other_class": "undeclared_box",
+     "overlaps_t0minus60_to_end": false,
+     "open_at_censor": false
+    }
+   ],
+   "X5_candidate_gt_contact": true,
+   "EG2_candidate_undeclared_contact": [
+    "robot_3|box:rack/SW_south",
+    "robot_3|box:rack/SW_west"
+   ],
+   "notes": "X5 vs G5 attribution and EG2 role decided in Phase 2 (needs leg evidence); X3 GT input recorded only as GT input, X3 itself requires a completed command (Phase 2)."
+  },
+  {
+   "sheet_id": "GT-3f6ad9",
+   "unit_id": "FU1",
+   "kind": "conflict",
+   "robots": [
+    "robot_2",
+    "robot_3",
+    "robot_4"
+   ],
+   "t0_rel": 12.277,
+   "end_rel": 102.277,
+   "t_end_rel": 102.277,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "parked_finished_listed_separately": false,
+   "T2_t0": true,
+   "T2_t0_shortest": {
+    "distance_m": 0.01,
+    "heading_deg": 0,
+    "robot": "robot_4"
+   },
+   "T2_t0_snapshot_rel": 12.367,
+   "T2_t0_start_within_clearance_robots": [],
+   "X3_gt_input_present": true,
+   "X3_gt_pairs": [
+    [
+     [
+      "robot_2",
+      "robot_3"
+     ],
+     12.78
+    ],
+    [
+     [
+      "robot_3",
+      "robot_4"
+     ],
+     34.98
+    ]
+   ],
+   "gt_contacts": [],
+   "X5_candidate_gt_contact": false,
+   "EG2_candidate_undeclared_contact": [],
+   "notes": ""
+  },
+  {
+   "sheet_id": "GT-3f6ad9",
+   "unit_id": "FU2",
+   "kind": "conflict",
+   "robots": [
+    "robot_1",
+    "robot_5"
+   ],
+   "t0_rel": 81.177,
+   "end_rel": 102.277,
+   "t_end_rel": 102.277,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "parked_finished_listed_separately": false,
+   "T2_t0": true,
+   "T2_t0_shortest": {
+    "distance_m": 0.02,
+    "heading_deg": 0,
+    "robot": "robot_1"
+   },
+   "T2_t0_snapshot_rel": 81.367,
+   "T2_t0_start_within_clearance_robots": [],
+   "X3_gt_input_present": true,
+   "X3_gt_pairs": [
+    [
+     [
+      "robot_1",
+      "robot_5"
+     ],
+     81.28
+    ]
+   ],
+   "gt_contacts": [],
+   "X5_candidate_gt_contact": false,
+   "EG2_candidate_undeclared_contact": [],
+   "notes": ""
+  },
+  {
+   "sheet_id": "GT-4e2591",
+   "unit_id": "FU1",
+   "kind": "conflict",
+   "robots": [
+    "robot_2",
+    "robot_3",
+    "robot_4"
+   ],
+   "t0_rel": 22.073,
+   "end_rel": 570.073,
+   "t_end_rel": 570.073,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "parked_finished_listed_separately": false,
+   "T2_t0": true,
+   "T2_t0_shortest": {
+    "distance_m": 0.03,
+    "heading_deg": 225,
+    "robot": "robot_2"
+   },
+   "T2_t0_snapshot_rel": 22.133,
+   "T2_t0_start_within_clearance_robots": [],
+   "X3_gt_input_present": true,
+   "X3_gt_pairs": [
+    [
+     [
+      "robot_2",
+      "robot_3"
+     ],
+     22.37
+    ],
+    [
+     [
+      "robot_2",
+      "robot_4"
+     ],
+     122.17
+    ]
+   ],
+   "gt_contacts": [],
+   "X5_candidate_gt_contact": false,
+   "EG2_candidate_undeclared_contact": [],
+   "notes": ""
+  },
+  {
+   "sheet_id": "GT-4e2591",
+   "unit_id": "FU2",
+   "kind": "conflict",
+   "robots": [
+    "robot_1",
+    "robot_5"
+   ],
+   "t0_rel": 135.073,
+   "end_rel": 570.073,
+   "t_end_rel": 570.073,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "parked_finished_listed_separately": false,
+   "T2_t0": true,
+   "T2_t0_shortest": {
+    "distance_m": 0.04,
+    "heading_deg": 180,
+    "robot": "robot_1"
+   },
+   "T2_t0_snapshot_rel": 135.3,
+   "T2_t0_start_within_clearance_robots": [],
+   "X3_gt_input_present": true,
+   "X3_gt_pairs": [
+    [
+     [
+      "robot_1",
+      "robot_5"
+     ],
+     135.27
+    ]
+   ],
+   "gt_contacts": [],
+   "X5_candidate_gt_contact": false,
+   "EG2_candidate_undeclared_contact": [],
+   "notes": ""
+  },
+  {
+   "sheet_id": "GT-4f524f",
+   "unit_id": "FU1",
+   "kind": "conflict",
+   "robots": [
+    "robot_3",
+    "robot_4"
+   ],
+   "t0_rel": 14.67,
+   "end_rel": 571.97,
+   "t_end_rel": 571.97,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "parked_finished_listed_separately": false,
+   "T2_t0": true,
+   "T2_t0_shortest": {
+    "distance_m": 0.08,
+    "heading_deg": 45,
+    "robot": "robot_3"
+   },
+   "T2_t0_snapshot_rel": 14.833,
+   "T2_t0_start_within_clearance_robots": [],
+   "X3_gt_input_present": true,
+   "X3_gt_pairs": [
+    [
+     [
+      "robot_3",
+      "robot_4"
+     ],
+     15.27
+    ]
+   ],
+   "gt_contacts": [],
+   "X5_candidate_gt_contact": false,
+   "EG2_candidate_undeclared_contact": [],
+   "notes": ""
+  },
+  {
+   "sheet_id": "GT-4f524f",
+   "unit_id": "FU2",
+   "kind": "conflict",
+   "robots": [
+    "robot_1",
+    "robot_5"
+   ],
+   "t0_rel": 30.37,
+   "end_rel": 571.97,
+   "t_end_rel": 571.97,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "parked_finished_listed_separately": false,
+   "T2_t0": true,
+   "T2_t0_shortest": {
+    "distance_m": 0.04,
+    "heading_deg": 90,
+    "robot": "robot_1"
+   },
+   "T2_t0_snapshot_rel": 30.5,
+   "T2_t0_start_within_clearance_robots": [],
+   "X3_gt_input_present": true,
+   "X3_gt_pairs": [
+    [
+     [
+      "robot_1",
+      "robot_5"
+     ],
+     30.77
+    ]
+   ],
+   "gt_contacts": [],
+   "X5_candidate_gt_contact": false,
+   "EG2_candidate_undeclared_contact": [],
+   "notes": ""
+  },
+  {
+   "sheet_id": "GT-4f524f",
+   "unit_id": "FU3",
+   "kind": "lone_stall",
+   "robots": [
+    "robot_2"
+   ],
+   "t0_rel": 139.37,
+   "end_rel": 571.97,
+   "t_end_rel": 571.97,
+   "tool_excluded": false,
+   "tool_flags": [
+    "finished_all_or_between_tasks_at_censor (tool flag; rubric silent)"
+   ],
+   "is_failure_unit": false,
+   "parked_finished_listed_separately": true,
+   "T2_t0": true,
+   "T2_t0_shortest": {
+    "distance_m": 0.01,
+    "heading_deg": 0,
+    "robot": "robot_2"
+   },
+   "T2_t0_snapshot_rel": 139.667,
+   "T2_t0_start_within_clearance_robots": [],
+   "X3_gt_input_present": false,
+   "X3_gt_pairs": [],
+   "gt_contacts": [],
+   "X5_candidate_gt_contact": false,
+   "EG2_candidate_undeclared_contact": [],
+   "notes": "Lone stall flagged by tool as finished_all_or_between_tasks_at_censor; per protocol coded as not a failure unit and listed separately."
+  },
+  {
+   "sheet_id": "GT-595e94",
+   "unit_id": "FU1",
+   "kind": "conflict",
+   "robots": [
+    "robot_1",
+    "robot_3",
+    "robot_4",
+    "robot_5"
+   ],
+   "t0_rel": 12.27,
+   "end_rel": 572.07,
+   "t_end_rel": 572.07,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "parked_finished_listed_separately": false,
+   "T2_t0": true,
+   "T2_t0_shortest": {
+    "distance_m": 0.01,
+    "heading_deg": 0,
+    "robot": "robot_3"
+   },
+   "T2_t0_snapshot_rel": 12.367,
+   "T2_t0_start_within_clearance_robots": [
+    "robot_1"
+   ],
+   "X3_gt_input_present": true,
+   "X3_gt_pairs": [
+    [
+     [
+      "robot_3",
+      "robot_4"
+     ],
+     20.57
+    ],
+    [
+     [
+      "robot_3",
+      "robot_5"
+     ],
+     33.27
+    ]
+   ],
+   "gt_contacts": [
+    {
+     "pair": "robot_5|box:obstacle_1",
+     "from_rel": 26.47,
+     "to_rel": 28.77,
+     "min_gap_m": 0.0032,
+     "other_class": "declared_box",
+     "overlaps_t0minus60_to_end": true,
+     "open_at_censor": false
+    }
+   ],
+   "X5_candidate_gt_contact": true,
+   "EG2_candidate_undeclared_contact": [],
+   "notes": "X5 vs G5 attribution and EG2 role decided in Phase 2 (needs leg evidence); X3 GT input recorded only as GT input, X3 itself requires a completed command (Phase 2)."
+  },
+  {
+   "sheet_id": "GT-595e94",
+   "unit_id": "FU2",
+   "kind": "conflict",
+   "robots": [
+    "robot_1",
+    "robot_2"
+   ],
+   "t0_rel": 50.67,
+   "end_rel": 572.07,
+   "t_end_rel": 572.07,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "parked_finished_listed_separately": false,
+   "T2_t0": true,
+   "T2_t0_shortest": {
+    "distance_m": 0.03,
+    "heading_deg": 45,
+    "robot": "robot_1"
+   },
+   "T2_t0_snapshot_rel": 50.867,
+   "T2_t0_start_within_clearance_robots": [],
+   "X3_gt_input_present": true,
+   "X3_gt_pairs": [
+    [
+     [
+      "robot_1",
+      "robot_2"
+     ],
+     50.87
+    ]
+   ],
+   "gt_contacts": [],
+   "X5_candidate_gt_contact": false,
+   "EG2_candidate_undeclared_contact": [],
+   "notes": ""
+  },
+  {
+   "sheet_id": "GT-5cb09c",
+   "unit_id": "FU1",
+   "kind": "conflict",
+   "robots": [
+    "robot_1",
+    "robot_3"
+   ],
+   "t0_rel": 28.303,
+   "end_rel": 210.103,
+   "t_end_rel": 210.103,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "parked_finished_listed_separately": false,
+   "T2_t0": true,
+   "T2_t0_shortest": {
+    "distance_m": 0.01,
+    "heading_deg": 0,
+    "robot": "robot_1"
+   },
+   "T2_t0_snapshot_rel": 28.333,
+   "T2_t0_start_within_clearance_robots": [],
+   "X3_gt_input_present": true,
+   "X3_gt_pairs": [
+    [
+     [
+      "robot_1",
+      "robot_3"
+     ],
+     28.6
+    ]
+   ],
+   "gt_contacts": [],
+   "X5_candidate_gt_contact": false,
+   "EG2_candidate_undeclared_contact": [],
+   "notes": ""
+  },
+  {
+   "sheet_id": "GT-5cb09c",
+   "unit_id": "FU2",
+   "kind": "conflict",
+   "robots": [
+    "robot_2",
+    "robot_4",
+    "robot_5"
+   ],
+   "t0_rel": 67.003,
+   "end_rel": 210.103,
+   "t_end_rel": 210.103,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "parked_finished_listed_separately": false,
+   "T2_t0": true,
+   "T2_t0_shortest": {
+    "distance_m": 0.01,
+    "heading_deg": 0,
+    "robot": "robot_4"
+   },
+   "T2_t0_snapshot_rel": 67.433,
+   "T2_t0_start_within_clearance_robots": [
+    "robot_2"
+   ],
+   "X3_gt_input_present": true,
+   "X3_gt_pairs": [
+    [
+     [
+      "robot_2",
+      "robot_4"
+     ],
+     68.8
+    ],
+    [
+     [
+      "robot_4",
+      "robot_5"
+     ],
+     100.7
+    ]
+   ],
+   "gt_contacts": [
+    {
+     "pair": "robot_2|box:obstacle_2",
+     "from_rel": 66.5,
+     "to_rel": 210.1,
+     "min_gap_m": -0.0014,
+     "other_class": "declared_box",
+     "overlaps_t0minus60_to_end": true,
+     "open_at_censor": true
+    }
+   ],
+   "X5_candidate_gt_contact": true,
+   "EG2_candidate_undeclared_contact": [],
+   "notes": "X5 vs G5 attribution and EG2 role decided in Phase 2 (needs leg evidence); X3 GT input recorded only as GT input, X3 itself requires a completed command (Phase 2)."
+  },
+  {
+   "sheet_id": "GT-669c5b",
+   "unit_id": "FU1",
+   "kind": "conflict",
+   "robots": [
+    "robot_1",
+    "robot_2",
+    "robot_5"
+   ],
+   "t0_rel": 245.307,
+   "end_rel": 269.007,
+   "t_end_rel": 269.007,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "parked_finished_listed_separately": false,
+   "T2_t0": true,
+   "T2_t0_shortest": {
+    "distance_m": 0.01,
+    "heading_deg": 0,
+    "robot": "robot_5"
+   },
+   "T2_t0_snapshot_rel": 245.467,
+   "T2_t0_start_within_clearance_robots": [
+    "robot_2"
+   ],
+   "X3_gt_input_present": true,
+   "X3_gt_pairs": [
+    [
+     [
+      "robot_1",
+      "robot_2"
+     ],
+     245.71
+    ],
+    [
+     [
+      "robot_1",
+      "robot_5"
+     ],
+     268.71
+    ]
+   ],
+   "gt_contacts": [
+    {
+     "pair": "robot_1|box:obstacle_1",
+     "from_rel": 54.01,
+     "to_rel": 136.01,
+     "min_gap_m": -0.0002,
+     "other_class": "declared_box",
+     "overlaps_t0minus60_to_end": false,
+     "open_at_censor": false
+    },
+    {
+     "pair": "robot_2|box:obstacle_2",
+     "from_rel": 184.01,
+     "to_rel": 215.41,
+     "min_gap_m": -0.0001,
+     "other_class": "declared_box",
+     "overlaps_t0minus60_to_end": true,
+     "open_at_censor": false
+    }
+   ],
+   "X5_candidate_gt_contact": true,
+   "EG2_candidate_undeclared_contact": [],
+   "notes": "X5 vs G5 attribution and EG2 role decided in Phase 2 (needs leg evidence); X3 GT input recorded only as GT input, X3 itself requires a completed command (Phase 2)."
+  },
+  {
+   "sheet_id": "GT-72693e",
+   "unit_id": "FU1",
+   "kind": "conflict",
+   "robots": [
+    "robot_3",
+    "robot_4",
+    "robot_5"
+   ],
+   "t0_rel": 17.173,
+   "end_rel": 571.073,
+   "t_end_rel": 571.073,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "parked_finished_listed_separately": false,
+   "T2_t0": true,
+   "T2_t0_shortest": {
+    "distance_m": 0.01,
+    "heading_deg": 0,
+    "robot": "robot_5"
+   },
+   "T2_t0_snapshot_rel": 17.267,
+   "T2_t0_start_within_clearance_robots": [],
+   "X3_gt_input_present": true,
+   "X3_gt_pairs": [
+    [
+     [
+      "robot_3",
+      "robot_4"
+     ],
+     17.87
+    ],
+    [
+     [
+      "robot_3",
+      "robot_5"
+     ],
+     49.77
+    ]
+   ],
+   "gt_contacts": [],
+   "X5_candidate_gt_contact": false,
+   "EG2_candidate_undeclared_contact": [],
+   "notes": ""
+  },
+  {
+   "sheet_id": "GT-72693e",
+   "unit_id": "FU2",
+   "kind": "conflict",
+   "robots": [
+    "robot_1",
+    "robot_2"
+   ],
+   "t0_rel": 54.673,
+   "end_rel": 571.073,
+   "t_end_rel": 571.073,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "parked_finished_listed_separately": false,
+   "T2_t0": true,
+   "T2_t0_shortest": {
+    "distance_m": 0.04,
+    "heading_deg": 0,
+    "robot": "robot_1"
+   },
+   "T2_t0_snapshot_rel": 54.833,
+   "T2_t0_start_within_clearance_robots": [],
+   "X3_gt_input_present": true,
+   "X3_gt_pairs": [
+    [
+     [
+      "robot_1",
+      "robot_2"
+     ],
+     54.97
+    ]
+   ],
+   "gt_contacts": [],
+   "X5_candidate_gt_contact": false,
+   "EG2_candidate_undeclared_contact": [],
+   "notes": ""
+  },
+  {
+   "sheet_id": "GT-7a7c8e",
+   "unit_id": "FU1",
+   "kind": "conflict",
+   "robots": [
+    "robot_1",
+    "robot_2",
+    "robot_3",
+    "robot_4"
+   ],
+   "t0_rel": 14.903,
+   "end_rel": 144.303,
+   "t_end_rel": 144.303,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "parked_finished_listed_separately": false,
+   "T2_t0": true,
+   "T2_t0_shortest": {
+    "distance_m": 0.01,
+    "heading_deg": 0,
+    "robot": "robot_2"
+   },
+   "T2_t0_snapshot_rel": 15.1,
+   "T2_t0_start_within_clearance_robots": [],
+   "X3_gt_input_present": true,
+   "X3_gt_pairs": [
+    [
+     [
+      "robot_1",
+      "robot_4"
+     ],
+     101.6
+    ],
+    [
+     [
+      "robot_2",
+      "robot_3"
+     ],
+     23.4
+    ],
+    [
+     [
+      "robot_3",
+      "robot_4"
+     ],
+     15.1
+    ]
+   ],
+   "gt_contacts": [],
+   "X5_candidate_gt_contact": false,
+   "EG2_candidate_undeclared_contact": [],
+   "notes": ""
+  },
+  {
+   "sheet_id": "GT-83c441",
+   "unit_id": "FU1",
+   "kind": "conflict",
+   "robots": [
+    "robot_1",
+    "robot_2",
+    "robot_3"
+   ],
+   "t0_rel": 54.607,
+   "end_rel": 573.807,
+   "t_end_rel": 573.807,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "parked_finished_listed_separately": false,
+   "T2_t0": true,
+   "T2_t0_shortest": {
+    "distance_m": 0.01,
+    "heading_deg": 0,
+    "robot": "robot_1"
+   },
+   "T2_t0_snapshot_rel": 54.9,
+   "T2_t0_start_within_clearance_robots": [],
+   "X3_gt_input_present": true,
+   "X3_gt_pairs": [
+    [
+     [
+      "robot_1",
+      "robot_2"
+     ],
+     96.61
+    ],
+    [
+     [
+      "robot_2",
+      "robot_3"
+     ],
+     54.91
+    ]
+   ],
+   "gt_contacts": [],
+   "X5_candidate_gt_contact": false,
+   "EG2_candidate_undeclared_contact": [],
+   "notes": ""
+  },
+  {
+   "sheet_id": "GT-83c441",
+   "unit_id": "FU2",
+   "kind": "conflict",
+   "robots": [
+    "robot_4",
+    "robot_5"
+   ],
+   "t0_rel": 73.507,
+   "end_rel": 573.807,
+   "t_end_rel": 573.807,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "parked_finished_listed_separately": false,
+   "T2_t0": true,
+   "T2_t0_shortest": {
+    "distance_m": 0.05,
+    "heading_deg": 270,
+    "robot": "robot_4"
+   },
+   "T2_t0_snapshot_rel": 73.633,
+   "T2_t0_start_within_clearance_robots": [],
+   "X3_gt_input_present": true,
+   "X3_gt_pairs": [
+    [
+     [
+      "robot_4",
+      "robot_5"
+     ],
+     73.61
+    ]
+   ],
+   "gt_contacts": [],
+   "X5_candidate_gt_contact": false,
+   "EG2_candidate_undeclared_contact": [],
+   "notes": ""
+  },
+  {
+   "sheet_id": "GT-8cec64",
+   "unit_id": "FU1",
+   "kind": "conflict",
+   "robots": [
+    "robot_2",
+    "robot_3",
+    "robot_5"
+   ],
+   "t0_rel": 19.373,
+   "end_rel": 570.073,
+   "t_end_rel": 570.073,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "parked_finished_listed_separately": false,
+   "T2_t0": true,
+   "T2_t0_shortest": {
+    "distance_m": 0.01,
+    "heading_deg": 0,
+    "robot": "robot_5"
+   },
+   "T2_t0_snapshot_rel": 19.567,
+   "T2_t0_start_within_clearance_robots": [],
+   "X3_gt_input_present": true,
+   "X3_gt_pairs": [
+    [
+     [
+      "robot_2",
+      "robot_5"
+     ],
+     22.57
+    ],
+    [
+     [
+      "robot_3",
+      "robot_5"
+     ],
+     204.57
+    ]
+   ],
+   "gt_contacts": [],
+   "X5_candidate_gt_contact": false,
+   "EG2_candidate_undeclared_contact": [],
+   "notes": ""
+  },
+  {
+   "sheet_id": "GT-8cec64",
+   "unit_id": "FU2",
+   "kind": "conflict",
+   "robots": [
+    "robot_1",
+    "robot_4"
+   ],
+   "t0_rel": 72.673,
+   "end_rel": 570.073,
+   "t_end_rel": 570.073,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "parked_finished_listed_separately": false,
+   "T2_t0": true,
+   "T2_t0_shortest": {
+    "distance_m": 0.02,
+    "heading_deg": 0,
+    "robot": "robot_1"
+   },
+   "T2_t0_snapshot_rel": 72.7,
+   "T2_t0_start_within_clearance_robots": [],
+   "X3_gt_input_present": true,
+   "X3_gt_pairs": [
+    [
+     [
+      "robot_1",
+      "robot_4"
+     ],
+     72.97
+    ]
+   ],
+   "gt_contacts": [],
+   "X5_candidate_gt_contact": false,
+   "EG2_candidate_undeclared_contact": [],
+   "notes": ""
+  },
+  {
+   "sheet_id": "GT-96b59e",
+   "unit_id": "FU1",
+   "kind": "conflict",
+   "robots": [
+    "robot_1",
+    "robot_2",
+    "robot_5"
+   ],
+   "t0_rel": 11.773,
+   "end_rel": 571.173,
+   "t_end_rel": 571.173,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "parked_finished_listed_separately": false,
+   "T2_t0": true,
+   "T2_t0_shortest": {
+    "distance_m": 0.05,
+    "heading_deg": 0,
+    "robot": "robot_1"
+   },
+   "T2_t0_snapshot_rel": 12.033,
+   "T2_t0_start_within_clearance_robots": [
+    "robot_2"
+   ],
+   "X3_gt_input_present": true,
+   "X3_gt_pairs": [
+    [
+     [
+      "robot_1",
+      "robot_2"
+     ],
+     28.27
+    ],
+    [
+     [
+      "robot_1",
+      "robot_5"
+     ],
+     12.37
+    ]
+   ],
+   "gt_contacts": [],
+   "X5_candidate_gt_contact": false,
+   "EG2_candidate_undeclared_contact": [],
+   "notes": ""
+  },
+  {
+   "sheet_id": "GT-96b59e",
+   "unit_id": "FU2",
+   "kind": "conflict",
+   "robots": [
+    "robot_3",
+    "robot_4"
+   ],
+   "t0_rel": 12.073,
+   "end_rel": 571.173,
+   "t_end_rel": 571.173,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "parked_finished_listed_separately": false,
+   "T2_t0": true,
+   "T2_t0_shortest": {
+    "distance_m": 0.06,
+    "heading_deg": 0,
+    "robot": "robot_3"
+   },
+   "T2_t0_snapshot_rel": 12.267,
+   "T2_t0_start_within_clearance_robots": [],
+   "X3_gt_input_present": true,
+   "X3_gt_pairs": [
+    [
+     [
+      "robot_3",
+      "robot_4"
+     ],
+     12.37
+    ]
+   ],
+   "gt_contacts": [],
+   "X5_candidate_gt_contact": false,
+   "EG2_candidate_undeclared_contact": [],
+   "notes": ""
+  },
+  {
+   "sheet_id": "GT-9c8ad7",
+   "unit_id": "FU1",
+   "kind": "conflict",
+   "robots": [
+    "robot_1",
+    "robot_2",
+    "robot_3",
+    "robot_4",
+    "robot_5"
+   ],
+   "t0_rel": 65.07,
+   "end_rel": 568.17,
+   "t_end_rel": 568.17,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "parked_finished_listed_separately": false,
+   "T2_t0": true,
+   "T2_t0_shortest": {
+    "distance_m": 0.01,
+    "heading_deg": 0,
+    "robot": "robot_2"
+   },
+   "T2_t0_snapshot_rel": 65.367,
+   "T2_t0_start_within_clearance_robots": [],
+   "X3_gt_input_present": true,
+   "X3_gt_pairs": [
+    [
+     [
+      "robot_1",
+      "robot_3"
+     ],
+     65.67
+    ],
+    [
+     [
+      "robot_2",
+      "robot_3"
+     ],
+     100.97
+    ],
+    [
+     [
+      "robot_2",
+      "robot_4"
+     ],
+     133.57
+    ],
+    [
+     [
+      "robot_3",
+      "robot_5"
+     ],
+     267.07
+    ]
+   ],
+   "gt_contacts": [
+    {
+     "pair": "robot_5|box:obstacle_1",
+     "from_rel": 155.67,
+     "to_rel": 157.97,
+     "min_gap_m": 0.0032,
+     "other_class": "declared_box",
+     "overlaps_t0minus60_to_end": true,
+     "open_at_censor": false
+    },
+    {
+     "pair": "robot_5|box:rack/SW_west",
+     "from_rel": 111.37,
+     "to_rel": 139.47,
+     "min_gap_m": -0.0017,
+     "other_class": "undeclared_box",
+     "overlaps_t0minus60_to_end": true,
+     "open_at_censor": false
+    }
+   ],
+   "X5_candidate_gt_contact": true,
+   "EG2_candidate_undeclared_contact": [
+    "robot_5|box:rack/SW_west"
+   ],
+   "notes": "X5 vs G5 attribution and EG2 role decided in Phase 2 (needs leg evidence); X3 GT input recorded only as GT input, X3 itself requires a completed command (Phase 2)."
+  },
+  {
+   "sheet_id": "GT-9d2219",
+   "unit_id": "FU1",
+   "kind": "conflict",
+   "robots": [
+    "robot_1",
+    "robot_5"
+   ],
+   "t0_rel": 14.27,
+   "end_rel": 570.37,
+   "t_end_rel": 570.37,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "parked_finished_listed_separately": false,
+   "T2_t0": true,
+   "T2_t0_shortest": {
+    "distance_m": 0.12,
+    "heading_deg": 180,
+    "robot": "robot_5"
+   },
+   "T2_t0_snapshot_rel": 14.5,
+   "T2_t0_start_within_clearance_robots": [
+    "robot_1"
+   ],
+   "X3_gt_input_present": true,
+   "X3_gt_pairs": [
+    [
+     [
+      "robot_1",
+      "robot_5"
+     ],
+     15.17
+    ]
+   ],
+   "gt_contacts": [],
+   "X5_candidate_gt_contact": false,
+   "EG2_candidate_undeclared_contact": [],
+   "notes": ""
+  },
+  {
+   "sheet_id": "GT-9d2219",
+   "unit_id": "FU2",
+   "kind": "conflict",
+   "robots": [
+    "robot_2",
+    "robot_3",
+    "robot_4"
+   ],
+   "t0_rel": 20.57,
+   "end_rel": 570.37,
+   "t_end_rel": 570.37,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "parked_finished_listed_separately": false,
+   "T2_t0": true,
+   "T2_t0_shortest": {
+    "distance_m": 0.01,
+    "heading_deg": 0,
+    "robot": "robot_4"
+   },
+   "T2_t0_snapshot_rel": 20.6,
+   "T2_t0_start_within_clearance_robots": [],
+   "X3_gt_input_present": true,
+   "X3_gt_pairs": [
+    [
+     [
+      "robot_2",
+      "robot_3"
+     ],
+     20.77
+    ],
+    [
+     [
+      "robot_2",
+      "robot_4"
+     ],
+     28.27
+    ],
+    [
+     [
+      "robot_3",
+      "robot_4"
+     ],
+     28.27
+    ]
+   ],
+   "gt_contacts": [],
+   "X5_candidate_gt_contact": false,
+   "EG2_candidate_undeclared_contact": [],
+   "notes": ""
+  },
+  {
+   "sheet_id": "GT-a1575e",
+   "unit_id": "FU1",
+   "kind": "conflict",
+   "robots": [
+    "robot_2",
+    "robot_3",
+    "robot_5"
+   ],
+   "t0_rel": 22.937,
+   "end_rel": 571.437,
+   "t_end_rel": 571.437,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "parked_finished_listed_separately": false,
+   "T2_t0": true,
+   "T2_t0_shortest": {
+    "distance_m": 0.01,
+    "heading_deg": 0,
+    "robot": "robot_2"
+   },
+   "T2_t0_snapshot_rel": 23.067,
+   "T2_t0_start_within_clearance_robots": [],
+   "X3_gt_input_present": true,
+   "X3_gt_pairs": [
+    [
+     [
+      "robot_2",
+      "robot_5"
+     ],
+     105.64
+    ],
+    [
+     [
+      "robot_3",
+      "robot_5"
+     ],
+     23.14
+    ]
+   ],
+   "gt_contacts": [],
+   "X5_candidate_gt_contact": false,
+   "EG2_candidate_undeclared_contact": [],
+   "notes": ""
+  },
+  {
+   "sheet_id": "GT-a1575e",
+   "unit_id": "FU2",
+   "kind": "conflict",
+   "robots": [
+    "robot_1",
+    "robot_4"
+   ],
+   "t0_rel": 30.137,
+   "end_rel": 571.437,
+   "t_end_rel": 571.437,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "parked_finished_listed_separately": false,
+   "T2_t0": true,
+   "T2_t0_shortest": {
+    "distance_m": 0.03,
+    "heading_deg": 135,
+    "robot": "robot_1"
+   },
+   "T2_t0_snapshot_rel": 30.167,
+   "T2_t0_start_within_clearance_robots": [],
+   "X3_gt_input_present": true,
+   "X3_gt_pairs": [
+    [
+     [
+      "robot_1",
+      "robot_4"
+     ],
+     30.34
+    ]
+   ],
+   "gt_contacts": [],
+   "X5_candidate_gt_contact": false,
+   "EG2_candidate_undeclared_contact": [],
+   "notes": ""
+  },
+  {
+   "sheet_id": "GT-a2db01",
+   "unit_id": "FU1",
+   "kind": "conflict",
+   "robots": [
+    "robot_1",
+    "robot_4"
+   ],
+   "t0_rel": 15.97,
+   "end_rel": 570.67,
+   "t_end_rel": 570.67,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "parked_finished_listed_separately": false,
+   "T2_t0": true,
+   "T2_t0_shortest": {
+    "distance_m": 0.06,
+    "heading_deg": 45,
+    "robot": "robot_1"
+   },
+   "T2_t0_snapshot_rel": 16.1,
+   "T2_t0_start_within_clearance_robots": [],
+   "X3_gt_input_present": true,
+   "X3_gt_pairs": [
+    [
+     [
+      "robot_1",
+      "robot_4"
+     ],
+     16.67
+    ]
+   ],
+   "gt_contacts": [],
+   "X5_candidate_gt_contact": false,
+   "EG2_candidate_undeclared_contact": [],
+   "notes": ""
+  },
+  {
+   "sheet_id": "GT-a2db01",
+   "unit_id": "FU2",
+   "kind": "conflict",
+   "robots": [
+    "robot_2",
+    "robot_3",
+    "robot_5"
+   ],
+   "t0_rel": 19.57,
+   "end_rel": 570.67,
+   "t_end_rel": 570.67,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "parked_finished_listed_separately": false,
+   "T2_t0": true,
+   "T2_t0_shortest": {
+    "distance_m": 0.01,
+    "heading_deg": 0,
+    "robot": "robot_5"
+   },
+   "T2_t0_snapshot_rel": 19.733,
+   "T2_t0_start_within_clearance_robots": [],
+   "X3_gt_input_present": true,
+   "X3_gt_pairs": [
+    [
+     [
+      "robot_2",
+      "robot_3"
+     ],
+     19.77
+    ],
+    [
+     [
+      "robot_2",
+      "robot_5"
+     ],
+     22.07
+    ]
+   ],
+   "gt_contacts": [],
+   "X5_candidate_gt_contact": false,
+   "EG2_candidate_undeclared_contact": [],
+   "notes": ""
+  },
+  {
+   "sheet_id": "GT-a3cdae",
+   "unit_id": "FU1",
+   "kind": "conflict",
+   "robots": [
+    "robot_2",
+    "robot_4",
+    "robot_5"
+   ],
+   "t0_rel": 31.603,
+   "end_rel": 576.703,
+   "t_end_rel": 576.703,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "parked_finished_listed_separately": false,
+   "T2_t0": true,
+   "T2_t0_shortest": {
+    "distance_m": 0.04,
+    "heading_deg": 45,
+    "robot": "robot_2"
+   },
+   "T2_t0_snapshot_rel": 31.667,
+   "T2_t0_start_within_clearance_robots": [
+    "robot_4",
+    "robot_5"
+   ],
+   "X3_gt_input_present": true,
+   "X3_gt_pairs": [
+    [
+     [
+      "robot_2",
+      "robot_4"
+     ],
+     64.0
+    ],
+    [
+     [
+      "robot_2",
+      "robot_5"
+     ],
+     31.9
+    ]
+   ],
+   "gt_contacts": [
+    {
+     "pair": "robot_4|box:rack/NW_west",
+     "from_rel": 22.0,
+     "to_rel": 54.4,
+     "min_gap_m": -0.0,
+     "other_class": "undeclared_box",
+     "overlaps_t0minus60_to_end": true,
+     "open_at_censor": false
+    }
+   ],
+   "X5_candidate_gt_contact": true,
+   "EG2_candidate_undeclared_contact": [
+    "robot_4|box:rack/NW_west"
+   ],
+   "notes": "X5 vs G5 attribution and EG2 role decided in Phase 2 (needs leg evidence); X3 GT input recorded only as GT input, X3 itself requires a completed command (Phase 2)."
+  },
+  {
+   "sheet_id": "GT-a3cdae",
+   "unit_id": "FU2",
+   "kind": "conflict",
+   "robots": [
+    "robot_1",
+    "robot_3"
+   ],
+   "t0_rel": 37.803,
+   "end_rel": 576.703,
+   "t_end_rel": 576.703,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "parked_finished_listed_separately": false,
+   "T2_t0": true,
+   "T2_t0_shortest": {
+    "distance_m": 0.06,
+    "heading_deg": 180,
+    "robot": "robot_1"
+   },
+   "T2_t0_snapshot_rel": 37.933,
+   "T2_t0_start_within_clearance_robots": [],
+   "X3_gt_input_present": true,
+   "X3_gt_pairs": [
+    [
+     [
+      "robot_1",
+      "robot_3"
+     ],
+     38.0
+    ]
+   ],
+   "gt_contacts": [],
+   "X5_candidate_gt_contact": false,
+   "EG2_candidate_undeclared_contact": [],
+   "notes": ""
+  },
+  {
+   "sheet_id": "GT-a74755",
+   "unit_id": "FU1",
+   "kind": "conflict",
+   "robots": [
+    "robot_1",
+    "robot_4",
+    "robot_5"
+   ],
+   "t0_rel": 69.04,
+   "end_rel": 568.54,
+   "t_end_rel": 568.54,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "parked_finished_listed_separately": false,
+   "T2_t0": true,
+   "T2_t0_shortest": {
+    "distance_m": 0.01,
+    "heading_deg": 0,
+    "robot": "robot_5"
+   },
+   "T2_t0_snapshot_rel": 69.067,
+   "T2_t0_start_within_clearance_robots": [
+    "robot_4"
+   ],
+   "X3_gt_input_present": true,
+   "X3_gt_pairs": [
+    [
+     [
+      "robot_1",
+      "robot_4"
+     ],
+     69.24
+    ],
+    [
+     [
+      "robot_1",
+      "robot_5"
+     ],
+     179.84
+    ]
+   ],
+   "gt_contacts": [],
+   "X5_candidate_gt_contact": false,
+   "EG2_candidate_undeclared_contact": [],
+   "notes": ""
+  },
+  {
+   "sheet_id": "GT-a74755",
+   "unit_id": "FU2",
+   "kind": "conflict",
+   "robots": [
+    "robot_2",
+    "robot_3"
+   ],
+   "t0_rel": 240.94,
+   "end_rel": 568.54,
+   "t_end_rel": 568.54,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "parked_finished_listed_separately": false,
+   "T2_t0": false,
+   "T2_t0_shortest": null,
+   "T2_t0_snapshot_rel": 240.967,
+   "T2_t0_start_within_clearance_robots": [
+    "robot_2",
+    "robot_3"
+   ],
+   "X3_gt_input_present": true,
+   "X3_gt_pairs": [
+    [
+     [
+      "robot_2",
+      "robot_3"
+     ],
+     241.44
+    ]
+   ],
+   "gt_contacts": [
+    {
+     "pair": "robot_2|box:obstacle_2",
+     "from_rel": 238.54,
+     "to_rel": 568.54,
+     "min_gap_m": 0.0038,
+     "other_class": "declared_box",
+     "overlaps_t0minus60_to_end": true,
+     "open_at_censor": true
+    },
+    {
+     "pair": "robot_3|box:obstacle_2",
+     "from_rel": 114.74,
+     "to_rel": 568.54,
+     "min_gap_m": -0.0002,
+     "other_class": "declared_box",
+     "overlaps_t0minus60_to_end": true,
+     "open_at_censor": true
+    }
+   ],
+   "X5_candidate_gt_contact": true,
+   "EG2_candidate_undeclared_contact": [],
+   "notes": "T2(t0) false; start_within_required_clearance for robot_2,robot_3 (literal-sweep artefact possible, see protocol known consequences; S2 sensitivity computed by tool later). X5 vs G5 attribution and EG2 role decided in Phase 2 (needs leg evidence); X3 GT input recorded only as GT input, X3 itself requires a completed command (Phase 2)."
+  },
+  {
+   "sheet_id": "GT-adc295",
+   "unit_id": "FU1",
+   "kind": "conflict",
+   "robots": [
+    "robot_1",
+    "robot_2",
+    "robot_3",
+    "robot_4",
+    "robot_5"
+   ],
+   "t0_rel": 12.24,
+   "end_rel": 569.94,
+   "t_end_rel": 569.94,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "parked_finished_listed_separately": false,
+   "T2_t0": true,
+   "T2_t0_shortest": {
+    "distance_m": 0.01,
+    "heading_deg": 0,
+    "robot": "robot_1"
+   },
+   "T2_t0_snapshot_rel": 12.433,
+   "T2_t0_start_within_clearance_robots": [],
+   "X3_gt_input_present": true,
+   "X3_gt_pairs": [
+    [
+     [
+      "robot_1",
+      "robot_2"
+     ],
+     40.94
+    ],
+    [
+     [
+      "robot_1",
+      "robot_3"
+     ],
+     17.24
+    ],
+    [
+     [
+      "robot_2",
+      "robot_5"
+     ],
+     72.74
+    ],
+    [
+     [
+      "robot_3",
+      "robot_4"
+     ],
+     38.94
+    ]
+   ],
+   "gt_contacts": [],
+   "X5_candidate_gt_contact": false,
+   "EG2_candidate_undeclared_contact": [],
+   "notes": ""
+  },
+  {
+   "sheet_id": "GT-b3d4ec",
+   "unit_id": "FU1",
+   "kind": "conflict",
+   "robots": [
+    "robot_1",
+    "robot_2",
+    "robot_3",
+    "robot_4",
+    "robot_5"
+   ],
+   "t0_rel": 12.17,
+   "end_rel": 572.67,
+   "t_end_rel": 572.67,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "parked_finished_listed_separately": false,
+   "T2_t0": true,
+   "T2_t0_shortest": {
+    "distance_m": 0.01,
+    "heading_deg": 0,
+    "robot": "robot_1"
+   },
+   "T2_t0_snapshot_rel": 12.433,
+   "T2_t0_start_within_clearance_robots": [],
+   "X3_gt_input_present": true,
+   "X3_gt_pairs": [
+    [
+     [
+      "robot_1",
+      "robot_3"
+     ],
+     98.47
+    ],
+    [
+     [
+      "robot_1",
+      "robot_5"
+     ],
+     16.97
+    ],
+    [
+     [
+      "robot_2",
+      "robot_5"
+     ],
+     112.67
+    ],
+    [
+     [
+      "robot_3",
+      "robot_4"
+     ],
+     100.67
+    ]
+   ],
+   "gt_contacts": [],
+   "X5_candidate_gt_contact": false,
+   "EG2_candidate_undeclared_contact": [],
+   "notes": ""
+  },
+  {
+   "sheet_id": "GT-b92f93",
+   "unit_id": "FU1",
+   "kind": "conflict",
+   "robots": [
+    "robot_3",
+    "robot_4"
+   ],
+   "t0_rel": 14.97,
+   "end_rel": 570.67,
+   "t_end_rel": 570.67,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "parked_finished_listed_separately": false,
+   "T2_t0": true,
+   "T2_t0_shortest": {
+    "distance_m": 0.09,
+    "heading_deg": 45,
+    "robot": "robot_3"
+   },
+   "T2_t0_snapshot_rel": 15.3,
+   "T2_t0_start_within_clearance_robots": [],
+   "X3_gt_input_present": true,
+   "X3_gt_pairs": [
+    [
+     [
+      "robot_3",
+      "robot_4"
+     ],
+     15.57
+    ]
+   ],
+   "gt_contacts": [],
+   "X5_candidate_gt_contact": false,
+   "EG2_candidate_undeclared_contact": [],
+   "notes": ""
+  },
+  {
+   "sheet_id": "GT-b92f93",
+   "unit_id": "FU2",
+   "kind": "conflict",
+   "robots": [
+    "robot_1",
+    "robot_5"
+   ],
+   "t0_rel": 30.67,
+   "end_rel": 570.67,
+   "t_end_rel": 570.67,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "parked_finished_listed_separately": false,
+   "T2_t0": true,
+   "T2_t0_shortest": {
+    "distance_m": 0.04,
+    "heading_deg": 90,
+    "robot": "robot_1"
+   },
+   "T2_t0_snapshot_rel": 30.767,
+   "T2_t0_start_within_clearance_robots": [],
+   "X3_gt_input_present": true,
+   "X3_gt_pairs": [
+    [
+     [
+      "robot_1",
+      "robot_5"
+     ],
+     30.87
+    ]
+   ],
+   "gt_contacts": [],
+   "X5_candidate_gt_contact": false,
+   "EG2_candidate_undeclared_contact": [],
+   "notes": ""
+  },
+  {
+   "sheet_id": "GT-b92f93",
+   "unit_id": "FU3",
+   "kind": "lone_stall",
+   "robots": [
+    "robot_2"
+   ],
+   "t0_rel": 138.17,
+   "end_rel": 570.67,
+   "t_end_rel": 570.67,
+   "tool_excluded": false,
+   "tool_flags": [
+    "finished_all_or_between_tasks_at_censor (tool flag; rubric silent)"
+   ],
+   "is_failure_unit": false,
+   "parked_finished_listed_separately": true,
+   "T2_t0": true,
+   "T2_t0_shortest": {
+    "distance_m": 0.01,
+    "heading_deg": 0,
+    "robot": "robot_2"
+   },
+   "T2_t0_snapshot_rel": 138.2,
+   "T2_t0_start_within_clearance_robots": [],
+   "X3_gt_input_present": false,
+   "X3_gt_pairs": [],
+   "gt_contacts": [
+    {
+     "pair": "robot_2|box:obstacle_1",
+     "from_rel": 18.87,
+     "to_rel": 21.27,
+     "min_gap_m": 0.001,
+     "other_class": "declared_box",
+     "overlaps_t0minus60_to_end": false,
+     "open_at_censor": false
+    }
+   ],
+   "X5_candidate_gt_contact": true,
+   "EG2_candidate_undeclared_contact": [],
+   "notes": "Lone stall flagged by tool as finished_all_or_between_tasks_at_censor; per protocol coded as not a failure unit and listed separately. X5 vs G5 attribution and EG2 role decided in Phase 2 (needs leg evidence); X3 GT input recorded only as GT input, X3 itself requires a completed command (Phase 2)."
+  },
+  {
+   "sheet_id": "GT-bc975c",
+   "unit_id": "FU1",
+   "kind": "conflict",
+   "robots": [
+    "robot_4",
+    "robot_5"
+   ],
+   "t0_rel": 17.273,
+   "end_rel": 569.673,
+   "t_end_rel": 569.673,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "parked_finished_listed_separately": false,
+   "T2_t0": true,
+   "T2_t0_shortest": {
+    "distance_m": 0.06,
+    "heading_deg": 315,
+    "robot": "robot_5"
+   },
+   "T2_t0_snapshot_rel": 17.333,
+   "T2_t0_start_within_clearance_robots": [],
+   "X3_gt_input_present": true,
+   "X3_gt_pairs": [
+    [
+     [
+      "robot_4",
+      "robot_5"
+     ],
+     17.77
+    ]
+   ],
+   "gt_contacts": [],
+   "X5_candidate_gt_contact": false,
+   "EG2_candidate_undeclared_contact": [],
+   "notes": ""
+  },
+  {
+   "sheet_id": "GT-bc975c",
+   "unit_id": "FU2",
+   "kind": "conflict",
+   "robots": [
+    "robot_1",
+    "robot_2",
+    "robot_3"
+   ],
+   "t0_rel": 23.473,
+   "end_rel": 569.673,
+   "t_end_rel": 569.673,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "parked_finished_listed_separately": false,
+   "T2_t0": true,
+   "T2_t0_shortest": {
+    "distance_m": 0.01,
+    "heading_deg": 0,
+    "robot": "robot_1"
+   },
+   "T2_t0_snapshot_rel": 23.533,
+   "T2_t0_start_within_clearance_robots": [],
+   "X3_gt_input_present": true,
+   "X3_gt_pairs": [
+    [
+     [
+      "robot_1",
+      "robot_2"
+     ],
+     122.57
+    ],
+    [
+     [
+      "robot_2",
+      "robot_3"
+     ],
+     23.77
+    ]
+   ],
+   "gt_contacts": [],
+   "X5_candidate_gt_contact": false,
+   "EG2_candidate_undeclared_contact": [],
+   "notes": ""
+  },
+  {
+   "sheet_id": "GT-c34011",
+   "unit_id": "FU1",
+   "kind": "conflict",
+   "robots": [
+    "robot_2",
+    "robot_3",
+    "robot_4"
+   ],
+   "t0_rel": 36.573,
+   "end_rel": 571.173,
+   "t_end_rel": 571.173,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "parked_finished_listed_separately": false,
+   "T2_t0": true,
+   "T2_t0_shortest": {
+    "distance_m": 0.01,
+    "heading_deg": 90,
+    "robot": "robot_3"
+   },
+   "T2_t0_snapshot_rel": 36.667,
+   "T2_t0_start_within_clearance_robots": [
+    "robot_2"
+   ],
+   "X3_gt_input_present": true,
+   "X3_gt_pairs": [
+    [
+     [
+      "robot_2",
+      "robot_3"
+     ],
+     36.77
+    ],
+    [
+     [
+      "robot_2",
+      "robot_4"
+     ],
+     133.27
+    ]
+   ],
+   "gt_contacts": [
+    {
+     "pair": "robot_2|box:obstacle_1",
+     "from_rel": 35.97,
+     "to_rel": 571.17,
+     "min_gap_m": -0.0001,
+     "other_class": "declared_box",
+     "overlaps_t0minus60_to_end": true,
+     "open_at_censor": true
+    },
+    {
+     "pair": "robot_4|box:obstacle_1",
+     "from_rel": 39.87,
+     "to_rel": 74.27,
+     "min_gap_m": -0.0057,
+     "other_class": "declared_box",
+     "overlaps_t0minus60_to_end": true,
+     "open_at_censor": false
+    }
+   ],
+   "X5_candidate_gt_contact": true,
+   "EG2_candidate_undeclared_contact": [],
+   "notes": "X5 vs G5 attribution and EG2 role decided in Phase 2 (needs leg evidence); X3 GT input recorded only as GT input, X3 itself requires a completed command (Phase 2)."
+  },
+  {
+   "sheet_id": "GT-c34011",
+   "unit_id": "FU2",
+   "kind": "conflict",
+   "robots": [
+    "robot_1",
+    "robot_5"
+   ],
+   "t0_rel": 101.873,
+   "end_rel": 571.173,
+   "t_end_rel": 571.173,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "parked_finished_listed_separately": false,
+   "T2_t0": true,
+   "T2_t0_shortest": {
+    "distance_m": 0.02,
+    "heading_deg": 45,
+    "robot": "robot_1"
+   },
+   "T2_t0_snapshot_rel": 101.933,
+   "T2_t0_start_within_clearance_robots": [],
+   "X3_gt_input_present": true,
+   "X3_gt_pairs": [
+    [
+     [
+      "robot_1",
+      "robot_5"
+     ],
+     102.07
+    ]
+   ],
+   "gt_contacts": [],
+   "X5_candidate_gt_contact": false,
+   "EG2_candidate_undeclared_contact": [],
+   "notes": ""
+  },
+  {
+   "sheet_id": "GT-d23005",
+   "unit_id": "FU1",
+   "kind": "conflict",
+   "robots": [
+    "robot_2",
+    "robot_3",
+    "robot_4"
+   ],
+   "t0_rel": 15.307,
+   "end_rel": 170.907,
+   "t_end_rel": 170.907,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "parked_finished_listed_separately": false,
+   "T2_t0": true,
+   "T2_t0_shortest": {
+    "distance_m": 0.01,
+    "heading_deg": 0,
+    "robot": "robot_3"
+   },
+   "T2_t0_snapshot_rel": 15.467,
+   "T2_t0_start_within_clearance_robots": [],
+   "X3_gt_input_present": true,
+   "X3_gt_pairs": [
+    [
+     [
+      "robot_2",
+      "robot_3"
+     ],
+     37.01
+    ],
+    [
+     [
+      "robot_2",
+      "robot_4"
+     ],
+     16.01
+    ]
+   ],
+   "gt_contacts": [],
+   "X5_candidate_gt_contact": false,
+   "EG2_candidate_undeclared_contact": [],
+   "notes": ""
+  },
+  {
+   "sheet_id": "GT-d27635",
+   "unit_id": "FU1",
+   "kind": "conflict",
+   "robots": [
+    "robot_1",
+    "robot_2",
+    "robot_5"
+   ],
+   "t0_rel": 11.203,
+   "end_rel": 569.203,
+   "t_end_rel": 569.203,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "parked_finished_listed_separately": false,
+   "T2_t0": true,
+   "T2_t0_shortest": {
+    "distance_m": 0.01,
+    "heading_deg": 0,
+    "robot": "robot_2"
+   },
+   "T2_t0_snapshot_rel": 11.367,
+   "T2_t0_start_within_clearance_robots": [],
+   "X3_gt_input_present": true,
+   "X3_gt_pairs": [
+    [
+     [
+      "robot_1",
+      "robot_2"
+     ],
+     28.6
+    ],
+    [
+     [
+      "robot_1",
+      "robot_5"
+     ],
+     11.9
+    ]
+   ],
+   "gt_contacts": [],
+   "X5_candidate_gt_contact": false,
+   "EG2_candidate_undeclared_contact": [],
+   "notes": ""
+  },
+  {
+   "sheet_id": "GT-d27635",
+   "unit_id": "FU2",
+   "kind": "conflict",
+   "robots": [
+    "robot_3",
+    "robot_4"
+   ],
+   "t0_rel": 63.803,
+   "end_rel": 569.203,
+   "t_end_rel": 569.203,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "parked_finished_listed_separately": false,
+   "T2_t0": true,
+   "T2_t0_shortest": {
+    "distance_m": 0.04,
+    "heading_deg": 315,
+    "robot": "robot_3"
+   },
+   "T2_t0_snapshot_rel": 64.067,
+   "T2_t0_start_within_clearance_robots": [],
+   "X3_gt_input_present": true,
+   "X3_gt_pairs": [
+    [
+     [
+      "robot_3",
+      "robot_4"
+     ],
+     64.3
+    ]
+   ],
+   "gt_contacts": [],
+   "X5_candidate_gt_contact": false,
+   "EG2_candidate_undeclared_contact": [],
+   "notes": ""
+  },
+  {
+   "sheet_id": "GT-f5063e",
+   "unit_id": "FU1",
+   "kind": "conflict",
+   "robots": [
+    "robot_1",
+    "robot_2",
+    "robot_3",
+    "robot_4",
+    "robot_5"
+   ],
+   "t0_rel": 25.07,
+   "end_rel": 577.27,
+   "t_end_rel": 577.27,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "parked_finished_listed_separately": false,
+   "T2_t0": true,
+   "T2_t0_shortest": {
+    "distance_m": 0.01,
+    "heading_deg": 0,
+    "robot": "robot_1"
+   },
+   "T2_t0_snapshot_rel": 25.5,
+   "T2_t0_start_within_clearance_robots": [],
+   "X3_gt_input_present": true,
+   "X3_gt_pairs": [
+    [
+     [
+      "robot_1",
+      "robot_4"
+     ],
+     64.57
+    ],
+    [
+     [
+      "robot_2",
+      "robot_3"
+     ],
+     46.77
+    ],
+    [
+     [
+      "robot_2",
+      "robot_4"
+     ],
+     46.77
+    ],
+    [
+     [
+      "robot_2",
+      "robot_5"
+     ],
+     46.77
+    ],
+    [
+     [
+      "robot_3",
+      "robot_4"
+     ],
+     26.07
+    ],
+    [
+     [
+      "robot_3",
+      "robot_5"
+     ],
+     25.47
+    ]
+   ],
+   "gt_contacts": [],
+   "X5_candidate_gt_contact": false,
+   "EG2_candidate_undeclared_contact": [],
+   "notes": ""
+  }
+ ]
+}

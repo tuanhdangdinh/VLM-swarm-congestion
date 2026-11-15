@@ -1,0 +1,1425 @@
+{
+ "primary_table": {
+  "A": {
+   "V": {
+    "units": 2,
+    "episodes": 0,
+    "A_units": 2,
+    "B_units": 3
+   },
+   "G": {
+    "units": 1,
+    "episodes": 1,
+    "A_units": 1,
+    "B_units": 1
+   },
+   "X": {
+    "units": 3,
+    "episodes": 2,
+    "A_units": 3,
+    "B_units": 2
+   },
+   "EG": {
+    "units": 0,
+    "episodes": 0,
+    "A_units": 0,
+    "B_units": 0
+   },
+   "U": {
+    "units": 2,
+    "episodes": 2,
+    "A_units": 2,
+    "B_units": 2
+   },
+   "total": {
+    "units": 8,
+    "episodes_with_unit": 5,
+    "episodes": 5
+   },
+   "parked_not_units": 2,
+   "codes": {
+    "X3": 2,
+    "U:T1_fidelity": 2,
+    "X2": 1,
+    "V1": 1,
+    "G2": 1,
+    "V3": 1
+   },
+   "contributing_intersection": {
+    "V": 4,
+    "G": 5,
+    "X": 5,
+    "EG": 0
+   },
+   "contributing_union": {
+    "V": 4,
+    "G": 5,
+    "X": 5,
+    "EG": 0
+   },
+   "contributing_codes_intersection": {
+    "G1": 5,
+    "G2": 5,
+    "V3": 2,
+    "G6": 1,
+    "V4": 1,
+    "X1": 1,
+    "X2": 1,
+    "X3": 5,
+    "G4": 2,
+    "X4": 1,
+    "V1": 1
+   },
+   "undetermined": {
+    "U:T1_fidelity": 2
+   },
+   "s3": {
+    "V": 2,
+    "G": 2,
+    "X": 4,
+    "EG": 0,
+    "U": 0
+   },
+   "s3_codes": {
+    "X3": 2,
+    "G6": 1,
+    "X4": 1,
+    "X2": 1,
+    "V1": 1,
+    "G2": 1,
+    "V3": 1
+   },
+   "s3_changed_units": 2
+  },
+  "B": {
+   "V": {
+    "units": 0,
+    "episodes": 0,
+    "A_units": 0,
+    "B_units": 0
+   },
+   "G": {
+    "units": 0,
+    "episodes": 0,
+    "A_units": 0,
+    "B_units": 0
+   },
+   "X": {
+    "units": 0,
+    "episodes": 0,
+    "A_units": 0,
+    "B_units": 0
+   },
+   "EG": {
+    "units": 0,
+    "episodes": 0,
+    "A_units": 0,
+    "B_units": 0
+   },
+   "U": {
+    "units": 10,
+    "episodes": 5,
+    "A_units": 10,
+    "B_units": 10
+   },
+   "total": {
+    "units": 10,
+    "episodes_with_unit": 5,
+    "episodes": 5
+   },
+   "parked_not_units": 1,
+   "codes": {
+    "U:no_m4_clock_anchor": 10
+   },
+   "contributing_intersection": {
+    "V": 0,
+    "G": 0,
+    "X": 0,
+    "EG": 0
+   },
+   "contributing_union": {
+    "V": 0,
+    "G": 0,
+    "X": 1,
+    "EG": 0
+   },
+   "contributing_codes_intersection": {},
+   "undetermined": {
+    "U:no_m4_clock_anchor": 10
+   },
+   "s3": {
+    "V": 0,
+    "G": 0,
+    "X": 0,
+    "EG": 0,
+    "U": 10
+   },
+   "s3_codes": {
+    "U:no_m4_clock_anchor": 10
+   },
+   "s3_changed_units": 0
+  },
+  "H": {
+   "V": {
+    "units": 5,
+    "episodes": 2,
+    "A_units": 5,
+    "B_units": 5
+   },
+   "G": {
+    "units": 4,
+    "episodes": 1,
+    "A_units": 6,
+    "B_units": 6
+   },
+   "X": {
+    "units": 7,
+    "episodes": 4,
+    "A_units": 7,
+    "B_units": 7
+   },
+   "EG": {
+    "units": 0,
+    "episodes": 0,
+    "A_units": 0,
+    "B_units": 0
+   },
+   "U": {
+    "units": 9,
+    "episodes": 8,
+    "A_units": 7,
+    "B_units": 7
+   },
+   "total": {
+    "units": 25,
+    "episodes_with_unit": 15,
+    "episodes": 15
+   },
+   "parked_not_units": 0,
+   "codes": {
+    "U:T1_fidelity": 7,
+    "V4": 1,
+    "U:unresolved_tie_order_7.5_step5": 2,
+    "G5": 3,
+    "X5": 1,
+    "X1": 3,
+    "V3": 1,
+    "X2": 1,
+    "V1": 3,
+    "G4": 1,
+    "X3": 2
+   },
+   "contributing_intersection": {
+    "V": 13,
+    "G": 20,
+    "X": 22,
+    "EG": 5
+   },
+   "contributing_union": {
+    "V": 15,
+    "G": 21,
+    "X": 23,
+    "EG": 5
+   },
+   "contributing_codes_intersection": {
+    "G1": 17,
+    "G2": 14,
+    "G5": 4,
+    "V3": 10,
+    "X1": 7,
+    "X3": 20,
+    "X5": 2,
+    "G6": 7,
+    "V1": 3,
+    "X4": 5,
+    "EG2": 5,
+    "G4": 4,
+    "V4": 2,
+    "V4j": 1,
+    "X2": 6
+   },
+   "undetermined": {
+    "U:T1_fidelity": 7,
+    "U:unresolved_tie_order_7.5_step5": 2
+   },
+   "s3": {
+    "V": 5,
+    "G": 4,
+    "X": 9,
+    "EG": 0,
+    "U": 7
+   },
+   "s3_codes": {
+    "U:unresolved_G5_placement_S3": 1,
+    "V4": 1,
+    "U:unresolved_tie_order_7.5_step5": 2,
+    "G5": 3,
+    "X1": 4,
+    "X5": 1,
+    "V3": 1,
+    "X2": 2,
+    "V1": 3,
+    "U:T1_fidelity": 2,
+    "U:unresolved_G4_handoff_7.2": 2,
+    "G4": 1,
+    "X3": 2
+   },
+   "s3_changed_units": 5
+  },
+  "S": {
+   "V": {
+    "units": 0,
+    "episodes": 0,
+    "A_units": 0,
+    "B_units": 0
+   },
+   "G": {
+    "units": 3,
+    "episodes": 2,
+    "A_units": 2,
+    "B_units": 3
+   },
+   "X": {
+    "units": 1,
+    "episodes": 1,
+    "A_units": 2,
+    "B_units": 1
+   },
+   "EG": {
+    "units": 0,
+    "episodes": 0,
+    "A_units": 0,
+    "B_units": 0
+   },
+   "U": {
+    "units": 4,
+    "episodes": 3,
+    "A_units": 4,
+    "B_units": 4
+   },
+   "total": {
+    "units": 8,
+    "episodes_with_unit": 6,
+    "episodes": 6
+   },
+   "parked_not_units": 0,
+   "codes": {
+    "U:T1_fidelity": 4,
+    "G4": 2,
+    "X3": 1,
+    "G1": 1
+   },
+   "contributing_intersection": {
+    "V": 7,
+    "G": 7,
+    "X": 8,
+    "EG": 0
+   },
+   "contributing_union": {
+    "V": 7,
+    "G": 7,
+    "X": 8,
+    "EG": 0
+   },
+   "contributing_codes_intersection": {
+    "G4": 4,
+    "V1": 3,
+    "X1": 3,
+    "X6": 8,
+    "G5": 1,
+    "G6": 3,
+    "V6": 1,
+    "X2": 1,
+    "X3": 5,
+    "G1": 4,
+    "V3": 4,
+    "G2": 2,
+    "V4": 2,
+    "V4j": 2,
+    "X4": 1
+   },
+   "undetermined": {
+    "U:T1_fidelity": 4
+   },
+   "s3": {
+    "V": 1,
+    "G": 5,
+    "X": 2,
+    "EG": 0,
+    "U": 0
+   },
+   "s3_codes": {
+    "G4": 4,
+    "X3": 2,
+    "V3": 1,
+    "G1": 1
+   },
+   "s3_changed_units": 4
+  },
+  "N": {
+   "V": {
+    "units": 2,
+    "episodes": 1,
+    "A_units": 2,
+    "B_units": 2
+   },
+   "G": {
+    "units": 0,
+    "episodes": 0,
+    "A_units": 0,
+    "B_units": 0
+   },
+   "X": {
+    "units": 0,
+    "episodes": 0,
+    "A_units": 0,
+    "B_units": 0
+   },
+   "EG": {
+    "units": 0,
+    "episodes": 0,
+    "A_units": 0,
+    "B_units": 0
+   },
+   "U": {
+    "units": 2,
+    "episodes": 1,
+    "A_units": 2,
+    "B_units": 2
+   },
+   "total": {
+    "units": 4,
+    "episodes_with_unit": 2,
+    "episodes": 2
+   },
+   "parked_not_units": 0,
+   "codes": {
+    "U:T1_fidelity": 2,
+    "V4": 2
+   },
+   "contributing_intersection": {
+    "V": 3,
+    "G": 3,
+    "X": 4,
+    "EG": 0
+   },
+   "contributing_union": {
+    "V": 3,
+    "G": 3,
+    "X": 4,
+    "EG": 0
+   },
+   "contributing_codes_intersection": {
+    "G1": 3,
+    "G2": 2,
+    "G6": 2,
+    "V3": 1,
+    "X3": 3,
+    "X4": 2,
+    "V1": 1,
+    "X2": 1,
+    "X5": 1,
+    "G4": 1,
+    "V4j": 1
+   },
+   "undetermined": {
+    "U:T1_fidelity": 2
+   },
+   "s3": {
+    "V": 3,
+    "G": 0,
+    "X": 0,
+    "EG": 0,
+    "U": 1
+   },
+   "s3_codes": {
+    "U:unresolved_G4_handoff_7.2": 1,
+    "V1": 1,
+    "V4": 2
+   },
+   "s3_changed_units": 2
+  }
+ },
+ "s1": [
+  {
+   "sheet_id": "EV-0bdad6",
+   "unit_id": "FU2",
+   "episode": "m5D_t01_a1",
+   "column": "N",
+   "robots": [
+    "robot_2",
+    "robot_3"
+   ],
+   "t0_rel": 240.94,
+   "primary_chain_start_rel": null,
+   "s1_chain_start_rel": 70.933,
+   "walk_start_moves": true,
+   "additional_links": [
+    {
+     "leg_id": "a15f3fc5:robot_3:escort",
+     "robot": "robot_3",
+     "dispatch_rel": 70.933,
+     "motion_end_rel": 172.051,
+     "state": [
+      {
+       "kind": "box",
+       "with": "obstacle_2",
+       "from": 114.74,
+       "to": 568.54
+      }
+     ]
+    }
+   ],
+   "reconciled_primary": "U:T1_fidelity"
+  }
+ ],
+ "s2": [
+  {
+   "episode": "E20",
+   "sheet_id": "EV-ef4e73",
+   "unit_id": "FU2",
+   "snapshot": "D7",
+   "round": "round1",
+   "as_written": false,
+   "s2": true,
+   "s2_shortest": {
+    "robot": "robot_3",
+    "heading_deg": 90,
+    "distance_m": 0.33
+   },
+   "start_inside": {
+    "robot_1": true,
+    "robot_3": true
+   },
+   "decision_published": false,
+   "decision_withheld": {
+    "reason": "refusal_no_action",
+    "refusal_reason": "yield refused: no shared lane: robot_1 and robot_3 both run along x but sit 78 deg across it (side by side); no retreat room was measured",
+    "would_dispatch_robot_ids": [
+     "robot_1",
+     "robot_3"
+    ]
+   },
+   "decision_t_rel": 236.767,
+   "unit_reconciled_primary": "G5"
+  },
+  {
+   "episode": "E29A",
+   "sheet_id": "EV-298037",
+   "unit_id": "FU2",
+   "snapshot": "D2",
+   "round": "round2",
+   "as_written": false,
+   "s2": true,
+   "s2_shortest": {
+    "robot": "robot_1",
+    "heading_deg": 45,
+    "distance_m": 0.19
+   },
+   "start_inside": {
+    "robot_1": true,
+    "robot_4": true
+   },
+   "decision_published": true,
+   "decision_withheld": null,
+   "decision_t_rel": 22.4,
+   "unit_reconciled_primary": "X3"
+  },
+  {
+   "episode": "m5D_t01_a1",
+   "sheet_id": "EV-0bdad6",
+   "unit_id": "FU2",
+   "snapshot": "t0",
+   "round": "round1",
+   "as_written": false,
+   "s2": true,
+   "s2_shortest": {
+    "robot": "robot_2",
+    "heading_deg": 0,
+    "distance_m": 0.01
+   },
+   "start_inside": {
+    "robot_2": true,
+    "robot_3": true
+   },
+   "decision_published": null,
+   "decision_withheld": null,
+   "decision_t_rel": null,
+   "unit_reconciled_primary": "U:T1_fidelity"
+  },
+  {
+   "episode": "m5D_t01_a1",
+   "sheet_id": "EV-0bdad6",
+   "unit_id": "FU2",
+   "snapshot": "D8",
+   "round": "round2",
+   "as_written": false,
+   "s2": true,
+   "s2_shortest": {
+    "robot": "robot_2",
+    "heading_deg": 135,
+    "distance_m": 0.03
+   },
+   "start_inside": {
+    "robot_2": true,
+    "robot_3": true
+   },
+   "decision_published": false,
+   "decision_withheld": {
+    "reason": "refusal_no_action",
+    "refusal_reason": "yield refused: no feasible yielder (robot_1 0.15 m, robot_2 0.00 m, robot_3 0.00 m, robot_4 0.15 m, robot_5 0.00 m retreat room < 0.77 m required)",
+    "would_dispatch_robot_ids": [
+     "robot_1",
+     "robot_2",
+     "robot_3",
+     "robot_4",
+     "robot_5"
+    ]
+   },
+   "decision_t_rel": 243.367,
+   "unit_reconciled_primary": "U:T1_fidelity"
+  }
+ ],
+ "rule_properties": {
+  "t1_onset_snapshots": 58,
+  "t1_onset_nonempty": 58,
+  "EG1_or_G7_anywhere_in_either_raters_codes": 0,
+  "V2_anywhere_in_either_raters_codes": 0,
+  "t1_motion_rows_checked_for_V2": {
+   "rows": 306,
+   "rows_with_robot_in_every_motion_label": 3
+  },
+  "units_reconciled_U_T1_fidelity": 15,
+  "units_s3_U_T1_fidelity": 2,
+  "units_with_s1_additional_link": 1,
+  "units_whose_walk_start_moves_under_s1": 1
+ },
+ "interception_panels": {
+  "A": {
+   "legs": 3,
+   "units": 8,
+   "ESC": {
+    "L": 0,
+    "contact_or_pinned": 0,
+    "submargin_graze": 0,
+    "J": 0,
+    "F": 0,
+    "UT": 0,
+    "blocked_split": {},
+    "co_refused_clear": 0,
+    "P": 0,
+    "S": 0
+   },
+   "REV": {
+    "L": 0,
+    "contact_or_pinned": 0,
+    "submargin_graze": 0,
+    "J": 0,
+    "F": 0,
+    "UT": 0,
+    "blocked_split": {},
+    "co_refused_clear": 0,
+    "P": 0,
+    "S": 0
+   },
+   "STL": {
+    "L": 0,
+    "contact_or_pinned": 0,
+    "submargin_graze": 0,
+    "J": 0,
+    "F": 0,
+    "UT": 0,
+    "blocked_split": null,
+    "co_refused_clear": null,
+    "P": 0,
+    "S": 0
+   },
+   "ANY": {
+    "L": 0,
+    "contact_or_pinned": 0,
+    "submargin_graze": 0,
+    "J": 0,
+    "F": 0,
+    "UT": 0,
+    "blocked_split": null,
+    "co_refused_clear": null,
+    "P": 0,
+    "S": 0
+   },
+   "categories_primary": {
+    "no_linked_leg": 5,
+    "linked_none_intercepted": 3
+   },
+   "intercepted_with_justified_leg_primary": 0,
+   "intercepted_by_class_primary": {},
+   "category_by_class_primary": {
+    "intercepted": {},
+    "linked_none_intercepted": {
+     "U": 1,
+     "X": 1,
+     "V": 1
+    },
+    "no_linked_leg": {
+     "X": 2,
+     "U": 1,
+     "V": 1,
+     "G": 1
+    }
+   },
+   "categories_s1": {
+    "no_linked_leg": 5,
+    "linked_none_intercepted": 3
+   },
+   "intercepted_with_justified_leg_s1": 0,
+   "intercepted_by_class_s1": {},
+   "category_by_class_s1": {
+    "intercepted": {},
+    "linked_none_intercepted": {
+     "U": 1,
+     "X": 1,
+     "V": 1
+    },
+    "no_linked_leg": {
+     "X": 2,
+     "U": 1,
+     "V": 1,
+     "G": 1
+    }
+   },
+   "units_with_stall_fire_on_linked_yield_primitive": [],
+   "overlap": {
+    "legs_caught_by_more_than_one": [],
+    "legs_only_stall_abort": [],
+    "legs_failed_pinned_stalled_or_deadline_not_caught": []
+   }
+  },
+  "P": {
+   "legs": 47,
+   "units": 33,
+   "ESC": {
+    "L": 1,
+    "contact_or_pinned": 0,
+    "submargin_graze": 0,
+    "J": 0,
+    "F": 0,
+    "UT": 1,
+    "blocked_split": {
+     "untested": 1
+    },
+    "co_refused_clear": 0,
+    "P": 0,
+    "S": 0
+   },
+   "REV": {
+    "L": 29,
+    "contact_or_pinned": 8,
+    "submargin_graze": 1,
+    "J": 9,
+    "F": 15,
+    "UT": 5,
+    "blocked_split": {
+     "contact_or_pinned": 8,
+     "false_positive": 6,
+     "submargin_graze": 1,
+     "untested": 3
+    },
+    "co_refused_clear": 11,
+    "P": 8,
+    "S": 8
+   },
+   "STL": {
+    "L": 7,
+    "contact_or_pinned": 7,
+    "submargin_graze": 0,
+    "J": 7,
+    "F": 0,
+    "UT": 0,
+    "blocked_split": null,
+    "co_refused_clear": null,
+    "P": 4,
+    "S": 4
+   },
+   "ANY": {
+    "L": 31,
+    "contact_or_pinned": 9,
+    "submargin_graze": 1,
+    "J": 10,
+    "F": 15,
+    "UT": 6,
+    "blocked_split": null,
+    "co_refused_clear": null,
+    "P": 9,
+    "S": 9
+   },
+   "categories_primary": {
+    "no_linked_leg": 19,
+    "intercepted": 9,
+    "linked_none_intercepted": 5
+   },
+   "intercepted_with_justified_leg_primary": 5,
+   "intercepted_by_class_primary": {
+    "V": 1,
+    "G": 4,
+    "X": 3,
+    "U": 1
+   },
+   "category_by_class_primary": {
+    "intercepted": {
+     "V": 1,
+     "G": 4,
+     "X": 3,
+     "U": 1
+    },
+    "linked_none_intercepted": {
+     "U": 3,
+     "V": 1,
+     "G": 1
+    },
+    "no_linked_leg": {
+     "U": 9,
+     "X": 5,
+     "V": 3,
+     "G": 2
+    }
+   },
+   "categories_s1": {
+    "no_linked_leg": 19,
+    "intercepted": 9,
+    "linked_none_intercepted": 5
+   },
+   "intercepted_with_justified_leg_s1": 5,
+   "intercepted_by_class_s1": {
+    "V": 1,
+    "G": 4,
+    "X": 3,
+    "U": 1
+   },
+   "category_by_class_s1": {
+    "intercepted": {
+     "V": 1,
+     "G": 4,
+     "X": 3,
+     "U": 1
+    },
+    "linked_none_intercepted": {
+     "U": 3,
+     "V": 1,
+     "G": 1
+    },
+    "no_linked_leg": {
+     "U": 9,
+     "X": 5,
+     "V": 3,
+     "G": 2
+    }
+   },
+   "units_with_stall_fire_on_linked_yield_primitive": [
+    "E11 FU1: ['7a47f2f7:robot_4:backup']"
+   ],
+   "overlap": {
+    "legs_caught_by_more_than_one": [
+     "d374802a:robot_2:reverse",
+     "9cf93ebe:robot_2:reverse",
+     "8bf906be:robot_5:reverse",
+     "93100ae3:robot_3:reverse",
+     "a3bbc017:robot_3:reverse",
+     "c7aeaac1:robot_4:reverse"
+    ],
+    "legs_only_stall_abort": [
+     "6cf402ed:robot_3:escort"
+    ],
+    "legs_failed_pinned_stalled_or_deadline_not_caught": [
+     {
+      "leg_id": "63f8d1ce:robot_5:escort",
+      "episode": "E10",
+      "physical": "no_motion",
+      "m4_terminal": null,
+      "reason": "no terminal line and no motion (never admitted, or admitted and never cleared); nothing to judge"
+     },
+     {
+      "leg_id": "984e3bdf:robot_4:escort",
+      "episode": "E13",
+      "physical": "no_motion",
+      "m4_terminal": null,
+      "reason": "no terminal line and no motion (never admitted, or admitted and never cleared); nothing to judge"
+     },
+     {
+      "leg_id": "c5a5e687:robot_4:escort",
+      "episode": "E14",
+      "physical": "no_motion",
+      "m4_terminal": null,
+      "reason": "no terminal line and no motion (never admitted, or admitted and never cleared); nothing to judge"
+     },
+     {
+      "leg_id": "8066f542:robot_5:escort",
+      "episode": "E15",
+      "physical": "no_motion",
+      "m4_terminal": null,
+      "reason": "no terminal line and no motion (never admitted, or admitted and never cleared); nothing to judge; robot latch-held when it stopped (stall abort idle by design, SA 6.4)"
+     },
+     {
+      "leg_id": "150b95a6:robot_3:reverse",
+      "episode": "E17",
+      "physical": "not_completed_no_contact",
+      "m4_terminal": "FAILED",
+      "reason": "robot latch-held when it stopped (stall abort idle by design, SA 6.4)"
+     },
+     {
+      "leg_id": "6745a136:robot_4:escort",
+      "episode": "E17",
+      "physical": "no_motion",
+      "m4_terminal": null,
+      "reason": "no terminal line and no motion (never admitted, or admitted and never cleared); nothing to judge"
+     },
+     {
+      "leg_id": "6d37a549:robot_3:escort",
+      "episode": "E17",
+      "physical": "no_motion",
+      "m4_terminal": null,
+      "reason": "no terminal line and no motion (never admitted, or admitted and never cleared); nothing to judge"
+     },
+     {
+      "leg_id": "56b599af:robot_3:escort",
+      "episode": "E18",
+      "physical": "not_completed_no_contact",
+      "m4_terminal": "FAILED",
+      "reason": "robot latch-held when it stopped (stall abort idle by design, SA 6.4)"
+     },
+     {
+      "leg_id": "07da775d:robot_5:escort",
+      "episode": "E22",
+      "physical": "no_motion",
+      "m4_terminal": null,
+      "reason": "no terminal line and no motion (never admitted, or admitted and never cleared); nothing to judge; robot latch-held when it stopped (stall abort idle by design, SA 6.4)"
+     }
+    ]
+   }
+  },
+  "N": {
+   "legs": 7,
+   "units": 4,
+   "ESC": {
+    "L": 1,
+    "contact_or_pinned": 1,
+    "submargin_graze": 0,
+    "J": 1,
+    "F": 0,
+    "UT": 0,
+    "blocked_split": {
+     "contact_or_pinned": 1
+    },
+    "co_refused_clear": 0,
+    "P": 0,
+    "S": 1
+   },
+   "REV": {
+    "L": 2,
+    "contact_or_pinned": 0,
+    "submargin_graze": 2,
+    "J": 2,
+    "F": 0,
+    "UT": 0,
+    "blocked_split": {
+     "submargin_graze": 2
+    },
+    "co_refused_clear": 0,
+    "P": 1,
+    "S": 1
+   },
+   "STL": {
+    "L": 1,
+    "contact_or_pinned": 1,
+    "submargin_graze": 0,
+    "J": 1,
+    "F": 0,
+    "UT": 0,
+    "blocked_split": null,
+    "co_refused_clear": null,
+    "P": 0,
+    "S": 1
+   },
+   "ANY": {
+    "L": 3,
+    "contact_or_pinned": 1,
+    "submargin_graze": 2,
+    "J": 3,
+    "F": 0,
+    "UT": 0,
+    "blocked_split": null,
+    "co_refused_clear": null,
+    "P": 1,
+    "S": 2
+   },
+   "categories_primary": {
+    "linked_none_intercepted": 2,
+    "no_linked_leg": 1,
+    "intercepted": 1
+   },
+   "intercepted_with_justified_leg_primary": 1,
+   "intercepted_by_class_primary": {
+    "V": 1
+   },
+   "category_by_class_primary": {
+    "intercepted": {
+     "V": 1
+    },
+    "linked_none_intercepted": {
+     "U": 1,
+     "V": 1
+    },
+    "no_linked_leg": {
+     "U": 1
+    }
+   },
+   "categories_s1": {
+    "linked_none_intercepted": 2,
+    "intercepted": 2
+   },
+   "intercepted_with_justified_leg_s1": 2,
+   "intercepted_by_class_s1": {
+    "U": 1,
+    "V": 1
+   },
+   "category_by_class_s1": {
+    "intercepted": {
+     "U": 1,
+     "V": 1
+    },
+    "linked_none_intercepted": {
+     "U": 1,
+     "V": 1
+    },
+    "no_linked_leg": {}
+   },
+   "units_with_stall_fire_on_linked_yield_primitive": [],
+   "overlap": {
+    "legs_caught_by_more_than_one": [
+     "a15f3fc5:robot_3:escort"
+    ],
+    "legs_only_stall_abort": [],
+    "legs_failed_pinned_stalled_or_deadline_not_caught": []
+   }
+  },
+  "H": {
+   "legs": 34,
+   "units": 25,
+   "ESC": {
+    "L": 1,
+    "contact_or_pinned": 0,
+    "submargin_graze": 0,
+    "J": 0,
+    "F": 0,
+    "UT": 1,
+    "blocked_split": {
+     "untested": 1
+    },
+    "co_refused_clear": 0,
+    "P": 0,
+    "S": 0
+   },
+   "REV": {
+    "L": 24,
+    "contact_or_pinned": 6,
+    "submargin_graze": 1,
+    "J": 7,
+    "F": 12,
+    "UT": 5,
+    "blocked_split": {
+     "false_positive": 4,
+     "contact_or_pinned": 6,
+     "submargin_graze": 1,
+     "untested": 3
+    },
+    "co_refused_clear": 10,
+    "P": 7,
+    "S": 7
+   },
+   "STL": {
+    "L": 6,
+    "contact_or_pinned": 6,
+    "submargin_graze": 0,
+    "J": 6,
+    "F": 0,
+    "UT": 0,
+    "blocked_split": null,
+    "co_refused_clear": null,
+    "P": 4,
+    "S": 4
+   },
+   "ANY": {
+    "L": 26,
+    "contact_or_pinned": 7,
+    "submargin_graze": 1,
+    "J": 8,
+    "F": 12,
+    "UT": 6,
+    "blocked_split": null,
+    "co_refused_clear": null,
+    "P": 8,
+    "S": 8
+   },
+   "categories_primary": {
+    "no_linked_leg": 13,
+    "intercepted": 8,
+    "linked_none_intercepted": 4
+   },
+   "intercepted_with_justified_leg_primary": 4,
+   "intercepted_by_class_primary": {
+    "V": 1,
+    "G": 4,
+    "X": 3
+   },
+   "category_by_class_primary": {
+    "intercepted": {
+     "V": 1,
+     "G": 4,
+     "X": 3
+    },
+    "linked_none_intercepted": {
+     "U": 3,
+     "V": 1
+    },
+    "no_linked_leg": {
+     "U": 6,
+     "X": 4,
+     "V": 3
+    }
+   },
+   "categories_s1": {
+    "no_linked_leg": 13,
+    "intercepted": 8,
+    "linked_none_intercepted": 4
+   },
+   "intercepted_with_justified_leg_s1": 4,
+   "intercepted_by_class_s1": {
+    "V": 1,
+    "G": 4,
+    "X": 3
+   },
+   "category_by_class_s1": {
+    "intercepted": {
+     "V": 1,
+     "G": 4,
+     "X": 3
+    },
+    "linked_none_intercepted": {
+     "U": 3,
+     "V": 1
+    },
+    "no_linked_leg": {
+     "U": 6,
+     "X": 4,
+     "V": 3
+    }
+   },
+   "units_with_stall_fire_on_linked_yield_primitive": [
+    "E11 FU1: ['7a47f2f7:robot_4:backup']"
+   ],
+   "overlap": {
+    "legs_caught_by_more_than_one": [
+     "d374802a:robot_2:reverse",
+     "8bf906be:robot_5:reverse",
+     "93100ae3:robot_3:reverse",
+     "a3bbc017:robot_3:reverse",
+     "c7aeaac1:robot_4:reverse"
+    ],
+    "legs_only_stall_abort": [
+     "6cf402ed:robot_3:escort"
+    ],
+    "legs_failed_pinned_stalled_or_deadline_not_caught": [
+     {
+      "leg_id": "984e3bdf:robot_4:escort",
+      "episode": "E13",
+      "physical": "no_motion",
+      "m4_terminal": null,
+      "reason": "no terminal line and no motion (never admitted, or admitted and never cleared); nothing to judge"
+     },
+     {
+      "leg_id": "c5a5e687:robot_4:escort",
+      "episode": "E14",
+      "physical": "no_motion",
+      "m4_terminal": null,
+      "reason": "no terminal line and no motion (never admitted, or admitted and never cleared); nothing to judge"
+     },
+     {
+      "leg_id": "8066f542:robot_5:escort",
+      "episode": "E15",
+      "physical": "no_motion",
+      "m4_terminal": null,
+      "reason": "no terminal line and no motion (never admitted, or admitted and never cleared); nothing to judge; robot latch-held when it stopped (stall abort idle by design, SA 6.4)"
+     },
+     {
+      "leg_id": "56b599af:robot_3:escort",
+      "episode": "E18",
+      "physical": "not_completed_no_contact",
+      "m4_terminal": "FAILED",
+      "reason": "robot latch-held when it stopped (stall abort idle by design, SA 6.4)"
+     },
+     {
+      "leg_id": "07da775d:robot_5:escort",
+      "episode": "E22",
+      "physical": "no_motion",
+      "m4_terminal": null,
+      "reason": "no terminal line and no motion (never admitted, or admitted and never cleared); nothing to judge; robot latch-held when it stopped (stall abort idle by design, SA 6.4)"
+     }
+    ]
+   }
+  },
+  "S": {
+   "legs": 13,
+   "units": 8,
+   "ESC": {
+    "L": 0,
+    "contact_or_pinned": 0,
+    "submargin_graze": 0,
+    "J": 0,
+    "F": 0,
+    "UT": 0,
+    "blocked_split": {},
+    "co_refused_clear": 0,
+    "P": 0,
+    "S": 0
+   },
+   "REV": {
+    "L": 5,
+    "contact_or_pinned": 2,
+    "submargin_graze": 0,
+    "J": 2,
+    "F": 3,
+    "UT": 0,
+    "blocked_split": {
+     "contact_or_pinned": 2,
+     "false_positive": 2
+    },
+    "co_refused_clear": 1,
+    "P": 1,
+    "S": 1
+   },
+   "STL": {
+    "L": 1,
+    "contact_or_pinned": 1,
+    "submargin_graze": 0,
+    "J": 1,
+    "F": 0,
+    "UT": 0,
+    "blocked_split": null,
+    "co_refused_clear": null,
+    "P": 0,
+    "S": 0
+   },
+   "ANY": {
+    "L": 5,
+    "contact_or_pinned": 2,
+    "submargin_graze": 0,
+    "J": 2,
+    "F": 3,
+    "UT": 0,
+    "blocked_split": null,
+    "co_refused_clear": null,
+    "P": 1,
+    "S": 1
+   },
+   "categories_primary": {
+    "no_linked_leg": 6,
+    "intercepted": 1,
+    "linked_none_intercepted": 1
+   },
+   "intercepted_with_justified_leg_primary": 1,
+   "intercepted_by_class_primary": {
+    "U": 1
+   },
+   "category_by_class_primary": {
+    "intercepted": {
+     "U": 1
+    },
+    "linked_none_intercepted": {
+     "G": 1
+    },
+    "no_linked_leg": {
+     "U": 3,
+     "G": 2,
+     "X": 1
+    }
+   },
+   "categories_s1": {
+    "no_linked_leg": 6,
+    "intercepted": 1,
+    "linked_none_intercepted": 1
+   },
+   "intercepted_with_justified_leg_s1": 1,
+   "intercepted_by_class_s1": {
+    "U": 1
+   },
+   "category_by_class_s1": {
+    "intercepted": {
+     "U": 1
+    },
+    "linked_none_intercepted": {
+     "G": 1
+    },
+    "no_linked_leg": {
+     "U": 3,
+     "G": 2,
+     "X": 1
+    }
+   },
+   "units_with_stall_fire_on_linked_yield_primitive": [],
+   "overlap": {
+    "legs_caught_by_more_than_one": [
+     "9cf93ebe:robot_2:reverse"
+    ],
+    "legs_only_stall_abort": [],
+    "legs_failed_pinned_stalled_or_deadline_not_caught": [
+     {
+      "leg_id": "63f8d1ce:robot_5:escort",
+      "episode": "E10",
+      "physical": "no_motion",
+      "m4_terminal": null,
+      "reason": "no terminal line and no motion (never admitted, or admitted and never cleared); nothing to judge"
+     },
+     {
+      "leg_id": "150b95a6:robot_3:reverse",
+      "episode": "E17",
+      "physical": "not_completed_no_contact",
+      "m4_terminal": "FAILED",
+      "reason": "robot latch-held when it stopped (stall abort idle by design, SA 6.4)"
+     },
+     {
+      "leg_id": "6745a136:robot_4:escort",
+      "episode": "E17",
+      "physical": "no_motion",
+      "m4_terminal": null,
+      "reason": "no terminal line and no motion (never admitted, or admitted and never cleared); nothing to judge"
+     },
+     {
+      "leg_id": "6d37a549:robot_3:escort",
+      "episode": "E17",
+      "physical": "no_motion",
+      "m4_terminal": null,
+      "reason": "no terminal line and no motion (never admitted, or admitted and never cleared); nothing to judge"
+     }
+    ]
+   }
+  }
+ },
+ "denominator": {
+  "layer2_on_episodes": 28,
+  "episodes_with_reverse_or_escort_leg": 25,
+  "episodes_without": [
+   "E27A",
+   "E30A",
+   "E9"
+  ],
+  "motion_legs_in_episodes_without": {
+   "E27A": [],
+   "E30A": [],
+   "E9": []
+  },
+  "legs_any_kind_in_episodes_without": {
+   "E27A": 17,
+   "E30A": 2,
+   "E9": 2
+  },
+  "stall_replay_bundles_with_rows": 25,
+  "october_layer2_on_bundles_with_legs": 23
+ },
+ "stall_fires_outside_57_legs": [
+  {
+   "bundle": "s1b_E11_seed11_er2_b1",
+   "req8": "7a47f2f7",
+   "robot": "robot_4",
+   "primitive": "backup",
+   "command_kind": "yield",
+   "start_sim": 63.1,
+   "fired": true,
+   "abort_sim": 73.6,
+   "time_to_abort_s": 10.5,
+   "replay": "replay=FAILED@73.6",
+   "live": "live=FAILED",
+   "detail": "stall_abort: commanded 0.100 m/s for 3.0 s, measured 0.069 m (expected >= 0.075 m)",
+   "min_ratio": "min_ratio=linear:0.23"
+  },
+  {
+   "bundle": "s1b_E17_seed17_er2_c1",
+   "req8": "6745a136",
+   "robot": "robot_3",
+   "primitive": "backup",
+   "command_kind": "yield",
+   "start_sim": 141.0,
+   "fired": true,
+   "abort_sim": 156.5,
+   "time_to_abort_s": 15.5,
+   "replay": "replay=FAILED@156.5",
+   "live": "live=FAILED",
+   "detail": "stall_abort: commanded 0.100 m/s for 3.0 s, measured 0.074 m (expected >= 0.075 m)",
+   "min_ratio": "min_ratio=linear:0.25"
+  }
+ ],
+ "fidelity": {
+  "n": 154,
+  "as_written": 139,
+  "plus_stage2_intents": 151
+ },
+ "checks": {
+  "round2_set_equals_in_scope_A": true,
+  "round2_set_equals_in_scope_B": true,
+  "unit_sets_equal_A_B_tool": true,
+  "n_units": 55,
+  "parked_sets_equal_A_B_tool": true,
+  "phase1_differences": [],
+  "phase1_units_compared": 58,
+  "primary_disagreements_have_rulings": true,
+  "s3_disagreements_have_rulings": true,
+  "episode_primary_t0_ties": [],
+  "units_per_column": {
+   "A": 8,
+   "B": 10,
+   "H": 25,
+   "S": 8,
+   "N": 4
+  },
+  "primary_table_row_sums": true,
+  "primary_table_episode_sums": true,
+  "arm_B_has_no_V_or_G": true,
+  "s1_validation_m5D_escort_links_FU2": true,
+  "s2_regression_as_written_equal": true,
+  "s2_snapshots": 233,
+  "stall_tsv_same_lines_as_provisional_sorted": true,
+  "stall_tsv_bundles": 25,
+  "legs_chain_window_equals_full_sheet_chain": true,
+  "legs": 57,
+  "legs_per_stratum": {
+   "pilot_er2": 47,
+   "prereg_v3_tranche1": 3,
+   "nov_2026_takes": 7
+  },
+  "stall_differs_from_provisional": [],
+  "interception_A_primary_any_plus_none_eq_tot": true,
+  "interception_A_s1_any_plus_none_eq_tot": true,
+  "interception_A_ESC_J_F_UT_sum": true,
+  "interception_A_REV_J_F_UT_sum": true,
+  "interception_A_ANY_J_F_UT_sum": true,
+  "interception_A_ANY_bounds": true,
+  "interception_P_primary_any_plus_none_eq_tot": true,
+  "interception_P_s1_any_plus_none_eq_tot": true,
+  "interception_P_ESC_J_F_UT_sum": true,
+  "interception_P_REV_J_F_UT_sum": true,
+  "interception_P_ANY_J_F_UT_sum": true,
+  "interception_P_ANY_bounds": true,
+  "interception_N_primary_any_plus_none_eq_tot": true,
+  "interception_N_s1_any_plus_none_eq_tot": true,
+  "interception_N_ESC_J_F_UT_sum": true,
+  "interception_N_REV_J_F_UT_sum": true,
+  "interception_N_ANY_J_F_UT_sum": true,
+  "interception_N_ANY_bounds": true,
+  "reverse_blocked_split_vs_v7l_8.6": {
+   "contact_or_pinned": 8,
+   "false_positive": 6,
+   "submargin_graze": 3,
+   "untested": 3
+  },
+  "thesis_ids_in_change_list": 225,
+  "thesis_ids_missing": [],
+  "thesis_ids_extra": []
+ }
+}

@@ -1,0 +1,1539 @@
+[
+ {
+  "label": "E10",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "leg_id": "63f8d1ce:robot_5:escort",
+  "kind": "escort",
+  "commanded_m": 1.823,
+  "guard_verdict": "unchanged",
+  "guard_repro": "DIFFERS",
+  "guard_live_leg_check": "own:own:clear kit:kit:clear",
+  "m4_terminal": null,
+  "gt_moved_max_m": null,
+  "min_static_gap_m": null,
+  "min_static_box": null,
+  "contact": false,
+  "pinned_on": null,
+  "pinned_duration_s": null,
+  "ended_by_deadline": false,
+  "tags": [
+   "escort_not_admitted (no gate_admit line)"
+  ],
+  "fu_rubric_window": [
+   "FU2"
+  ],
+  "fu_end_window": [],
+  "stall_abort": ""
+ },
+ {
+  "label": "E10",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "leg_id": "d5541ff0:robot_2:reverse",
+  "kind": "reverse",
+  "commanded_m": 1.3,
+  "guard_verdict": "refused: reverse_hits_obstacle:robot_2:obstacle_2:0.487",
+  "guard_repro": "reproduced",
+  "guard_live_leg_check": "leg hits obstacle_2@0.487",
+  "m4_terminal": "FAILED",
+  "gt_moved_max_m": 0.596,
+  "min_static_gap_m": -0.0014,
+  "min_static_box": "obstacle_2",
+  "contact": true,
+  "pinned_on": "box:obstacle_2",
+  "pinned_duration_s": 30.2,
+  "ended_by_deadline": true,
+  "tags": [
+   "not_executed(<50%)",
+   "pinned_on_declared_box:obstacle_2"
+  ],
+  "fu_rubric_window": [
+   "FU2"
+  ],
+  "fu_end_window": [],
+  "stall_abort": "provisional v7p uncommitted: not fired (replay=running); live=FAILED"
+ },
+ {
+  "label": "E11",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "leg_id": "c417cbff:robot_1:reverse",
+  "kind": "reverse",
+  "commanded_m": 1.3,
+  "guard_verdict": "refused: reverse_hits_obstacle:robot_1:obstacle_2:0.742",
+  "guard_repro": "reproduced",
+  "guard_live_leg_check": "leg hits obstacle_2@0.742",
+  "m4_terminal": "COMPLETED",
+  "gt_moved_max_m": 1.261,
+  "min_static_gap_m": 0.0766,
+  "min_static_box": "obstacle_2",
+  "contact": false,
+  "pinned_on": null,
+  "pinned_duration_s": null,
+  "ended_by_deadline": false,
+  "tags": [
+   "completed"
+  ],
+  "fu_rubric_window": [
+   "FU2"
+  ],
+  "fu_end_window": [
+   "FU2"
+  ],
+  "stall_abort": "provisional v7p uncommitted: not fired (replay=COMPLETED@121.9); live=COMPLETED"
+ },
+ {
+  "label": "E11",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "leg_id": "c417cbff:robot_5:reverse",
+  "kind": "reverse",
+  "commanded_m": 1.3,
+  "guard_verdict": "refused: reverse_hits_obstacle:robot_1:obstacle_2:0.742",
+  "guard_repro": "reproduced",
+  "guard_live_leg_check": "leg clear",
+  "m4_terminal": "COMPLETED",
+  "gt_moved_max_m": 1.263,
+  "min_static_gap_m": 0.2339,
+  "min_static_box": "rack/SW_south",
+  "contact": false,
+  "pinned_on": null,
+  "pinned_duration_s": null,
+  "ended_by_deadline": false,
+  "tags": [
+   "completed"
+  ],
+  "fu_rubric_window": [
+   "FU2"
+  ],
+  "fu_end_window": [
+   "FU2"
+  ],
+  "stall_abort": "provisional v7p uncommitted: not fired (replay=COMPLETED@122.0); live=COMPLETED"
+ },
+ {
+  "label": "E12",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "leg_id": "d374802a:robot_2:reverse",
+  "kind": "reverse",
+  "commanded_m": 1.3,
+  "guard_verdict": "refused: reverse_hits_obstacle:robot_2:obstacle_5:1.267",
+  "guard_repro": "reproduced",
+  "guard_live_leg_check": "leg hits obstacle_5@1.267",
+  "m4_terminal": "COMPLETED",
+  "gt_moved_max_m": 1.301,
+  "min_static_gap_m": -0.0015,
+  "min_static_box": "rack/NW_north",
+  "contact": true,
+  "pinned_on": null,
+  "pinned_duration_s": null,
+  "ended_by_deadline": false,
+  "tags": [
+   "completed"
+  ],
+  "fu_rubric_window": [
+   "FU2"
+  ],
+  "fu_end_window": [
+   "FU2"
+  ],
+  "stall_abort": "provisional v7p uncommitted: FIRED t+16.6 sim-s (abort at 61.8); live=COMPLETED"
+ },
+ {
+  "label": "E12",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "leg_id": "d374802a:robot_4:reverse",
+  "kind": "reverse",
+  "commanded_m": 1.3,
+  "guard_verdict": "refused: reverse_hits_obstacle:robot_2:obstacle_5:1.267",
+  "guard_repro": "reproduced",
+  "guard_live_leg_check": "leg clear",
+  "m4_terminal": "COMPLETED",
+  "gt_moved_max_m": 1.291,
+  "min_static_gap_m": 0.2108,
+  "min_static_box": "obstacle_2",
+  "contact": false,
+  "pinned_on": null,
+  "pinned_duration_s": null,
+  "ended_by_deadline": false,
+  "tags": [
+   "completed"
+  ],
+  "fu_rubric_window": [
+   "FU2"
+  ],
+  "fu_end_window": [
+   "FU2"
+  ],
+  "stall_abort": "provisional v7p uncommitted: not fired (replay=COMPLETED@59.6); live=COMPLETED"
+ },
+ {
+  "label": "E13",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "leg_id": "984e3bdf:robot_4:escort",
+  "kind": "escort",
+  "commanded_m": 1.736,
+  "guard_verdict": "unchanged",
+  "guard_repro": "DIFFERS",
+  "guard_live_leg_check": "own:own:clear kit:kit:clear",
+  "m4_terminal": null,
+  "gt_moved_max_m": null,
+  "min_static_gap_m": null,
+  "min_static_box": null,
+  "contact": false,
+  "pinned_on": null,
+  "pinned_duration_s": null,
+  "ended_by_deadline": false,
+  "tags": [
+   "escort_not_admitted (no gate_admit line)"
+  ],
+  "fu_rubric_window": [
+   "FU1"
+  ],
+  "fu_end_window": [],
+  "stall_abort": ""
+ },
+ {
+  "label": "E13",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "leg_id": "652ac9ac:robot_5:reverse",
+  "kind": "reverse",
+  "commanded_m": 1.3,
+  "guard_verdict": "refused: reverse_hits_obstacle:robot_5:obstacle_1:0.337",
+  "guard_repro": "reproduced",
+  "guard_live_leg_check": "leg hits obstacle_1@0.337",
+  "m4_terminal": "COMPLETED",
+  "gt_moved_max_m": 1.105,
+  "min_static_gap_m": 0.0179,
+  "min_static_box": "obstacle_1",
+  "contact": false,
+  "pinned_on": null,
+  "pinned_duration_s": null,
+  "ended_by_deadline": false,
+  "tags": [
+   "completed"
+  ],
+  "fu_rubric_window": [],
+  "fu_end_window": [],
+  "stall_abort": "provisional v7p uncommitted: not fired (replay=COMPLETED@102.4); live=COMPLETED"
+ },
+ {
+  "label": "E13",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "leg_id": "ea23b1a7:robot_1:reverse",
+  "kind": "reverse",
+  "commanded_m": 1.3,
+  "guard_verdict": "refused: reverse_hits_obstacle:robot_1:obstacle_3:0.539",
+  "guard_repro": "reproduced",
+  "guard_live_leg_check": "leg hits obstacle_3@0.539",
+  "m4_terminal": "FAILED",
+  "gt_moved_max_m": 0.588,
+  "min_static_gap_m": -0.0,
+  "min_static_box": "rack/NW_west",
+  "contact": true,
+  "pinned_on": "box:rack/NW_west",
+  "pinned_duration_s": 26.5,
+  "ended_by_deadline": true,
+  "tags": [
+   "not_executed(<50%)",
+   "pinned_on_undeclared_box:rack/NW_west"
+  ],
+  "fu_rubric_window": [],
+  "fu_end_window": [],
+  "stall_abort": "provisional v7p uncommitted: not fired (replay=running); live=FAILED"
+ },
+ {
+  "label": "E13",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "leg_id": "ea23b1a7:robot_3:reverse",
+  "kind": "reverse",
+  "commanded_m": 1.3,
+  "guard_verdict": "refused: reverse_hits_obstacle:robot_1:obstacle_3:0.539",
+  "guard_repro": "reproduced",
+  "guard_live_leg_check": "leg clear",
+  "m4_terminal": "COMPLETED",
+  "gt_moved_max_m": 1.068,
+  "min_static_gap_m": 0.307,
+  "min_static_box": "obstacle_1",
+  "contact": false,
+  "pinned_on": null,
+  "pinned_duration_s": null,
+  "ended_by_deadline": false,
+  "tags": [
+   "completed"
+  ],
+  "fu_rubric_window": [],
+  "fu_end_window": [],
+  "stall_abort": "provisional v7p uncommitted: not fired (replay=running); live=COMPLETED"
+ },
+ {
+  "label": "E13",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "leg_id": "ea23b1a7:robot_4:reverse",
+  "kind": "reverse",
+  "commanded_m": 1.3,
+  "guard_verdict": "refused: reverse_hits_obstacle:robot_1:obstacle_3:0.539",
+  "guard_repro": "reproduced",
+  "guard_live_leg_check": "leg clear",
+  "m4_terminal": "COMPLETED",
+  "gt_moved_max_m": 1.061,
+  "min_static_gap_m": 0.215,
+  "min_static_box": "obstacle_1",
+  "contact": false,
+  "pinned_on": null,
+  "pinned_duration_s": null,
+  "ended_by_deadline": false,
+  "tags": [
+   "completed"
+  ],
+  "fu_rubric_window": [],
+  "fu_end_window": [],
+  "stall_abort": "provisional v7p uncommitted: not fired (replay=running); live=COMPLETED"
+ },
+ {
+  "label": "E14",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "leg_id": "c5a5e687:robot_4:escort",
+  "kind": "escort",
+  "commanded_m": 1.919,
+  "guard_verdict": "unchanged",
+  "guard_repro": "DIFFERS",
+  "guard_live_leg_check": "own:own:clear kit:kit:clear",
+  "m4_terminal": null,
+  "gt_moved_max_m": null,
+  "min_static_gap_m": null,
+  "min_static_box": null,
+  "contact": false,
+  "pinned_on": null,
+  "pinned_duration_s": null,
+  "ended_by_deadline": false,
+  "tags": [
+   "escort_not_admitted (no gate_admit line)"
+  ],
+  "fu_rubric_window": [],
+  "fu_end_window": [],
+  "stall_abort": ""
+ },
+ {
+  "label": "E15",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "leg_id": "8066f542:robot_5:escort",
+  "kind": "escort",
+  "commanded_m": 1.775,
+  "guard_verdict": "unchanged",
+  "guard_repro": "DIFFERS",
+  "guard_live_leg_check": "own:own:clear kit:kit:clear",
+  "m4_terminal": null,
+  "gt_moved_max_m": 0.0,
+  "min_static_gap_m": 0.418,
+  "min_static_box": "obstacle_1",
+  "contact": false,
+  "pinned_on": null,
+  "pinned_duration_s": null,
+  "ended_by_deadline": false,
+  "tags": [
+   "not_executed(<50%)",
+   "stalled_clear(no robot or box within 0.05 m)"
+  ],
+  "fu_rubric_window": [
+   "FU1"
+  ],
+  "fu_end_window": [],
+  "stall_abort": "provisional v7p uncommitted: not fired (replay=running); live=no terminal line"
+ },
+ {
+  "label": "E16",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "leg_id": "ede6d209:robot_3:reverse",
+  "kind": "reverse",
+  "commanded_m": 1.3,
+  "guard_verdict": "refused: reverse_hits_obstacle:robot_3:obstacle_3:1.157",
+  "guard_repro": "reproduced",
+  "guard_live_leg_check": "leg hits obstacle_3@1.157",
+  "m4_terminal": "FAILED",
+  "gt_moved_max_m": 0.66,
+  "min_static_gap_m": 0.2419,
+  "min_static_box": "obstacle_1",
+  "contact": false,
+  "pinned_on": null,
+  "pinned_duration_s": null,
+  "ended_by_deadline": true,
+  "tags": [
+   "stalled_clear(no robot or box within 0.05 m)"
+  ],
+  "fu_rubric_window": [
+   "FU1"
+  ],
+  "fu_end_window": [],
+  "stall_abort": "provisional v7p uncommitted: not fired (replay=running); live=FAILED"
+ },
+ {
+  "label": "E16",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "leg_id": "ede6d209:robot_4:reverse",
+  "kind": "reverse",
+  "commanded_m": 1.3,
+  "guard_verdict": "refused: reverse_hits_obstacle:robot_3:obstacle_3:1.157",
+  "guard_repro": "reproduced",
+  "guard_live_leg_check": "leg clear",
+  "m4_terminal": "FAILED",
+  "gt_moved_max_m": 0.345,
+  "min_static_gap_m": 0.1984,
+  "min_static_box": "obstacle_1",
+  "contact": false,
+  "pinned_on": null,
+  "pinned_duration_s": null,
+  "ended_by_deadline": true,
+  "tags": [
+   "not_executed(<50%)",
+   "stalled_clear(no robot or box within 0.05 m)"
+  ],
+  "fu_rubric_window": [
+   "FU1"
+  ],
+  "fu_end_window": [],
+  "stall_abort": "provisional v7p uncommitted: not fired (replay=running); live=FAILED"
+ },
+ {
+  "label": "E17",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "leg_id": "150b95a6:robot_3:reverse",
+  "kind": "reverse",
+  "commanded_m": 1.3,
+  "guard_verdict": "unchanged",
+  "guard_repro": "reproduced",
+  "guard_live_leg_check": "leg clear",
+  "m4_terminal": "FAILED",
+  "gt_moved_max_m": 0.456,
+  "min_static_gap_m": 0.368,
+  "min_static_box": "obstacle_1",
+  "contact": false,
+  "pinned_on": null,
+  "pinned_duration_s": null,
+  "ended_by_deadline": true,
+  "tags": [
+   "not_executed(<50%)",
+   "stalled_clear(no robot or box within 0.05 m)"
+  ],
+  "fu_rubric_window": [],
+  "fu_end_window": [],
+  "stall_abort": "provisional v7p uncommitted: not fired (replay=running); live=FAILED"
+ },
+ {
+  "label": "E17",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "leg_id": "6745a136:robot_4:escort",
+  "kind": "escort",
+  "commanded_m": 2.339,
+  "guard_verdict": "unchanged",
+  "guard_repro": "DIFFERS",
+  "guard_live_leg_check": "own:own:clear kit:kit:clear",
+  "m4_terminal": null,
+  "gt_moved_max_m": null,
+  "min_static_gap_m": null,
+  "min_static_box": null,
+  "contact": false,
+  "pinned_on": null,
+  "pinned_duration_s": null,
+  "ended_by_deadline": false,
+  "tags": [
+   "escort_not_admitted (no gate_admit line)"
+  ],
+  "fu_rubric_window": [],
+  "fu_end_window": [],
+  "stall_abort": ""
+ },
+ {
+  "label": "E17",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "leg_id": "9cf93ebe:robot_2:reverse",
+  "kind": "reverse",
+  "commanded_m": 1.3,
+  "guard_verdict": "refused: reverse_hits_obstacle:robot_2:obstacle_2:0.584; reverse_hits_obstacle:robot_3:obstacle_1:0.696; reverse_hits_obstacle:robot_5:obstacle_4:0.710",
+  "guard_repro": "reproduced",
+  "guard_live_leg_check": "leg hits obstacle_2@0.584",
+  "m4_terminal": "FAILED",
+  "gt_moved_max_m": 0.62,
+  "min_static_gap_m": -0.0001,
+  "min_static_box": "obstacle_2",
+  "contact": true,
+  "pinned_on": "box:obstacle_2",
+  "pinned_duration_s": 29.8,
+  "ended_by_deadline": true,
+  "tags": [
+   "not_executed(<50%)",
+   "pinned_on_declared_box:obstacle_2"
+  ],
+  "fu_rubric_window": [],
+  "fu_end_window": [
+   "FU1"
+  ],
+  "stall_abort": "provisional v7p uncommitted: FIRED t+9.1 sim-s (abort at 217.0); live=FAILED"
+ },
+ {
+  "label": "E17",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "leg_id": "9cf93ebe:robot_3:reverse",
+  "kind": "reverse",
+  "commanded_m": 1.3,
+  "guard_verdict": "refused: reverse_hits_obstacle:robot_2:obstacle_2:0.584; reverse_hits_obstacle:robot_3:obstacle_1:0.696; reverse_hits_obstacle:robot_5:obstacle_4:0.710",
+  "guard_repro": "reproduced",
+  "guard_live_leg_check": "leg hits obstacle_1@0.696",
+  "m4_terminal": "COMPLETED",
+  "gt_moved_max_m": 1.043,
+  "min_static_gap_m": 0.0607,
+  "min_static_box": "obstacle_1",
+  "contact": false,
+  "pinned_on": null,
+  "pinned_duration_s": null,
+  "ended_by_deadline": false,
+  "tags": [
+   "completed"
+  ],
+  "fu_rubric_window": [],
+  "fu_end_window": [],
+  "stall_abort": "provisional v7p uncommitted: not fired (replay=running); live=COMPLETED"
+ },
+ {
+  "label": "E17",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "leg_id": "9cf93ebe:robot_4:reverse",
+  "kind": "reverse",
+  "commanded_m": 1.3,
+  "guard_verdict": "refused: reverse_hits_obstacle:robot_2:obstacle_2:0.584; reverse_hits_obstacle:robot_3:obstacle_1:0.696; reverse_hits_obstacle:robot_5:obstacle_4:0.710",
+  "guard_repro": "reproduced",
+  "guard_live_leg_check": "leg clear",
+  "m4_terminal": "COMPLETED",
+  "gt_moved_max_m": 1.037,
+  "min_static_gap_m": 0.3846,
+  "min_static_box": "rack/NW_north",
+  "contact": false,
+  "pinned_on": null,
+  "pinned_duration_s": null,
+  "ended_by_deadline": false,
+  "tags": [
+   "completed"
+  ],
+  "fu_rubric_window": [],
+  "fu_end_window": [],
+  "stall_abort": "provisional v7p uncommitted: not fired (replay=running); live=COMPLETED"
+ },
+ {
+  "label": "E17",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "leg_id": "9cf93ebe:robot_5:reverse",
+  "kind": "reverse",
+  "commanded_m": 1.3,
+  "guard_verdict": "refused: reverse_hits_obstacle:robot_2:obstacle_2:0.584; reverse_hits_obstacle:robot_3:obstacle_1:0.696; reverse_hits_obstacle:robot_5:obstacle_4:0.710",
+  "guard_repro": "reproduced",
+  "guard_live_leg_check": "leg hits obstacle_4@0.710",
+  "m4_terminal": "COMPLETED",
+  "gt_moved_max_m": 1.046,
+  "min_static_gap_m": 0.3116,
+  "min_static_box": "rack/SE_east",
+  "contact": false,
+  "pinned_on": null,
+  "pinned_duration_s": null,
+  "ended_by_deadline": false,
+  "tags": [
+   "completed"
+  ],
+  "fu_rubric_window": [],
+  "fu_end_window": [
+   "FU1"
+  ],
+  "stall_abort": "provisional v7p uncommitted: not fired (replay=running); live=COMPLETED"
+ },
+ {
+  "label": "E17",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "leg_id": "6d37a549:robot_3:escort",
+  "kind": "escort",
+  "commanded_m": 3.056,
+  "guard_verdict": "unchanged",
+  "guard_repro": "DIFFERS",
+  "guard_live_leg_check": "own:own:clear kit:kit:clear",
+  "m4_terminal": null,
+  "gt_moved_max_m": null,
+  "min_static_gap_m": null,
+  "min_static_box": null,
+  "contact": false,
+  "pinned_on": null,
+  "pinned_duration_s": null,
+  "ended_by_deadline": false,
+  "tags": [
+   "escort_not_admitted (no gate_admit line)"
+  ],
+  "fu_rubric_window": [],
+  "fu_end_window": [],
+  "stall_abort": ""
+ },
+ {
+  "label": "E18",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "leg_id": "56b599af:robot_3:escort",
+  "kind": "escort",
+  "commanded_m": 1.669,
+  "guard_verdict": "unchanged",
+  "guard_repro": "reproduced",
+  "guard_live_leg_check": "own:own:clear kit:kit:clear",
+  "m4_terminal": "FAILED",
+  "gt_moved_max_m": 1.163,
+  "min_static_gap_m": 0.3703,
+  "min_static_box": "obstacle_2",
+  "contact": false,
+  "pinned_on": null,
+  "pinned_duration_s": null,
+  "ended_by_deadline": true,
+  "tags": [
+   "stalled_clear(no robot or box within 0.05 m)"
+  ],
+  "fu_rubric_window": [
+   "FU1"
+  ],
+  "fu_end_window": [],
+  "stall_abort": "provisional v7p uncommitted: not fired (replay=running); live=FAILED"
+ },
+ {
+  "label": "E18",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "leg_id": "8bf906be:robot_4:reverse",
+  "kind": "reverse",
+  "commanded_m": 1.3,
+  "guard_verdict": "refused: reverse_hits_obstacle:robot_5:obstacle_3:0.843",
+  "guard_repro": "reproduced",
+  "guard_live_leg_check": "leg clear",
+  "m4_terminal": "COMPLETED",
+  "gt_moved_max_m": 1.191,
+  "min_static_gap_m": 0.1185,
+  "min_static_box": "rack/NW_west",
+  "contact": false,
+  "pinned_on": null,
+  "pinned_duration_s": null,
+  "ended_by_deadline": false,
+  "tags": [
+   "completed"
+  ],
+  "fu_rubric_window": [],
+  "fu_end_window": [],
+  "stall_abort": "provisional v7p uncommitted: not fired (replay=COMPLETED@148.8); live=COMPLETED"
+ },
+ {
+  "label": "E18",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "leg_id": "8bf906be:robot_5:reverse",
+  "kind": "reverse",
+  "commanded_m": 1.3,
+  "guard_verdict": "refused: reverse_hits_obstacle:robot_5:obstacle_3:0.843",
+  "guard_repro": "reproduced",
+  "guard_live_leg_check": "leg hits obstacle_3@0.843",
+  "m4_terminal": "FAILED",
+  "gt_moved_max_m": 1.225,
+  "min_static_gap_m": -0.0017,
+  "min_static_box": "rack/SW_west",
+  "contact": true,
+  "pinned_on": null,
+  "pinned_duration_s": null,
+  "ended_by_deadline": true,
+  "tags": [],
+  "fu_rubric_window": [],
+  "fu_end_window": [],
+  "stall_abort": "provisional v7p uncommitted: FIRED t+13.8 sim-s (abort at 148.1); live=FAILED"
+ },
+ {
+  "label": "E18",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "leg_id": "1feb2c4e:robot_2:escort",
+  "kind": "escort",
+  "commanded_m": 2.211,
+  "guard_verdict": "refused: yield=infeasible:yield refused: no executable retreat (robot_2 has no retreat candidate surviving the sweep; robot_5 has no retreat candidate whose escort clears the static obstacles (escort_hits_obstacle:robot_2:obstacle_1:0.021))",
+  "guard_repro": "reproduced",
+  "guard_live_leg_check": "own:own:robot_2->obstacle_1@0.021 kit:kit:robot_2->obstacle_1@0.021",
+  "m4_terminal": null,
+  "gt_moved_max_m": 0.002,
+  "min_static_gap_m": 0.0944,
+  "min_static_box": "obstacle_1",
+  "contact": false,
+  "pinned_on": null,
+  "pinned_duration_s": null,
+  "ended_by_deadline": false,
+  "tags": [
+   "not_executed(<50%)",
+   "stalled_clear(no robot or box within 0.05 m)"
+  ],
+  "fu_rubric_window": [],
+  "fu_end_window": [],
+  "stall_abort": "provisional v7p uncommitted: not fired (replay=running); live=no terminal line"
+ },
+ {
+  "label": "E19",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "leg_id": "09647748:robot_3:reverse",
+  "kind": "reverse",
+  "commanded_m": 1.3,
+  "guard_verdict": "refused: reverse_hits_obstacle:robot_3:obstacle_3:1.201",
+  "guard_repro": "reproduced",
+  "guard_live_leg_check": "leg hits obstacle_3@1.201",
+  "m4_terminal": "FAILED",
+  "gt_moved_max_m": 0.106,
+  "min_static_gap_m": 0.3898,
+  "min_static_box": "rack/SW_south",
+  "contact": false,
+  "pinned_on": null,
+  "pinned_duration_s": null,
+  "ended_by_deadline": false,
+  "tags": [
+   "not_executed(<50%)"
+  ],
+  "fu_rubric_window": [],
+  "fu_end_window": [],
+  "stall_abort": "provisional v7p uncommitted: not fired (replay=running); live=FAILED"
+ },
+ {
+  "label": "E19",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "leg_id": "09647748:robot_4:reverse",
+  "kind": "reverse",
+  "commanded_m": 1.3,
+  "guard_verdict": "refused: reverse_hits_obstacle:robot_3:obstacle_3:1.201",
+  "guard_repro": "reproduced",
+  "guard_live_leg_check": "leg clear",
+  "m4_terminal": "COMPLETED",
+  "gt_moved_max_m": 1.31,
+  "min_static_gap_m": 0.2559,
+  "min_static_box": "obstacle_2",
+  "contact": false,
+  "pinned_on": null,
+  "pinned_duration_s": null,
+  "ended_by_deadline": false,
+  "tags": [
+   "completed"
+  ],
+  "fu_rubric_window": [],
+  "fu_end_window": [],
+  "stall_abort": "provisional v7p uncommitted: not fired (replay=COMPLETED@61.0); live=COMPLETED"
+ },
+ {
+  "label": "E20",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "leg_id": "f269ab37:robot_2:escort",
+  "kind": "escort",
+  "commanded_m": 2.35,
+  "guard_verdict": "unchanged",
+  "guard_repro": "reproduced",
+  "guard_live_leg_check": "own:own:clear kit:kit:clear",
+  "m4_terminal": "COMPLETED",
+  "gt_moved_max_m": 2.349,
+  "min_static_gap_m": 0.2007,
+  "min_static_box": "obstacle_1",
+  "contact": false,
+  "pinned_on": null,
+  "pinned_duration_s": null,
+  "ended_by_deadline": false,
+  "tags": [
+   "completed"
+  ],
+  "fu_rubric_window": [],
+  "fu_end_window": [],
+  "stall_abort": "provisional v7p uncommitted: not fired (replay=COMPLETED@102.0); live=COMPLETED"
+ },
+ {
+  "label": "E20",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "leg_id": "6cf402ed:robot_3:escort",
+  "kind": "escort",
+  "commanded_m": 1.843,
+  "guard_verdict": "unchanged",
+  "guard_repro": "reproduced",
+  "guard_live_leg_check": "own:own:clear kit:kit:clear",
+  "m4_terminal": "COMPLETED",
+  "gt_moved_max_m": 1.845,
+  "min_static_gap_m": 0.1161,
+  "min_static_box": "rack/SE_east",
+  "contact": false,
+  "pinned_on": null,
+  "pinned_duration_s": null,
+  "ended_by_deadline": false,
+  "tags": [
+   "completed"
+  ],
+  "fu_rubric_window": [
+   "FU2"
+  ],
+  "fu_end_window": [],
+  "stall_abort": "provisional v7p uncommitted: FIRED t+20.9 sim-s (abort at 255.3); live=COMPLETED"
+ },
+ {
+  "label": "E21",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "leg_id": "04457772:robot_4:escort",
+  "kind": "escort",
+  "commanded_m": 1.692,
+  "guard_verdict": "unchanged",
+  "guard_repro": "reproduced",
+  "guard_live_leg_check": "own:own:clear kit:kit:clear",
+  "m4_terminal": "COMPLETED",
+  "gt_moved_max_m": 1.687,
+  "min_static_gap_m": 0.1691,
+  "min_static_box": "rack/SW_west",
+  "contact": false,
+  "pinned_on": null,
+  "pinned_duration_s": null,
+  "ended_by_deadline": false,
+  "tags": [
+   "completed"
+  ],
+  "fu_rubric_window": [
+   "FU2"
+  ],
+  "fu_end_window": [
+   "FU2"
+  ],
+  "stall_abort": "provisional v7p uncommitted: not fired (replay=COMPLETED@98.2); live=COMPLETED"
+ },
+ {
+  "label": "E22",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "leg_id": "07da775d:robot_5:escort",
+  "kind": "escort",
+  "commanded_m": 1.768,
+  "guard_verdict": "unchanged",
+  "guard_repro": "reproduced",
+  "guard_live_leg_check": "own:own:clear kit:kit:clear",
+  "m4_terminal": null,
+  "gt_moved_max_m": 0.0,
+  "min_static_gap_m": 0.289,
+  "min_static_box": "obstacle_1",
+  "contact": false,
+  "pinned_on": null,
+  "pinned_duration_s": null,
+  "ended_by_deadline": false,
+  "tags": [
+   "not_executed(<50%)",
+   "stalled_clear(no robot or box within 0.05 m)"
+  ],
+  "fu_rubric_window": [],
+  "fu_end_window": [],
+  "stall_abort": "provisional v7p uncommitted: not fired (replay=running); live=no terminal line"
+ },
+ {
+  "label": "E23",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "leg_id": "9803bd34:robot_1:escort",
+  "kind": "escort",
+  "commanded_m": 2.35,
+  "guard_verdict": "unchanged",
+  "guard_repro": "reproduced",
+  "guard_live_leg_check": "own:own:clear kit:kit:clear",
+  "m4_terminal": "COMPLETED",
+  "gt_moved_max_m": 2.295,
+  "min_static_gap_m": 0.2476,
+  "min_static_box": "obstacle_2",
+  "contact": false,
+  "pinned_on": null,
+  "pinned_duration_s": null,
+  "ended_by_deadline": false,
+  "tags": [
+   "completed"
+  ],
+  "fu_rubric_window": [],
+  "fu_end_window": [],
+  "stall_abort": "provisional v7p uncommitted: not fired (replay=COMPLETED@123.1); live=COMPLETED"
+ },
+ {
+  "label": "E24",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "leg_id": "dfb33b91:robot_4:escort",
+  "kind": "escort",
+  "commanded_m": 1.825,
+  "guard_verdict": "unchanged",
+  "guard_repro": "reproduced",
+  "guard_live_leg_check": "own:own:clear kit:kit:clear",
+  "m4_terminal": "COMPLETED",
+  "gt_moved_max_m": 1.721,
+  "min_static_gap_m": 0.3286,
+  "min_static_box": "obstacle_2",
+  "contact": false,
+  "pinned_on": null,
+  "pinned_duration_s": null,
+  "ended_by_deadline": false,
+  "tags": [
+   "completed"
+  ],
+  "fu_rubric_window": [],
+  "fu_end_window": [],
+  "stall_abort": "provisional v7p uncommitted: not fired (replay=COMPLETED@128.3); live=COMPLETED"
+ },
+ {
+  "label": "E25",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "leg_id": "c1fd8b36:robot_5:escort",
+  "kind": "escort",
+  "commanded_m": 1.169,
+  "guard_verdict": "unchanged",
+  "guard_repro": "reproduced",
+  "guard_live_leg_check": "own:own:clear kit:kit:clear",
+  "m4_terminal": "COMPLETED",
+  "gt_moved_max_m": 1.167,
+  "min_static_gap_m": 0.3162,
+  "min_static_box": "obstacle_1",
+  "contact": false,
+  "pinned_on": null,
+  "pinned_duration_s": null,
+  "ended_by_deadline": false,
+  "tags": [
+   "completed"
+  ],
+  "fu_rubric_window": [],
+  "fu_end_window": [],
+  "stall_abort": "provisional v7p uncommitted: not fired (replay=COMPLETED@88.9); live=COMPLETED"
+ },
+ {
+  "label": "E26",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "leg_id": "cf77ca65:robot_1:escort",
+  "kind": "escort",
+  "commanded_m": 0.817,
+  "guard_verdict": "unchanged",
+  "guard_repro": "reproduced",
+  "guard_live_leg_check": "own:own:clear kit:kit:clear",
+  "m4_terminal": "COMPLETED",
+  "gt_moved_max_m": 0.807,
+  "min_static_gap_m": 0.1564,
+  "min_static_box": "obstacle_2",
+  "contact": false,
+  "pinned_on": null,
+  "pinned_duration_s": null,
+  "ended_by_deadline": false,
+  "tags": [
+   "completed"
+  ],
+  "fu_rubric_window": [
+   "FU2"
+  ],
+  "fu_end_window": [
+   "FU2"
+  ],
+  "stall_abort": "provisional v7p uncommitted: not fired (replay=COMPLETED@109.3); live=COMPLETED"
+ },
+ {
+  "label": "E28A",
+  "stratum": "prereg_v3_tranche1",
+  "arm": "A",
+  "leg_id": "3c234140:robot_5:escort",
+  "kind": "escort",
+  "commanded_m": 2.038,
+  "guard_verdict": "unchanged",
+  "guard_repro": "reproduced",
+  "guard_live_leg_check": "own:own:clear kit:kit:clear",
+  "m4_terminal": "COMPLETED",
+  "gt_moved_max_m": 2.037,
+  "min_static_gap_m": 0.1605,
+  "min_static_box": "rack/SE_east",
+  "contact": false,
+  "pinned_on": null,
+  "pinned_duration_s": null,
+  "ended_by_deadline": false,
+  "tags": [
+   "completed"
+  ],
+  "fu_rubric_window": [
+   "FU1"
+  ],
+  "fu_end_window": [],
+  "stall_abort": "provisional v7p uncommitted: not fired (replay=COMPLETED@103.7); live=COMPLETED"
+ },
+ {
+  "label": "E29A",
+  "stratum": "prereg_v3_tranche1",
+  "arm": "A",
+  "leg_id": "14aefebe:robot_4:escort",
+  "kind": "escort",
+  "commanded_m": 1.538,
+  "guard_verdict": "unchanged",
+  "guard_repro": "reproduced",
+  "guard_live_leg_check": "own:own:clear kit:kit:clear",
+  "m4_terminal": "COMPLETED",
+  "gt_moved_max_m": 1.53,
+  "min_static_gap_m": 0.4195,
+  "min_static_box": "rack/NW_north",
+  "contact": false,
+  "pinned_on": null,
+  "pinned_duration_s": null,
+  "ended_by_deadline": false,
+  "tags": [
+   "completed"
+  ],
+  "fu_rubric_window": [
+   "FU2"
+  ],
+  "fu_end_window": [
+   "FU2"
+  ],
+  "stall_abort": "provisional v7p uncommitted: not fired (replay=COMPLETED@102.8); live=COMPLETED"
+ },
+ {
+  "label": "E31A",
+  "stratum": "prereg_v3_tranche1",
+  "arm": "A",
+  "leg_id": "60afd0c1:robot_4:escort",
+  "kind": "escort",
+  "commanded_m": 1.354,
+  "guard_verdict": "unchanged",
+  "guard_repro": "reproduced",
+  "guard_live_leg_check": "own:own:clear kit:kit:clear",
+  "m4_terminal": "COMPLETED",
+  "gt_moved_max_m": 1.321,
+  "min_static_gap_m": 0.4399,
+  "min_static_box": "rack/SW_south",
+  "contact": false,
+  "pinned_on": null,
+  "pinned_duration_s": null,
+  "ended_by_deadline": false,
+  "tags": [
+   "completed"
+  ],
+  "fu_rubric_window": [
+   "FU2"
+  ],
+  "fu_end_window": [
+   "FU2"
+  ],
+  "stall_abort": "provisional v7p uncommitted: not fired (replay=COMPLETED@95.2); live=COMPLETED"
+ },
+ {
+  "label": "E6",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "leg_id": "93100ae3:robot_1:reverse",
+  "kind": "reverse",
+  "commanded_m": 1.3,
+  "guard_verdict": "refused: reverse_hits_obstacle:robot_3:obstacle_3:0.727",
+  "guard_repro": "reproduced",
+  "guard_live_leg_check": "leg clear",
+  "m4_terminal": "FAILED",
+  "gt_moved_max_m": 1.175,
+  "min_static_gap_m": 0.435,
+  "min_static_box": "rack/SW_south",
+  "contact": false,
+  "pinned_on": null,
+  "pinned_duration_s": null,
+  "ended_by_deadline": true,
+  "tags": [
+   "stalled_clear(no robot or box within 0.05 m)"
+  ],
+  "fu_rubric_window": [],
+  "fu_end_window": [],
+  "stall_abort": "provisional v7p uncommitted: not fired (replay=running); live=FAILED"
+ },
+ {
+  "label": "E6",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "leg_id": "93100ae3:robot_3:reverse",
+  "kind": "reverse",
+  "commanded_m": 1.3,
+  "guard_verdict": "refused: reverse_hits_obstacle:robot_3:obstacle_3:0.727",
+  "guard_repro": "reproduced",
+  "guard_live_leg_check": "leg hits obstacle_3@0.727",
+  "m4_terminal": "FAILED",
+  "gt_moved_max_m": 0.784,
+  "min_static_gap_m": -0.0,
+  "min_static_box": "rack/SW_west",
+  "contact": true,
+  "pinned_on": "box:rack/SW_west",
+  "pinned_duration_s": 26.9,
+  "ended_by_deadline": true,
+  "tags": [
+   "pinned_on_undeclared_box:rack/SW_west"
+  ],
+  "fu_rubric_window": [],
+  "fu_end_window": [],
+  "stall_abort": "provisional v7p uncommitted: FIRED t+11.1 sim-s (abort at 47.1); live=FAILED"
+ },
+ {
+  "label": "E6",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "leg_id": "83baf2e4:robot_4:escort",
+  "kind": "escort",
+  "commanded_m": 2.35,
+  "guard_verdict": "unchanged",
+  "guard_repro": "DIFFERS",
+  "guard_live_leg_check": "own:own:clear kit:kit:clear",
+  "m4_terminal": "COMPLETED",
+  "gt_moved_max_m": 2.342,
+  "min_static_gap_m": 0.3402,
+  "min_static_box": "obstacle_1",
+  "contact": false,
+  "pinned_on": null,
+  "pinned_duration_s": null,
+  "ended_by_deadline": false,
+  "tags": [
+   "completed"
+  ],
+  "fu_rubric_window": [],
+  "fu_end_window": [
+   "FU1"
+  ],
+  "stall_abort": "provisional v7p uncommitted: not fired (replay=COMPLETED@134.6); live=COMPLETED"
+ },
+ {
+  "label": "E6",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "leg_id": "a3bbc017:robot_3:reverse",
+  "kind": "reverse",
+  "commanded_m": 1.3,
+  "guard_verdict": "refused: reverse_hits_obstacle:robot_3:obstacle_6:0.692",
+  "guard_repro": "reproduced",
+  "guard_live_leg_check": "leg hits obstacle_6@0.692",
+  "m4_terminal": "FAILED",
+  "gt_moved_max_m": 1.01,
+  "min_static_gap_m": -0.0015,
+  "min_static_box": "rack/SW_south",
+  "contact": true,
+  "pinned_on": "box:rack/SW_south",
+  "pinned_duration_s": 26.1,
+  "ended_by_deadline": true,
+  "tags": [
+   "pinned_on_undeclared_box:rack/SW_south"
+  ],
+  "fu_rubric_window": [
+   "FU2"
+  ],
+  "fu_end_window": [],
+  "stall_abort": "provisional v7p uncommitted: FIRED t+12.8 sim-s (abort at 171.4); live=FAILED"
+ },
+ {
+  "label": "E6",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "leg_id": "a3bbc017:robot_5:reverse",
+  "kind": "reverse",
+  "commanded_m": 1.3,
+  "guard_verdict": "refused: reverse_hits_obstacle:robot_3:obstacle_6:0.692",
+  "guard_repro": "reproduced",
+  "guard_live_leg_check": "leg clear",
+  "m4_terminal": "COMPLETED",
+  "gt_moved_max_m": 1.222,
+  "min_static_gap_m": 0.0827,
+  "min_static_box": "obstacle_2",
+  "contact": false,
+  "pinned_on": null,
+  "pinned_duration_s": null,
+  "ended_by_deadline": false,
+  "tags": [
+   "completed"
+  ],
+  "fu_rubric_window": [
+   "FU2"
+  ],
+  "fu_end_window": [
+   "FU2"
+  ],
+  "stall_abort": "provisional v7p uncommitted: not fired (replay=COMPLETED@173.3); live=COMPLETED"
+ },
+ {
+  "label": "E7",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "leg_id": "c7aeaac1:robot_1:reverse",
+  "kind": "reverse",
+  "commanded_m": 1.3,
+  "guard_verdict": "refused: reverse_hits_obstacle:robot_1:obstacle_2:0.363; reverse_hits_obstacle:robot_3:obstacle_4:0.935; reverse_hits_obstacle:robot_4:obstacle_3:0.599",
+  "guard_repro": "reproduced",
+  "guard_live_leg_check": "leg hits obstacle_2@0.363",
+  "m4_terminal": "COMPLETED",
+  "gt_moved_max_m": 1.296,
+  "min_static_gap_m": 0.0763,
+  "min_static_box": "obstacle_2",
+  "contact": false,
+  "pinned_on": null,
+  "pinned_duration_s": null,
+  "ended_by_deadline": false,
+  "tags": [
+   "completed"
+  ],
+  "fu_rubric_window": [
+   "FU2"
+  ],
+  "fu_end_window": [
+   "FU2"
+  ],
+  "stall_abort": "provisional v7p uncommitted: not fired (replay=COMPLETED@53.6); live=COMPLETED"
+ },
+ {
+  "label": "E7",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "leg_id": "c7aeaac1:robot_2:reverse",
+  "kind": "reverse",
+  "commanded_m": 1.3,
+  "guard_verdict": "refused: reverse_hits_obstacle:robot_1:obstacle_2:0.363; reverse_hits_obstacle:robot_3:obstacle_4:0.935; reverse_hits_obstacle:robot_4:obstacle_3:0.599",
+  "guard_repro": "reproduced",
+  "guard_live_leg_check": "leg clear",
+  "m4_terminal": "COMPLETED",
+  "gt_moved_max_m": 1.286,
+  "min_static_gap_m": 0.2761,
+  "min_static_box": "obstacle_1",
+  "contact": false,
+  "pinned_on": null,
+  "pinned_duration_s": null,
+  "ended_by_deadline": false,
+  "tags": [
+   "completed"
+  ],
+  "fu_rubric_window": [
+   "FU1"
+  ],
+  "fu_end_window": [
+   "FU1"
+  ],
+  "stall_abort": "provisional v7p uncommitted: not fired (replay=COMPLETED@53.6); live=COMPLETED"
+ },
+ {
+  "label": "E7",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "leg_id": "c7aeaac1:robot_3:reverse",
+  "kind": "reverse",
+  "commanded_m": 1.3,
+  "guard_verdict": "refused: reverse_hits_obstacle:robot_1:obstacle_2:0.363; reverse_hits_obstacle:robot_3:obstacle_4:0.935; reverse_hits_obstacle:robot_4:obstacle_3:0.599",
+  "guard_repro": "reproduced",
+  "guard_live_leg_check": "leg hits obstacle_4@0.935",
+  "m4_terminal": "COMPLETED",
+  "gt_moved_max_m": 1.285,
+  "min_static_gap_m": 0.2707,
+  "min_static_box": "rack/SE_east",
+  "contact": false,
+  "pinned_on": null,
+  "pinned_duration_s": null,
+  "ended_by_deadline": false,
+  "tags": [
+   "completed"
+  ],
+  "fu_rubric_window": [
+   "FU2"
+  ],
+  "fu_end_window": [
+   "FU2"
+  ],
+  "stall_abort": "provisional v7p uncommitted: not fired (replay=COMPLETED@53.6); live=COMPLETED"
+ },
+ {
+  "label": "E7",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "leg_id": "c7aeaac1:robot_4:reverse",
+  "kind": "reverse",
+  "commanded_m": 1.3,
+  "guard_verdict": "refused: reverse_hits_obstacle:robot_1:obstacle_2:0.363; reverse_hits_obstacle:robot_3:obstacle_4:0.935; reverse_hits_obstacle:robot_4:obstacle_3:0.599",
+  "guard_repro": "reproduced",
+  "guard_live_leg_check": "leg hits obstacle_3@0.599",
+  "m4_terminal": "FAILED",
+  "gt_moved_max_m": 0.647,
+  "min_static_gap_m": -0.0,
+  "min_static_box": "rack/NW_west",
+  "contact": true,
+  "pinned_on": null,
+  "pinned_duration_s": null,
+  "ended_by_deadline": true,
+  "tags": [
+   "not_executed(<50%)"
+  ],
+  "fu_rubric_window": [
+   "FU1"
+  ],
+  "fu_end_window": [],
+  "stall_abort": "provisional v7p uncommitted: FIRED t+9.4 sim-s (abort at 48.6); live=FAILED"
+ },
+ {
+  "label": "E8",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "leg_id": "f06c33b3:robot_2:reverse",
+  "kind": "reverse",
+  "commanded_m": 1.3,
+  "guard_verdict": "refused: reverse_hits_obstacle:robot_2:obstacle_2:1.137; reverse_hits_obstacle:robot_4:obstacle_6:1.236",
+  "guard_repro": "reproduced",
+  "guard_live_leg_check": "leg hits obstacle_2@1.137",
+  "m4_terminal": "COMPLETED",
+  "gt_moved_max_m": 1.307,
+  "min_static_gap_m": 0.0582,
+  "min_static_box": "obstacle_2",
+  "contact": false,
+  "pinned_on": null,
+  "pinned_duration_s": null,
+  "ended_by_deadline": false,
+  "tags": [
+   "completed"
+  ],
+  "fu_rubric_window": [
+   "FU1"
+  ],
+  "fu_end_window": [],
+  "stall_abort": "provisional v7p uncommitted: not fired (replay=COMPLETED@57.9); live=COMPLETED"
+ },
+ {
+  "label": "E8",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "leg_id": "f06c33b3:robot_4:reverse",
+  "kind": "reverse",
+  "commanded_m": 1.3,
+  "guard_verdict": "refused: reverse_hits_obstacle:robot_2:obstacle_2:1.137; reverse_hits_obstacle:robot_4:obstacle_6:1.236",
+  "guard_repro": "reproduced",
+  "guard_live_leg_check": "leg hits obstacle_6@1.236",
+  "m4_terminal": "FAILED",
+  "gt_moved_max_m": 0.529,
+  "min_static_gap_m": 0.338,
+  "min_static_box": "obstacle_2",
+  "contact": false,
+  "pinned_on": null,
+  "pinned_duration_s": null,
+  "ended_by_deadline": true,
+  "tags": [
+   "not_executed(<50%)",
+   "stalled_clear(no robot or box within 0.05 m)"
+  ],
+  "fu_rubric_window": [
+   "FU1"
+  ],
+  "fu_end_window": [],
+  "stall_abort": "provisional v7p uncommitted: not fired (replay=running); live=FAILED"
+ },
+ {
+  "label": "m5D_t01_a1",
+  "stratum": "nov_2026_takes",
+  "arm": "A",
+  "leg_id": "03bba450:robot_4:escort",
+  "kind": "escort",
+  "commanded_m": 1.671,
+  "guard_verdict": "unchanged",
+  "guard_repro": "reproduced",
+  "guard_live_leg_check": "own:own:clear kit:kit:clear",
+  "m4_terminal": "COMPLETED",
+  "gt_moved_max_m": 1.663,
+  "min_static_gap_m": 0.1726,
+  "min_static_box": "rack/SW_west",
+  "contact": false,
+  "pinned_on": null,
+  "pinned_duration_s": null,
+  "ended_by_deadline": false,
+  "tags": [
+   "completed"
+  ],
+  "fu_rubric_window": [
+   "FU1"
+  ],
+  "fu_end_window": [
+   "FU1"
+  ],
+  "stall_abort": "provisional v7p uncommitted: not fired (replay=COMPLETED@99.9); live=COMPLETED"
+ },
+ {
+  "label": "m5D_t01_a1",
+  "stratum": "nov_2026_takes",
+  "arm": "A",
+  "leg_id": "a15f3fc5:robot_3:escort",
+  "kind": "escort",
+  "commanded_m": 1.604,
+  "guard_verdict": "refused: yield=infeasible:escort_hits_obstacle:robot_3:obstacle_2:0.414",
+  "guard_repro": "reproduced",
+  "guard_live_leg_check": "own:own:robot_3->obstacle_2@0.414 kit:kit:robot_3->obstacle_2@0.414",
+  "m4_terminal": "FAILED",
+  "gt_moved_max_m": 0.516,
+  "min_static_gap_m": -0.0002,
+  "min_static_box": "obstacle_2",
+  "contact": true,
+  "pinned_on": "box:obstacle_2",
+  "pinned_duration_s": 56.8,
+  "ended_by_deadline": true,
+  "tags": [
+   "not_executed(<50%)",
+   "pinned_on_declared_box:obstacle_2"
+  ],
+  "fu_rubric_window": [],
+  "fu_end_window": [],
+  "stall_abort": "provisional v7p uncommitted: FIRED t+10.9 sim-s (abort at 149.6); live=FAILED"
+ },
+ {
+  "label": "m5V_t01_a1",
+  "stratum": "nov_2026_takes",
+  "arm": "A",
+  "leg_id": "b07a700f:robot_1:reverse",
+  "kind": "reverse",
+  "commanded_m": 1.3,
+  "guard_verdict": "unchanged",
+  "guard_repro": "reproduced",
+  "guard_live_leg_check": "leg clear",
+  "m4_terminal": "COMPLETED",
+  "gt_moved_max_m": 1.205,
+  "min_static_gap_m": 0.3504,
+  "min_static_box": "rack/SW_west",
+  "contact": false,
+  "pinned_on": null,
+  "pinned_duration_s": null,
+  "ended_by_deadline": false,
+  "tags": [
+   "completed"
+  ],
+  "fu_rubric_window": [
+   "FU1"
+  ],
+  "fu_end_window": [
+   "FU1"
+  ],
+  "stall_abort": "provisional v7p uncommitted: not fired (replay=COMPLETED@73.1); live=COMPLETED"
+ },
+ {
+  "label": "m5V_t01_a1",
+  "stratum": "nov_2026_takes",
+  "arm": "A",
+  "leg_id": "b07a700f:robot_2:reverse",
+  "kind": "reverse",
+  "commanded_m": 1.3,
+  "guard_verdict": "unchanged",
+  "guard_repro": "reproduced",
+  "guard_live_leg_check": "leg clear",
+  "m4_terminal": "COMPLETED",
+  "gt_moved_max_m": 1.202,
+  "min_static_gap_m": 0.0822,
+  "min_static_box": "obstacle_2",
+  "contact": false,
+  "pinned_on": null,
+  "pinned_duration_s": null,
+  "ended_by_deadline": false,
+  "tags": [
+   "completed"
+  ],
+  "fu_rubric_window": [
+   "FU1"
+  ],
+  "fu_end_window": [
+   "FU1"
+  ],
+  "stall_abort": "provisional v7p uncommitted: not fired (replay=COMPLETED@73.0); live=COMPLETED"
+ },
+ {
+  "label": "m5V_t01_a1",
+  "stratum": "nov_2026_takes",
+  "arm": "A",
+  "leg_id": "b07a700f:robot_3:reverse",
+  "kind": "reverse",
+  "commanded_m": 1.3,
+  "guard_verdict": "unchanged",
+  "guard_repro": "reproduced",
+  "guard_live_leg_check": "leg clear",
+  "m4_terminal": "COMPLETED",
+  "gt_moved_max_m": 1.209,
+  "min_static_gap_m": 0.3134,
+  "min_static_box": "rack/SE_east",
+  "contact": false,
+  "pinned_on": null,
+  "pinned_duration_s": null,
+  "ended_by_deadline": false,
+  "tags": [
+   "completed"
+  ],
+  "fu_rubric_window": [
+   "FU1"
+  ],
+  "fu_end_window": [
+   "FU1"
+  ],
+  "stall_abort": "provisional v7p uncommitted: not fired (replay=COMPLETED@73.2); live=COMPLETED"
+ },
+ {
+  "label": "m5V_t01_a1",
+  "stratum": "nov_2026_takes",
+  "arm": "A",
+  "leg_id": "95066420:robot_4:reverse",
+  "kind": "reverse",
+  "commanded_m": 1.3,
+  "guard_verdict": "refused: reverse_hits_obstacle:robot_4:obstacle_1:0.305; reverse_hits_obstacle:robot_5:obstacle_1:0.844",
+  "guard_repro": "reproduced",
+  "guard_live_leg_check": "leg hits obstacle_1@0.305",
+  "m4_terminal": "COMPLETED",
+  "gt_moved_max_m": 1.206,
+  "min_static_gap_m": 0.0055,
+  "min_static_box": "obstacle_1",
+  "contact": false,
+  "pinned_on": null,
+  "pinned_duration_s": null,
+  "ended_by_deadline": false,
+  "tags": [
+   "completed"
+  ],
+  "fu_rubric_window": [
+   "FU2"
+  ],
+  "fu_end_window": [
+   "FU2"
+  ],
+  "stall_abort": "provisional v7p uncommitted: not fired (replay=COMPLETED@92.0); live=COMPLETED"
+ },
+ {
+  "label": "m5V_t01_a1",
+  "stratum": "nov_2026_takes",
+  "arm": "A",
+  "leg_id": "95066420:robot_5:reverse",
+  "kind": "reverse",
+  "commanded_m": 1.3,
+  "guard_verdict": "refused: reverse_hits_obstacle:robot_4:obstacle_1:0.305; reverse_hits_obstacle:robot_5:obstacle_1:0.844",
+  "guard_repro": "reproduced",
+  "guard_live_leg_check": "leg hits obstacle_1@0.844",
+  "m4_terminal": "COMPLETED",
+  "gt_moved_max_m": 1.205,
+  "min_static_gap_m": 0.0191,
+  "min_static_box": "obstacle_1",
+  "contact": false,
+  "pinned_on": null,
+  "pinned_duration_s": null,
+  "ended_by_deadline": false,
+  "tags": [
+   "completed"
+  ],
+  "fu_rubric_window": [
+   "FU2"
+  ],
+  "fu_end_window": [
+   "FU2"
+  ],
+  "stall_abort": "provisional v7p uncommitted: not fired (replay=COMPLETED@91.9); live=COMPLETED"
+ }
+]

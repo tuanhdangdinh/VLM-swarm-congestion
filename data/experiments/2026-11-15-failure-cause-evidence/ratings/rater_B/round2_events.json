@@ -1,0 +1,958 @@
+{
+ "rater": "B",
+ "round": 2,
+ "note": "Out-of-scope units keep round-1 codes (phase2_events.json); S3 for out-of-scope units equals their round-1 code.",
+ "summary": {
+  "n_in_scope": 34,
+  "n_changed": 18,
+  "all55_round2": {
+   "U:T1_fidelity": 15,
+   "G5": 3,
+   "V4": 3,
+   "X2": 3,
+   "U:no_m4_clock_anchor": 10,
+   "X1": 3,
+   "X3": 3,
+   "V1": 5,
+   "G4": 3,
+   "G2": 1,
+   "V3": 2,
+   "G1": 3,
+   "X5": 1
+  },
+  "all55_round2_class": {
+   "U": 25,
+   "G": 10,
+   "V": 10,
+   "X": 10
+  },
+  "all55_s3": {
+   "V3": 3,
+   "U:T1_fidelity": 2,
+   "G5": 3,
+   "X3": 4,
+   "G4": 5,
+   "V4": 3,
+   "X2": 4,
+   "U:no_m4_clock_anchor": 10,
+   "X1": 4,
+   "G6": 4,
+   "V1": 6,
+   "G2": 1,
+   "G1": 3,
+   "X5": 2,
+   "X4": 1
+  },
+  "all55_s3_class": {
+   "V": 12,
+   "U": 12,
+   "G": 16,
+   "X": 15
+  },
+  "in_scope_round2": {
+   "U:T1_fidelity": 15,
+   "G5": 3,
+   "V4": 3,
+   "X2": 1,
+   "X3": 1,
+   "G4": 3,
+   "V3": 2,
+   "G1": 1,
+   "V1": 2,
+   "X1": 2,
+   "X5": 1
+  },
+  "in_scope_s3": {
+   "V3": 3,
+   "G5": 3,
+   "U:T1_fidelity": 2,
+   "X3": 2,
+   "G4": 5,
+   "V4": 3,
+   "X2": 2,
+   "G6": 4,
+   "G1": 1,
+   "X1": 3,
+   "V1": 3,
+   "X5": 2,
+   "X4": 1
+  }
+ },
+ "records": [
+  {
+   "sheet_id": "EV-f7ab58",
+   "unit_id": "FU1",
+   "criteria": [
+    "a",
+    "b"
+   ],
+   "decisions_a": [
+    "D1"
+   ],
+   "round1_primary_code": "U:T1_not_run",
+   "round2_primary_code": "U:T1_fidelity",
+   "step_fired": "4 + rule-7 U clause",
+   "evidence": "Walk start D1@13.033. Addendum D1 as written gate U:T1_fidelity (D1 as-written differs); V2 and V3 non-T1 halves met -> U:T1_fidelity.",
+   "contributing_codes": [
+    "G4",
+    "X4",
+    "V3",
+    "G1",
+    "V4",
+    "V4j",
+    "X3",
+    "X6"
+   ],
+   "s3_primary_code": "V3",
+   "s3_basis": "S3 D1 pass; must-act empty -> no V2; named yielder robot_5 refused for room (0.00 m) while T1 (S3) shows FU robots robot_1..robot_4 feasible as yielder -> V3 (R2-C).",
+   "changed": true,
+   "notes": "Readings A1-A4, B1-B16 kept. B2 is now answered by the addendum's T1 row; where that row is as-written U:T1_fidelity the rubric's U clause applies (U:T1_fidelity replaces U:T1_not_run)."
+  },
+  {
+   "sheet_id": "EV-ef4e73",
+   "unit_id": "FU2",
+   "criteria": [
+    "a",
+    "b"
+   ],
+   "decisions_a": [
+    "D5"
+   ],
+   "round1_primary_code": "G5",
+   "round2_primary_code": "G5",
+   "step_fired": "4",
+   "evidence": "Walk start D5@171.7. Addendum D5 as written gate U:T1_fidelity, but no non-T1 half of V2/V3 is met (involved = FU, not refused), so T1 does not decide; G5 at 222.31 unchanged.",
+   "contributing_codes": [
+    "X4",
+    "X3",
+    "G2",
+    "X2"
+   ],
+   "s3_primary_code": "G5",
+   "s3_basis": "S3 D5 pass; no V -> G5.",
+   "changed": false,
+   "notes": "Readings A1-A4, B1-B16 kept."
+  },
+  {
+   "sheet_id": "EV-ef4e73",
+   "unit_id": "FU1",
+   "criteria": [
+    "b"
+   ],
+   "decisions_a": [],
+   "round1_primary_code": "U:T1_fidelity",
+   "round2_primary_code": "U:T1_fidelity",
+   "step_fired": "3 + rule-7 U clause",
+   "evidence": "No chain. Step 3: T1(t0) as written U:T1_fidelity (3/6), unchanged. Addendum rows D1/D3/D4 are off this unit's timeline.",
+   "contributing_codes": [
+    "X3"
+   ],
+   "s3_primary_code": "U:T1_fidelity",
+   "s3_basis": "S3 episode gate also U:T1_fidelity (4/6) -> stays U.",
+   "changed": false,
+   "notes": "Readings A1-A4, B1-B16 kept."
+  },
+  {
+   "sheet_id": "EV-e26384",
+   "unit_id": "FU1",
+   "criteria": [
+    "b"
+   ],
+   "decisions_a": [],
+   "round1_primary_code": "U:T1_fidelity",
+   "round2_primary_code": "U:T1_fidelity",
+   "step_fired": "3 + rule-7 U clause",
+   "evidence": "No chain. Step 3: T1(t0) as written U:T1_fidelity (3/4), unchanged.",
+   "contributing_codes": [
+    "X3",
+    "G1",
+    "G2",
+    "X6"
+   ],
+   "s3_primary_code": "X3",
+   "s3_basis": "S3 episode gate pass (4/4), T1(t0) 7 non-empty -> step 4 from t0: X3 after D1 waits complete 26.235 (B14).",
+   "changed": false,
+   "notes": "Readings A1-A4, B1-B16 kept."
+  },
+  {
+   "sheet_id": "EV-e0f9cf",
+   "unit_id": "FU2",
+   "criteria": [
+    "a",
+    "b"
+   ],
+   "decisions_a": [
+    "D1",
+    "D2"
+   ],
+   "round1_primary_code": "U:T1_not_run",
+   "round2_primary_code": "U:T1_fidelity",
+   "step_fired": "4 + rule-7 U clause",
+   "evidence": "Walk start D1@13.7. Addendum D1 as written gate U:T1_fidelity; V2 non-T1 half met (involved misses robot_2, robot_4) -> U:T1_fidelity. D2@60.067 as written pass (later).",
+   "contributing_codes": [
+    "G4",
+    "V1",
+    "G6",
+    "G5",
+    "X1",
+    "V6",
+    "X2",
+    "X3",
+    "X6"
+   ],
+   "s3_primary_code": "G4",
+   "s3_basis": "S3 D1 pass; no V2/V3 -> G4 on D1.",
+   "changed": true,
+   "notes": "Readings A1-A4, B1-B16 kept. B2 is now answered by the addendum's T1 row; where that row is as-written U:T1_fidelity the rubric's U clause applies (U:T1_fidelity replaces U:T1_not_run)."
+  },
+  {
+   "sheet_id": "EV-e0f9cf",
+   "unit_id": "FU1",
+   "criteria": [
+    "a",
+    "b"
+   ],
+   "decisions_a": [
+    "D1"
+   ],
+   "round1_primary_code": "U:T1_not_run",
+   "round2_primary_code": "U:T1_fidelity",
+   "step_fired": "4 + rule-7 U clause",
+   "evidence": "Walk start D1@13.7. Addendum D1 as written gate U:T1_fidelity; V2 non-T1 half met (involved misses robot_3) -> U:T1_fidelity.",
+   "contributing_codes": [
+    "G4",
+    "V1",
+    "X1",
+    "X3",
+    "X6"
+   ],
+   "s3_primary_code": "G4",
+   "s3_basis": "S3 D1 pass; must-act empty -> no V2; handoff re-grounding not a room refusal -> no V3; G4 on D1 (swap, yielder changed).",
+   "changed": true,
+   "notes": "Readings A1-A4, B1-B16 kept. B2 is now answered by the addendum's T1 row; where that row is as-written U:T1_fidelity the rubric's U clause applies (U:T1_fidelity replaces U:T1_not_run)."
+  },
+  {
+   "sheet_id": "EV-db0df6",
+   "unit_id": "FU2",
+   "criteria": [
+    "a"
+   ],
+   "decisions_a": [
+    "D4",
+    "D9"
+   ],
+   "round1_primary_code": "V4",
+   "round2_primary_code": "V4",
+   "step_fired": "4",
+   "evidence": "Walk start D4@49.067. Addendum D4 as written pass; V4 unchanged. D2/D3 precede the chain start (R2-B).",
+   "contributing_codes": [
+    "V4j",
+    "G6",
+    "X3",
+    "G1"
+   ],
+   "s3_primary_code": "V4",
+   "s3_basis": "Same under S3.",
+   "changed": false,
+   "notes": "Readings A1-A4, B1-B16 kept."
+  },
+  {
+   "sheet_id": "EV-db0df6",
+   "unit_id": "FU1",
+   "criteria": [
+    "a"
+   ],
+   "decisions_a": [
+    "D3",
+    "D7",
+    "D8"
+   ],
+   "round1_primary_code": "V4",
+   "round2_primary_code": "V4",
+   "step_fired": "4",
+   "evidence": "Walk start D3@30.067. Addendum D3 as written pass; involved covers FU; no V2/V3; V4 (C1 True) unchanged. D1@11.9 and D2@15.833 precede the chain start (R2-B).",
+   "contributing_codes": [
+    "G4",
+    "X3",
+    "G1",
+    "G2"
+   ],
+   "s3_primary_code": "V4",
+   "s3_basis": "Same under S3.",
+   "changed": false,
+   "notes": "Readings A1-A4, B1-B16 kept."
+  },
+  {
+   "sheet_id": "EV-cb3996",
+   "unit_id": "FU2",
+   "criteria": [
+    "a"
+   ],
+   "decisions_a": [
+    "D1",
+    "D4"
+   ],
+   "round1_primary_code": "X2",
+   "round2_primary_code": "X2",
+   "step_fired": "4",
+   "evidence": "Walk start D1@13.4. Addendum D1 as written pass; involved = FU; no V. X2 at 32.516 unchanged; D4 later.",
+   "contributing_codes": [
+    "X3",
+    "G1",
+    "G2",
+    "V3"
+   ],
+   "s3_primary_code": "X2",
+   "s3_basis": "Same under S3.",
+   "changed": false,
+   "notes": "Readings A1-A4, B1-B16 kept."
+  },
+  {
+   "sheet_id": "EV-cb3996",
+   "unit_id": "FU1",
+   "criteria": [
+    "a"
+   ],
+   "decisions_a": [
+    "D1"
+   ],
+   "round1_primary_code": "U:T1_not_run",
+   "round2_primary_code": "G5",
+   "step_fired": "4",
+   "evidence": "Walk start D1@13.4. Addendum D1 as written pass (47/237); must-act empty -> no V2 (involved misses robot_5); no refusal; grounding clean. Next: D1:robot_4:reverse GT contact rack/NW_west at 22.0 -> G5.",
+   "contributing_codes": [
+    "EG2",
+    "X1",
+    "X3",
+    "V3",
+    "G1",
+    "G2"
+   ],
+   "s3_primary_code": "G5",
+   "s3_basis": "Same under S3.",
+   "changed": true,
+   "notes": "Readings A1-A4, B1-B16 kept. B2 is now answered by the addendum's T1 row; where that row is as-written U:T1_fidelity the rubric's U clause applies (U:T1_fidelity replaces U:T1_not_run)."
+  },
+  {
+   "sheet_id": "EV-a6761e",
+   "unit_id": "FU2",
+   "criteria": [
+    "a",
+    "b"
+   ],
+   "decisions_a": [
+    "D1"
+   ],
+   "round1_primary_code": "U:T1_not_run",
+   "round2_primary_code": "U:T1_fidelity",
+   "step_fired": "4 + rule-7 U clause",
+   "evidence": "Walk start D1@12.0. Addendum D1 as written gate U:T1_fidelity; V2 non-T1 half met (involved misses robot_5) -> U:T1_fidelity.",
+   "contributing_codes": [
+    "G6",
+    "V1",
+    "X3"
+   ],
+   "s3_primary_code": "G6",
+   "s3_basis": "S3 D1 pass; no V2/V3 -> G6 on D1.",
+   "changed": true,
+   "notes": "Readings A1-A4, B1-B16 kept. B2 is now answered by the addendum's T1 row; where that row is as-written U:T1_fidelity the rubric's U clause applies (U:T1_fidelity replaces U:T1_not_run)."
+  },
+  {
+   "sheet_id": "EV-a6761e",
+   "unit_id": "FU1",
+   "criteria": [
+    "a",
+    "b"
+   ],
+   "decisions_a": [
+    "D1"
+   ],
+   "round1_primary_code": "U:T1_not_run",
+   "round2_primary_code": "U:T1_fidelity",
+   "step_fired": "4 + rule-7 U clause",
+   "evidence": "Walk start D1@12.0. Addendum D1 as written gate U:T1_fidelity; V2 non-T1 half met (involved misses robot_2, robot_3) -> U:T1_fidelity.",
+   "contributing_codes": [
+    "G6",
+    "X3",
+    "G1",
+    "G2"
+   ],
+   "s3_primary_code": "G6",
+   "s3_basis": "S3 D1 pass; must-act empty -> no V2; no V3 -> G6 on D1.",
+   "changed": true,
+   "notes": "Readings A1-A4, B1-B16 kept. B2 is now answered by the addendum's T1 row; where that row is as-written U:T1_fidelity the rubric's U clause applies (U:T1_fidelity replaces U:T1_not_run)."
+  },
+  {
+   "sheet_id": "EV-a2cfc5",
+   "unit_id": "FU1",
+   "criteria": [
+    "a"
+   ],
+   "decisions_a": [
+    "D1",
+    "D2"
+   ],
+   "round1_primary_code": "U:T1_not_run",
+   "round2_primary_code": "X3",
+   "step_fired": "4",
+   "evidence": "Walk start D2@18.5. Addendum D2 as written pass (69/237); must-act empty -> no V2 (involved misses robot_1/3/5); no refusal; grounding clean. D1@14.7 precedes chain start (R2-B). Next: X3 at 37.829 after D2:robot_2:reverse completes (B11).",
+   "contributing_codes": [
+    "V3",
+    "G1",
+    "G2",
+    "X1",
+    "X4"
+   ],
+   "s3_primary_code": "X3",
+   "s3_basis": "Same under S3.",
+   "changed": true,
+   "notes": "Readings A1-A4, B1-B16 kept. B2 is now answered by the addendum's T1 row; where that row is as-written U:T1_fidelity the rubric's U clause applies (U:T1_fidelity replaces U:T1_not_run)."
+  },
+  {
+   "sheet_id": "EV-830943",
+   "unit_id": "FU1",
+   "criteria": [
+    "a",
+    "b"
+   ],
+   "decisions_a": [
+    "D1"
+   ],
+   "round1_primary_code": "U:T1_not_run",
+   "round2_primary_code": "U:T1_fidelity",
+   "step_fired": "4 + rule-7 U clause",
+   "evidence": "Walk start D1@15.433. Addendum D1 as written gate U:T1_fidelity; V2 non-T1 half met (involved misses robot_2/3/4) -> U:T1_fidelity.",
+   "contributing_codes": [
+    "G6",
+    "X3",
+    "G1",
+    "G2",
+    "V4",
+    "X2",
+    "X1"
+   ],
+   "s3_primary_code": "G6",
+   "s3_basis": "S3 D1 pass; must-act empty -> no V2; no refusal -> no V3; first deviation G6 on D1.",
+   "changed": true,
+   "notes": "Readings A1-A4, B1-B16 kept. B2 is now answered by the addendum's T1 row; where that row is as-written U:T1_fidelity the rubric's U clause applies (U:T1_fidelity replaces U:T1_not_run)."
+  },
+  {
+   "sheet_id": "EV-80fb2a",
+   "unit_id": "FU2",
+   "criteria": [
+    "a"
+   ],
+   "decisions_a": [
+    "D4"
+   ],
+   "round1_primary_code": "G4",
+   "round2_primary_code": "G4",
+   "step_fired": "4",
+   "evidence": "Walk start D4@133.667. Addendum D4 as written pass; involved = FU; plan absent, no refusal -> no V -> G4 unchanged. D3@111.0 precedes the chain start (R2-B).",
+   "contributing_codes": [
+    "G5",
+    "EG2",
+    "X1",
+    "X2",
+    "X3",
+    "G1",
+    "G2"
+   ],
+   "s3_primary_code": "G4",
+   "s3_basis": "Same under S3.",
+   "changed": false,
+   "notes": "Readings A1-A4, B1-B16 kept."
+  },
+  {
+   "sheet_id": "EV-7bf1e2",
+   "unit_id": "FU2",
+   "criteria": [
+    "a"
+   ],
+   "decisions_a": [
+    "D1"
+   ],
+   "round1_primary_code": "U:T1_not_run",
+   "round2_primary_code": "V3",
+   "step_fired": "4",
+   "evidence": "Walk start D1@13.767. Addendum D1 as written pass (13/88); FU yielders feasible robot_3, robot_4. Named yielder robot_4 refused ('no retreat candidate surviving the sweep', B9) while T1 shows robot_3 feasible as yielder -> V3 (before G4 on same event).",
+   "contributing_codes": [
+    "G4",
+    "X3",
+    "G1",
+    "G2"
+   ],
+   "s3_primary_code": "V3",
+   "s3_basis": "Same under S3.",
+   "changed": true,
+   "notes": "Readings A1-A4, B1-B16 kept. B2 is now answered by the addendum's T1 row; where that row is as-written U:T1_fidelity the rubric's U clause applies (U:T1_fidelity replaces U:T1_not_run)."
+  },
+  {
+   "sheet_id": "EV-7bda3f",
+   "unit_id": "FU2",
+   "criteria": [
+    "a"
+   ],
+   "decisions_a": [
+    "D2",
+    "D3"
+   ],
+   "round1_primary_code": "G4",
+   "round2_primary_code": "G4",
+   "step_fired": "4",
+   "evidence": "Walk start D3@36.567. Addendum D3 as written pass; involved = FU; named yielder robot_1 re-grounded by heading, not room -> no V3 -> G4 unchanged. D2@27.2 precedes the chain start (R2-B).",
+   "contributing_codes": [
+    "X3",
+    "V1",
+    "X6"
+   ],
+   "s3_primary_code": "G4",
+   "s3_basis": "Same under S3.",
+   "changed": false,
+   "notes": "Readings A1-A4, B1-B16 kept."
+  },
+  {
+   "sheet_id": "EV-7bda3f",
+   "unit_id": "FU1",
+   "criteria": [
+    "a"
+   ],
+   "decisions_a": [
+    "D2"
+   ],
+   "round1_primary_code": "G1",
+   "round2_primary_code": "G1",
+   "step_fired": "4",
+   "evidence": "No chain; walk from t0 12.277. G1 at D1 14.267 precedes addendum D2@27.2 (as written pass, T2 True) -> unchanged.",
+   "contributing_codes": [
+    "X3",
+    "G2",
+    "V3",
+    "V4",
+    "V4j",
+    "G4",
+    "G6",
+    "X6"
+   ],
+   "s3_primary_code": "G1",
+   "s3_basis": "Same under S3.",
+   "changed": false,
+   "notes": "Readings A1-A4, B1-B16 kept."
+  },
+  {
+   "sheet_id": "EV-62b8d0",
+   "unit_id": "FU1",
+   "criteria": [
+    "a",
+    "b"
+   ],
+   "decisions_a": [
+    "D1",
+    "D2"
+   ],
+   "round1_primary_code": "U:T1_not_run",
+   "round2_primary_code": "U:T1_fidelity",
+   "step_fired": "4 + rule-7 U clause",
+   "evidence": "Walk start D1@11.4. Addendum D1 as written gate U:T1_fidelity; V2 non-T1 half met (involved misses robot_2/3/5) -> U:T1_fidelity.",
+   "contributing_codes": [
+    "X1",
+    "X3",
+    "V4",
+    "V4j",
+    "G4",
+    "G6",
+    "G5",
+    "EG2",
+    "V3",
+    "G1"
+   ],
+   "s3_primary_code": "X1",
+   "s3_basis": "S3 D1 pass; must-act empty -> no V2; no V3; handoff tag only (B15) -> continue: D1:robot_1:backup FAILED 48.278 -> X1.",
+   "changed": true,
+   "notes": "Readings A1-A4, B1-B16 kept. B2 is now answered by the addendum's T1 row; where that row is as-written U:T1_fidelity the rubric's U clause applies (U:T1_fidelity replaces U:T1_not_run)."
+  },
+  {
+   "sheet_id": "EV-52a0c3",
+   "unit_id": "FU1",
+   "criteria": [
+    "b"
+   ],
+   "decisions_a": [],
+   "round1_primary_code": "U:T1_fidelity",
+   "round2_primary_code": "U:T1_fidelity",
+   "step_fired": "3 + rule-7 U clause",
+   "evidence": "No chain. Step 3: T1(t0) as written U:T1_fidelity (episode gate 2/3), unchanged.",
+   "contributing_codes": [
+    "X2",
+    "G4",
+    "X3",
+    "V3",
+    "G1"
+   ],
+   "s3_primary_code": "X2",
+   "s3_basis": "S3 episode gate pass (3/3), T1(t0) 71 non-empty -> step 4 from t0: Nav2 abort robot_1 at 12.189 -> X2 (B4).",
+   "changed": false,
+   "notes": "Readings A1-A4, B1-B16 kept."
+  },
+  {
+   "sheet_id": "EV-41a9d4",
+   "unit_id": "FU2",
+   "criteria": [
+    "a"
+   ],
+   "decisions_a": [
+    "D3",
+    "D4"
+   ],
+   "round1_primary_code": "U:T1_not_run",
+   "round2_primary_code": "V1",
+   "step_fired": "4",
+   "evidence": "Walk start D3@76.733. Addendum D3 as written pass (21/88); must-act empty -> no V2 (involved misses robot_5); no refusal; grounding clean. robot_1 STALE span that began 20.733 is not a walk event (B16). Next: V1 at t0 135.073 (B8), before X3 at 157.45.",
+   "contributing_codes": [
+    "X4",
+    "X3",
+    "G1",
+    "G2"
+   ],
+   "s3_primary_code": "V1",
+   "s3_basis": "Same under S3.",
+   "changed": true,
+   "notes": "Readings A1-A4, B1-B16 kept. B2 is now answered by the addendum's T1 row; where that row is as-written U:T1_fidelity the rubric's U clause applies (U:T1_fidelity replaces U:T1_not_run)."
+  },
+  {
+   "sheet_id": "EV-41a9d4",
+   "unit_id": "FU1",
+   "criteria": [
+    "a"
+   ],
+   "decisions_a": [
+    "D1",
+    "D3"
+   ],
+   "round1_primary_code": "U:T1_not_run",
+   "round2_primary_code": "X1",
+   "step_fired": "4",
+   "evidence": "Walk start D1@13.2. Addendum D1 as written pass (22/237); must-act intersection empty -> no V2 (involved misses robot_2); no refusal -> no V3; grounding clean. Next: D1 legs FAILED 48.913 (deadline) -> X1.",
+   "contributing_codes": [
+    "V4",
+    "G6",
+    "X3",
+    "G1",
+    "G2"
+   ],
+   "s3_primary_code": "X1",
+   "s3_basis": "Same under S3.",
+   "changed": true,
+   "notes": "Readings A1-A4, B1-B16 kept. B2 is now answered by the addendum's T1 row; where that row is as-written U:T1_fidelity the rubric's U clause applies (U:T1_fidelity replaces U:T1_not_run)."
+  },
+  {
+   "sheet_id": "EV-37a70e",
+   "unit_id": "FU2",
+   "criteria": [
+    "a",
+    "b"
+   ],
+   "decisions_a": [
+    "D3"
+   ],
+   "round1_primary_code": "V4",
+   "round2_primary_code": "V4",
+   "step_fired": "4",
+   "evidence": "Walk start D3@76.3. Addendum D3 as written pass; no V2/V3; V4 (C1 True) unchanged.",
+   "contributing_codes": [
+    "G6",
+    "X3",
+    "X4",
+    "V1"
+   ],
+   "s3_primary_code": "V4",
+   "s3_basis": "Same under S3.",
+   "changed": false,
+   "notes": "Readings A1-A4, B1-B16 kept."
+  },
+  {
+   "sheet_id": "EV-37a70e",
+   "unit_id": "FU1",
+   "criteria": [
+    "a",
+    "b"
+   ],
+   "decisions_a": [
+    "D2"
+   ],
+   "round1_primary_code": "U:T1_not_run",
+   "round2_primary_code": "U:T1_fidelity",
+   "step_fired": "4 + rule-7 U clause",
+   "evidence": "Walk start D2@30.0. Addendum D2 T1 as written gate U:T1_fidelity; V2 non-T1 half met (involved [robot_4, robot_5] misses robot_2, robot_3) -> U:T1_fidelity.",
+   "contributing_codes": [
+    "X5",
+    "G5",
+    "X1",
+    "X3",
+    "V3",
+    "G1",
+    "G2"
+   ],
+   "s3_primary_code": "X5",
+   "s3_basis": "S3 D2 pass; must-act empty -> no V2; no refusal; handoff tag only (B15) -> continue: robot_2 GT contact obstacle_1 at 35.97 -> X5 (B4).",
+   "changed": true,
+   "notes": "Readings A1-A4, B1-B16 kept. B2 is now answered by the addendum's T1 row; where that row is as-written U:T1_fidelity the rubric's U clause applies (U:T1_fidelity replaces U:T1_not_run)."
+  },
+  {
+   "sheet_id": "EV-359e3d",
+   "unit_id": "FU2",
+   "criteria": [
+    "a"
+   ],
+   "decisions_a": [
+    "D1"
+   ],
+   "round1_primary_code": "U:T1_not_run",
+   "round2_primary_code": "X1",
+   "step_fired": "4",
+   "evidence": "Walk start D1@14.0. Addendum D1 as written pass (30/88); must-act intersection empty -> no V2 (involved misses robot_2); not refused -> no V3; grounding clean. Next deviation: D1:robot_1:backup FAILED 70.695 (deadline) -> X1.",
+   "contributing_codes": [
+    "X3",
+    "G1"
+   ],
+   "s3_primary_code": "X1",
+   "s3_basis": "Same under S3.",
+   "changed": true,
+   "notes": "Readings A1-A4, B1-B16 kept. B2 is now answered by the addendum's T1 row; where that row is as-written U:T1_fidelity the rubric's U clause applies (U:T1_fidelity replaces U:T1_not_run)."
+  },
+  {
+   "sheet_id": "EV-359e3d",
+   "unit_id": "FU1",
+   "criteria": [
+    "a"
+   ],
+   "decisions_a": [
+    "D2"
+   ],
+   "round1_primary_code": "X5",
+   "round2_primary_code": "X5",
+   "step_fired": "4",
+   "evidence": "No chain; walk from t0 12.27. Addendum D2@73.7 (as written pass, T2 True) lies after the round-1 primary X5 at 26.47, so the primary is unchanged; D2's G1 contributing is confirmed by T2 True.",
+   "contributing_codes": [
+    "X1",
+    "X3",
+    "G6",
+    "V3",
+    "G1"
+   ],
+   "s3_primary_code": "X5",
+   "s3_basis": "Same under S3.",
+   "changed": false,
+   "notes": "Readings A1-A4, B1-B16 kept."
+  },
+  {
+   "sheet_id": "EV-344706",
+   "unit_id": "FU1",
+   "criteria": [
+    "a"
+   ],
+   "decisions_a": [
+    "D13"
+   ],
+   "round1_primary_code": "U:T1_not_run",
+   "round2_primary_code": "G4",
+   "step_fired": "4",
+   "evidence": "Walk start D13@218.167. Addendum D13 as written pass (143/237); must-act intersection empty -> V2 does not fire although involved misses robot_2/robot_5; named yielder robot_4 re-grounded for lane ('off the dynamic lane'), not room -> no V3. Same event grounding G4 (swap robot_4<->robot_1) -> G4.",
+   "contributing_codes": [
+    "X1",
+    "X3",
+    "V3",
+    "G1",
+    "X6"
+   ],
+   "s3_primary_code": "G4",
+   "s3_basis": "S3 pass, same set -> G4.",
+   "changed": true,
+   "notes": "Readings A1-A4, B1-B16 kept. B2 is now answered by the addendum's T1 row; where that row is as-written U:T1_fidelity the rubric's U clause applies (U:T1_fidelity replaces U:T1_not_run)."
+  },
+  {
+   "sheet_id": "EV-2c719b",
+   "unit_id": "FU2",
+   "criteria": [
+    "a"
+   ],
+   "decisions_a": [
+    "D1",
+    "D3",
+    "D7"
+   ],
+   "round1_primary_code": "G5",
+   "round2_primary_code": "G5",
+   "step_fired": "4",
+   "evidence": "Walk start D1@13.233. Addendum D1 as written pass (9/88); involved = FU, no refusal -> no V2/V3. G5 at 27.24 unchanged. D3 now has T2 True (addendum) -> G1 at D3 confirmed as contributing.",
+   "contributing_codes": [
+    "EG2",
+    "X3",
+    "G1",
+    "G2",
+    "X4",
+    "V3",
+    "V1"
+   ],
+   "s3_primary_code": "G5",
+   "s3_basis": "Same under S3.",
+   "changed": false,
+   "notes": "Readings A1-A4, B1-B16 kept."
+  },
+  {
+   "sheet_id": "EV-298037",
+   "unit_id": "FU2",
+   "criteria": [
+    "a",
+    "b"
+   ],
+   "decisions_a": [
+    "D1",
+    "D2"
+   ],
+   "round1_primary_code": "V1",
+   "round2_primary_code": "V1",
+   "step_fired": "4",
+   "evidence": "Walk start D2@22.4 (chain). Addendum D2 T1 as written gate U:T1_fidelity, but no non-T1 half of V2/V3 is met (involved = FU, not refused), so T1 does not decide; D2 has no V/G code. D1@18.267 precedes the chain start and is not walked (R2-B). Next: V1 at t0 72.673 (B8), before X3 at 72.97.",
+   "contributing_codes": [
+    "X3"
+   ],
+   "s3_primary_code": "V1",
+   "s3_basis": "S3 D2 gate pass; must-act empty; no V2/V3 -> V1 unchanged.",
+   "changed": false,
+   "notes": "Readings A1-A4, B1-B16 kept."
+  },
+  {
+   "sheet_id": "EV-298037",
+   "unit_id": "FU1",
+   "criteria": [
+    "b"
+   ],
+   "decisions_a": [],
+   "round1_primary_code": "U:T1_fidelity",
+   "round2_primary_code": "U:T1_fidelity",
+   "step_fired": "3 + rule-7 U clause",
+   "evidence": "No chain. Step 3: T1(t0) as written U:T1_fidelity (episode gate 4/5), unchanged.",
+   "contributing_codes": [
+    "X4",
+    "V3",
+    "G4",
+    "X3",
+    "G1",
+    "G2"
+   ],
+   "s3_primary_code": "X4",
+   "s3_basis": "S3 episode gate pass (5/5), T1(t0) 96 non-empty -> step 4 from t0: first deviation robot_5 STALE 11.27 s from 57.733 (X4), before D3 at 75.5.",
+   "changed": false,
+   "notes": "Readings A1-A4, B1-B16 kept."
+  },
+  {
+   "sheet_id": "EV-295a3e",
+   "unit_id": "FU1",
+   "criteria": [
+    "a",
+    "b"
+   ],
+   "decisions_a": [
+    "D1"
+   ],
+   "round1_primary_code": "U:T1_not_run",
+   "round2_primary_code": "U:T1_fidelity",
+   "step_fired": "4 + rule-7 U clause",
+   "evidence": "Walk start D1@13.8 (chain). Addendum D1 T1 as written gate U:T1_fidelity; V2 and V3 non-T1 halves met -> deciding T1 is U:T1_fidelity.",
+   "contributing_codes": [
+    "G4",
+    "X3",
+    "G5",
+    "EG2",
+    "X1",
+    "X2",
+    "V3",
+    "G1",
+    "X5",
+    "G2"
+   ],
+   "s3_primary_code": "U:T1_fidelity",
+   "s3_basis": "S3 gate at D1 also U:T1_fidelity -> S3 stays U:T1_fidelity.",
+   "changed": true,
+   "notes": "Readings A1-A4, B1-B16 kept. B2 is now answered by the addendum's T1 row; where that row is as-written U:T1_fidelity the rubric's U clause applies (U:T1_fidelity replaces U:T1_not_run)."
+  },
+  {
+   "sheet_id": "EV-0bdad6",
+   "unit_id": "FU2",
+   "criteria": [
+    "a",
+    "b"
+   ],
+   "decisions_a": [
+    "D8"
+   ],
+   "round1_primary_code": "U:T1_fidelity",
+   "round2_primary_code": "U:T1_fidelity",
+   "step_fired": "3 + rule-7 U clause",
+   "evidence": "No chain. Step 3: T2(t0) False; T1(t0) as written still U:T1_fidelity (episode gate 6/8). Addendum row D8@243.367 (as written pass, T2 False) lies after t0 and is not reached by step 3.",
+   "contributing_codes": [
+    "V1",
+    "X2",
+    "X4",
+    "X5"
+   ],
+   "s3_primary_code": "V1",
+   "s3_basis": "S3 episode gate pass (8/8), T1(t0) 29 motion non-empty -> continue to step 4 from t0: V1 at t0 (B8); D8 later. STALE/contact spans ongoing at t0 not walk events (B16).",
+   "changed": false,
+   "notes": "Readings A1-A4, B1-B16 kept."
+  },
+  {
+   "sheet_id": "EV-0bdad6",
+   "unit_id": "FU1",
+   "criteria": [
+    "a",
+    "b"
+   ],
+   "decisions_a": [
+    "D1",
+    "D2"
+   ],
+   "round1_primary_code": "U:T1_not_run",
+   "round2_primary_code": "U:T1_fidelity",
+   "step_fired": "4 + rule-7 U clause",
+   "evidence": "Walk start D1@12.367 (chain). Addendum D1 T1 as written: gate U:T1_fidelity (83/237). V2's non-T1 half met (involved [robot_1, robot_4] misses robot_5), so the deciding T1 result is U:T1_fidelity (B2 reading).",
+   "contributing_codes": [
+    "G6",
+    "X3",
+    "G1",
+    "G2",
+    "V3",
+    "X4"
+   ],
+   "s3_primary_code": "G6",
+   "s3_basis": "S3 gate pass; must-act intersection empty -> no V2; no room refusal -> no V3; first deviation G6 on D1 (verbatim contradicted).",
+   "changed": true,
+   "notes": "Readings A1-A4, B1-B16 kept. B2 is now answered by the addendum's T1 row; where that row is as-written U:T1_fidelity the rubric's U clause applies (U:T1_fidelity replaces U:T1_not_run)."
+  },
+  {
+   "sheet_id": "EV-072a17",
+   "unit_id": "FU1",
+   "criteria": [
+    "a"
+   ],
+   "decisions_a": [
+    "D1",
+    "D2"
+   ],
+   "round1_primary_code": "U:T1_not_run",
+   "round2_primary_code": "V3",
+   "step_fired": "4",
+   "evidence": "Walk start D1@14.133 (chain). Addendum D1 T1 as written: gate pass, 140/237 motion; FU yielders feasible robot_2, robot_3, robot_5; must-act intersection empty (no V2). Named yielder robot_5 refused ('no retreat candidate surviving the sweep', B9) while T1 shows robot_2 and robot_3 feasible as yielder -> V3. Tie with G4 on same event -> V first (step 5).",
+   "contributing_codes": [
+    "G4",
+    "X3",
+    "G1"
+   ],
+   "s3_primary_code": "V3",
+   "s3_basis": "S3 gate pass, same motion set -> V3.",
+   "changed": true,
+   "notes": "Readings A1-A4, B1-B16 kept. B2 is now answered by the addendum's T1 row; where that row is as-written U:T1_fidelity the rubric's U clause applies (U:T1_fidelity replaces U:T1_not_run)."
+  }
+ ]
+}

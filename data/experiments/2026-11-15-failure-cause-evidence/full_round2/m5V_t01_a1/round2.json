@@ -1,0 +1,1239 @@
+{
+ "label": "m5V_t01_a1",
+ "arm": "A",
+ "provenance": {
+  "scorer_tree": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7q @ 89d9bf3",
+  "scorer_files_equal_3c71503": true,
+  "t1_tree": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7n @ a412949",
+  "t1_command_grounder_md5": "951c23b7f2e0168dab10022abccff77a",
+  "contact_tree": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7m @ b5eaee5",
+  "tool_md5": "675f561006afd7d3127ef8490048e394",
+  "functions": {
+   "units": "benchmarks.s1_scoring.bundle_io.read_bundle; benchmarks.s1_scoring.conflicts.conflict_episodes(ConflictParams())",
+   "matching": "conflicts.classify_analysis + conflicts.match_analysis",
+   "t1": "reasoning.rag.command_grounder.ground_reasoner_result (v7n a412949)",
+   "withheld": "swarm_orchestrator.reasoning_pipeline.yield_refusal_fan_out, empty_reroute_fallback (v7n a412949)",
+   "contacts": "isaac.vgu_sim.contact_geometry.compute_contact_frame / scene_static_boxes (v7m b5eaee5); recompute_gt_contacts.recompute_bundle"
+  }
+ },
+ "units": {
+  "FU1": {
+   "robots": [
+    "robot_1",
+    "robot_2",
+    "robot_3"
+   ],
+   "t0_rel": 54.607,
+   "chain_start_rel": 30.067,
+   "t1_new_snapshots": {
+    "2461ee6bf74647828d201c02e8446d23": {
+     "t_rel": 11.9,
+     "on_timeline": true,
+     "published": false,
+     "withheld": true,
+     "in_chain_rubric": false,
+     "t1": {
+      "snapshot_rel": 11.9,
+      "candidates": [
+       "robot_1",
+       "robot_2",
+       "robot_3",
+       "robot_4",
+       "robot_5"
+      ],
+      "params_source": "m5V_t01_a1:2461ee6b",
+      "as_written": {
+       "fidelity": "pass",
+       "t1": {
+        "n_motion": 10,
+        "n_h": 237,
+        "n_errors": 0,
+        "nonempty": true,
+        "motion": [
+         "R:robot_1",
+         "R:robot_2",
+         "R:robot_3",
+         "R:robot_1+robot_2",
+         "R:robot_1+robot_3",
+         "R:robot_1+robot_4",
+         "R:robot_2+robot_4",
+         "R:robot_3+robot_4",
+         "R:robot_3+robot_5",
+         "R:robot_1+robot_2+robot_3+robot_4+robot_5"
+        ],
+        "n_motion_counting_empty_reroute": 13
+       }
+      },
+      "S3_stage2_label_and_task_intents": {
+       "fidelity": "pass",
+       "t1": {
+        "n_motion": 10,
+        "n_h": 237,
+        "n_errors": 0,
+        "nonempty": true,
+        "motion": [
+         "R:robot_1",
+         "R:robot_2",
+         "R:robot_3",
+         "R:robot_1+robot_2",
+         "R:robot_1+robot_3",
+         "R:robot_1+robot_4",
+         "R:robot_2+robot_4",
+         "R:robot_3+robot_4",
+         "R:robot_3+robot_5",
+         "R:robot_1+robot_2+robot_3+robot_4+robot_5"
+        ],
+        "n_motion_counting_empty_reroute": 13
+       },
+       "note": "post-freeze sensitivity S3; never the primary"
+      },
+      "all_guards_on_sensitivity": {
+       "t1": {
+        "n_motion": 10,
+        "n_h": 237,
+        "n_errors": 0,
+        "nonempty": true,
+        "motion": [
+         "R:robot_1",
+         "R:robot_2",
+         "R:robot_3",
+         "R:robot_1+robot_2",
+         "R:robot_1+robot_3",
+         "R:robot_1+robot_4",
+         "R:robot_2+robot_4",
+         "R:robot_3+robot_4",
+         "R:robot_3+robot_5",
+         "R:robot_1+robot_2+robot_3+robot_4+robot_5"
+        ],
+        "n_motion_counting_empty_reroute": 13
+       }
+      }
+     },
+     "t2": {
+      "result": true,
+      "shortest": {
+       "robot": "robot_3",
+       "heading_deg": 0,
+       "distance_m": 0.01
+      },
+      "required_gap_m": 0.14,
+      "start_within_required_clearance": {
+       "robot_1": false,
+       "robot_2": true,
+       "robot_3": false
+      }
+     }
+    },
+    "597e224f49f44265b8b4c55ae8d6a5c3": {
+     "t_rel": 15.833,
+     "on_timeline": true,
+     "published": false,
+     "withheld": true,
+     "in_chain_rubric": false,
+     "t1": {
+      "snapshot_rel": 15.833,
+      "candidates": [
+       "robot_1",
+       "robot_2",
+       "robot_3",
+       "robot_4",
+       "robot_5"
+      ],
+      "params_source": "m5V_t01_a1:597e224f",
+      "as_written": {
+       "fidelity": "pass",
+       "t1": {
+        "n_motion": 10,
+        "n_h": 237,
+        "n_errors": 0,
+        "nonempty": true,
+        "motion": [
+         "R:robot_1",
+         "R:robot_2",
+         "R:robot_3",
+         "R:robot_1+robot_2",
+         "R:robot_1+robot_3",
+         "R:robot_1+robot_4",
+         "R:robot_2+robot_4",
+         "R:robot_3+robot_4",
+         "R:robot_3+robot_5",
+         "R:robot_1+robot_2+robot_3+robot_4+robot_5"
+        ],
+        "n_motion_counting_empty_reroute": 13
+       }
+      },
+      "S3_stage2_label_and_task_intents": {
+       "fidelity": "pass",
+       "t1": {
+        "n_motion": 10,
+        "n_h": 237,
+        "n_errors": 0,
+        "nonempty": true,
+        "motion": [
+         "R:robot_1",
+         "R:robot_2",
+         "R:robot_3",
+         "R:robot_1+robot_2",
+         "R:robot_1+robot_3",
+         "R:robot_1+robot_4",
+         "R:robot_2+robot_4",
+         "R:robot_3+robot_4",
+         "R:robot_3+robot_5",
+         "R:robot_1+robot_2+robot_3+robot_4+robot_5"
+        ],
+        "n_motion_counting_empty_reroute": 13
+       },
+       "note": "post-freeze sensitivity S3; never the primary"
+      },
+      "all_guards_on_sensitivity": {
+       "t1": {
+        "n_motion": 10,
+        "n_h": 237,
+        "n_errors": 0,
+        "nonempty": true,
+        "motion": [
+         "R:robot_1",
+         "R:robot_2",
+         "R:robot_3",
+         "R:robot_1+robot_2",
+         "R:robot_1+robot_3",
+         "R:robot_1+robot_4",
+         "R:robot_2+robot_4",
+         "R:robot_3+robot_4",
+         "R:robot_3+robot_5",
+         "R:robot_1+robot_2+robot_3+robot_4+robot_5"
+        ],
+        "n_motion_counting_empty_reroute": 13
+       }
+      }
+     },
+     "t2": {
+      "result": true,
+      "shortest": {
+       "robot": "robot_2",
+       "heading_deg": 135,
+       "distance_m": 0.06
+      },
+      "required_gap_m": 0.14,
+      "start_within_required_clearance": {
+       "robot_1": false,
+       "robot_2": false,
+       "robot_3": false
+      }
+     }
+    },
+    "b07a700f441b4745a6be81f3899668ed": {
+     "t_rel": 30.067,
+     "on_timeline": true,
+     "published": true,
+     "withheld": false,
+     "in_chain_rubric": true,
+     "t1": {
+      "snapshot_rel": 30.067,
+      "candidates": [
+       "robot_1",
+       "robot_2",
+       "robot_3",
+       "robot_4",
+       "robot_5"
+      ],
+      "params_source": "m5V_t01_a1:b07a700f",
+      "as_written": {
+       "fidelity": "pass",
+       "t1": {
+        "n_motion": 12,
+        "n_h": 237,
+        "n_errors": 0,
+        "nonempty": true,
+        "motion": [
+         "R:robot_1",
+         "R:robot_2",
+         "R:robot_3",
+         "R:robot_1+robot_2",
+         "R:robot_1+robot_3",
+         "R:robot_1+robot_4",
+         "R:robot_1+robot_5",
+         "R:robot_2+robot_4",
+         "R:robot_2+robot_5",
+         "R:robot_3+robot_4",
+         "R:robot_3+robot_5",
+         "R:robot_1+robot_2+robot_3+robot_4+robot_5"
+        ],
+        "n_motion_counting_empty_reroute": 15
+       }
+      },
+      "S3_stage2_label_and_task_intents": {
+       "fidelity": "pass",
+       "t1": {
+        "n_motion": 12,
+        "n_h": 237,
+        "n_errors": 0,
+        "nonempty": true,
+        "motion": [
+         "R:robot_1",
+         "R:robot_2",
+         "R:robot_3",
+         "R:robot_1+robot_2",
+         "R:robot_1+robot_3",
+         "R:robot_1+robot_4",
+         "R:robot_1+robot_5",
+         "R:robot_2+robot_4",
+         "R:robot_2+robot_5",
+         "R:robot_3+robot_4",
+         "R:robot_3+robot_5",
+         "R:robot_1+robot_2+robot_3+robot_4+robot_5"
+        ],
+        "n_motion_counting_empty_reroute": 15
+       },
+       "note": "post-freeze sensitivity S3; never the primary"
+      },
+      "all_guards_on_sensitivity": {
+       "t1": {
+        "n_motion": 12,
+        "n_h": 237,
+        "n_errors": 0,
+        "nonempty": true,
+        "motion": [
+         "R:robot_1",
+         "R:robot_2",
+         "R:robot_3",
+         "R:robot_1+robot_2",
+         "R:robot_1+robot_3",
+         "R:robot_1+robot_4",
+         "R:robot_1+robot_5",
+         "R:robot_2+robot_4",
+         "R:robot_2+robot_5",
+         "R:robot_3+robot_4",
+         "R:robot_3+robot_5",
+         "R:robot_1+robot_2+robot_3+robot_4+robot_5"
+        ],
+        "n_motion_counting_empty_reroute": 15
+       }
+      }
+     },
+     "t2": {
+      "result": true,
+      "shortest": {
+       "robot": "robot_2",
+       "heading_deg": 135,
+       "distance_m": 0.06
+      },
+      "required_gap_m": 0.14,
+      "start_within_required_clearance": {
+       "robot_1": false,
+       "robot_2": false,
+       "robot_3": false
+      }
+     }
+    },
+    "929335f4a4774da5b32f3f1f8c60c56d": {
+     "t_rel": 74.6,
+     "on_timeline": true,
+     "published": true,
+     "withheld": false,
+     "in_chain_rubric": false,
+     "t1": {
+      "snapshot_rel": 74.6,
+      "candidates": [
+       "robot_1",
+       "robot_2",
+       "robot_3",
+       "robot_5",
+       "robot_4"
+      ],
+      "params_source": "m5V_t01_a1:929335f4",
+      "as_written": {
+       "fidelity": "pass",
+       "t1": {
+        "n_motion": 12,
+        "n_h": 237,
+        "n_errors": 0,
+        "nonempty": true,
+        "motion": [
+         "R:robot_1",
+         "R:robot_2",
+         "R:robot_3",
+         "R:robot_1+robot_2",
+         "R:robot_1+robot_3",
+         "R:robot_1+robot_4",
+         "R:robot_1+robot_5",
+         "R:robot_2+robot_4",
+         "R:robot_2+robot_5",
+         "R:robot_3+robot_4",
+         "R:robot_3+robot_5",
+         "R:robot_1+robot_2+robot_3+robot_4+robot_5"
+        ],
+        "n_motion_counting_empty_reroute": 15
+       }
+      },
+      "S3_stage2_label_and_task_intents": {
+       "fidelity": "pass",
+       "t1": {
+        "n_motion": 12,
+        "n_h": 237,
+        "n_errors": 0,
+        "nonempty": true,
+        "motion": [
+         "R:robot_1",
+         "R:robot_2",
+         "R:robot_3",
+         "R:robot_1+robot_2",
+         "R:robot_1+robot_3",
+         "R:robot_1+robot_4",
+         "R:robot_1+robot_5",
+         "R:robot_2+robot_4",
+         "R:robot_2+robot_5",
+         "R:robot_3+robot_4",
+         "R:robot_3+robot_5",
+         "R:robot_1+robot_2+robot_3+robot_4+robot_5"
+        ],
+        "n_motion_counting_empty_reroute": 15
+       },
+       "note": "post-freeze sensitivity S3; never the primary"
+      },
+      "all_guards_on_sensitivity": {
+       "t1": {
+        "n_motion": 12,
+        "n_h": 237,
+        "n_errors": 0,
+        "nonempty": true,
+        "motion": [
+         "R:robot_1",
+         "R:robot_2",
+         "R:robot_3",
+         "R:robot_1+robot_2",
+         "R:robot_1+robot_3",
+         "R:robot_1+robot_4",
+         "R:robot_1+robot_5",
+         "R:robot_2+robot_4",
+         "R:robot_2+robot_5",
+         "R:robot_3+robot_4",
+         "R:robot_3+robot_5",
+         "R:robot_1+robot_2+robot_3+robot_4+robot_5"
+        ],
+        "n_motion_counting_empty_reroute": 15
+       }
+      }
+     },
+     "t2": {
+      "result": true,
+      "shortest": {
+       "robot": "robot_1",
+       "heading_deg": 0,
+       "distance_m": 0.01
+      },
+      "required_gap_m": 0.14,
+      "start_within_required_clearance": {
+       "robot_1": false,
+       "robot_2": false,
+       "robot_3": false
+      }
+     }
+    },
+    "2acc6130567a488eb03f234447dbe2da": {
+     "t_rel": 87.233,
+     "on_timeline": true,
+     "published": true,
+     "withheld": false,
+     "in_chain_rubric": false,
+     "t1": {
+      "snapshot_rel": 87.233,
+      "candidates": [
+       "robot_1",
+       "robot_2",
+       "robot_3",
+       "robot_5",
+       "robot_4"
+      ],
+      "params_source": "m5V_t01_a1:2acc6130",
+      "as_written": {
+       "fidelity": "pass",
+       "t1": {
+        "n_motion": 33,
+        "n_h": 237,
+        "n_errors": 0,
+        "nonempty": true,
+        "motion": [
+         "Y:robot_1>robot_2",
+         "Y:robot_2>robot_1",
+         "Y:robot_1>robot_2>robot_4",
+         "Y:robot_1>robot_2>robot_5",
+         "Y:robot_1>robot_4>robot_2",
+         "Y:robot_1>robot_5>robot_2",
+         "Y:robot_1>robot_2>robot_4>robot_5",
+         "Y:robot_1>robot_2>robot_5>robot_4",
+         "Y:robot_1>robot_4>robot_2>robot_5",
+         "Y:robot_1>robot_4>robot_5>robot_2",
+         "Y:robot_1>robot_5>robot_2>robot_4",
+         "Y:robot_1>robot_5>robot_4>robot_2",
+         "Y:robot_2>robot_1>robot_4",
+         "Y:robot_2>robot_1>robot_5",
+         "Y:robot_2>robot_4>robot_1",
+         "Y:robot_2>robot_5>robot_1",
+         "Y:robot_2>robot_1>robot_4>robot_5",
+         "Y:robot_2>robot_1>robot_5>robot_4",
+         "Y:robot_2>robot_4>robot_1>robot_5",
+         "Y:robot_2>robot_4>robot_5>robot_1",
+         "Y:robot_2>robot_5>robot_1>robot_4",
+         "Y:robot_2>robot_5>robot_4>robot_1",
+         "R:robot_1",
+         "R:robot_2",
+         "R:robot_3",
+         "R:robot_1+robot_2",
+         "R:robot_1+robot_3",
+         "R:robot_1+robot_4",
+         "R:robot_1+robot_5",
+         "R:robot_2+robot_4",
+         "R:robot_2+robot_5",
+         "R:robot_3+robot_4",
+         "R:robot_3+robot_5"
+        ],
+        "n_motion_counting_empty_reroute": 36
+       }
+      },
+      "S3_stage2_label_and_task_intents": {
+       "fidelity": "pass",
+       "t1": {
+        "n_motion": 33,
+        "n_h": 237,
+        "n_errors": 0,
+        "nonempty": true,
+        "motion": [
+         "Y:robot_1>robot_2",
+         "Y:robot_2>robot_1",
+         "Y:robot_1>robot_2>robot_4",
+         "Y:robot_1>robot_2>robot_5",
+         "Y:robot_1>robot_4>robot_2",
+         "Y:robot_1>robot_5>robot_2",
+         "Y:robot_1>robot_2>robot_4>robot_5",
+         "Y:robot_1>robot_2>robot_5>robot_4",
+         "Y:robot_1>robot_4>robot_2>robot_5",
+         "Y:robot_1>robot_4>robot_5>robot_2",
+         "Y:robot_1>robot_5>robot_2>robot_4",
+         "Y:robot_1>robot_5>robot_4>robot_2",
+         "Y:robot_2>robot_1>robot_4",
+         "Y:robot_2>robot_1>robot_5",
+         "Y:robot_2>robot_4>robot_1",
+         "Y:robot_2>robot_5>robot_1",
+         "Y:robot_2>robot_1>robot_4>robot_5",
+         "Y:robot_2>robot_1>robot_5>robot_4",
+         "Y:robot_2>robot_4>robot_1>robot_5",
+         "Y:robot_2>robot_4>robot_5>robot_1",
+         "Y:robot_2>robot_5>robot_1>robot_4",
+         "Y:robot_2>robot_5>robot_4>robot_1",
+         "R:robot_1",
+         "R:robot_2",
+         "R:robot_3",
+         "R:robot_1+robot_2",
+         "R:robot_1+robot_3",
+         "R:robot_1+robot_4",
+         "R:robot_1+robot_5",
+         "R:robot_2+robot_4",
+         "R:robot_2+robot_5",
+         "R:robot_3+robot_4",
+         "R:robot_3+robot_5"
+        ],
+        "n_motion_counting_empty_reroute": 36
+       },
+       "note": "post-freeze sensitivity S3; never the primary"
+      },
+      "all_guards_on_sensitivity": {
+       "t1": {
+        "n_motion": 33,
+        "n_h": 237,
+        "n_errors": 0,
+        "nonempty": true,
+        "motion": [
+         "Y:robot_1>robot_2",
+         "Y:robot_2>robot_1",
+         "Y:robot_1>robot_2>robot_4",
+         "Y:robot_1>robot_2>robot_5",
+         "Y:robot_1>robot_4>robot_2",
+         "Y:robot_1>robot_5>robot_2",
+         "Y:robot_1>robot_2>robot_4>robot_5",
+         "Y:robot_1>robot_2>robot_5>robot_4",
+         "Y:robot_1>robot_4>robot_2>robot_5",
+         "Y:robot_1>robot_4>robot_5>robot_2",
+         "Y:robot_1>robot_5>robot_2>robot_4",
+         "Y:robot_1>robot_5>robot_4>robot_2",
+         "Y:robot_2>robot_1>robot_4",
+         "Y:robot_2>robot_1>robot_5",
+         "Y:robot_2>robot_4>robot_1",
+         "Y:robot_2>robot_5>robot_1",
+         "Y:robot_2>robot_1>robot_4>robot_5",
+         "Y:robot_2>robot_1>robot_5>robot_4",
+         "Y:robot_2>robot_4>robot_1>robot_5",
+         "Y:robot_2>robot_4>robot_5>robot_1",
+         "Y:robot_2>robot_5>robot_1>robot_4",
+         "Y:robot_2>robot_5>robot_4>robot_1",
+         "R:robot_1",
+         "R:robot_2",
+         "R:robot_3",
+         "R:robot_1+robot_2",
+         "R:robot_1+robot_3",
+         "R:robot_1+robot_4",
+         "R:robot_1+robot_5",
+         "R:robot_2+robot_4",
+         "R:robot_2+robot_5",
+         "R:robot_3+robot_4",
+         "R:robot_3+robot_5"
+        ],
+        "n_motion_counting_empty_reroute": 36
+       }
+      }
+     },
+     "t2": {
+      "result": true,
+      "shortest": {
+       "robot": "robot_1",
+       "heading_deg": 0,
+       "distance_m": 0.01
+      },
+      "required_gap_m": 0.14,
+      "start_within_required_clearance": {
+       "robot_1": false,
+       "robot_2": false,
+       "robot_3": false
+      }
+     }
+    }
+   },
+   "t0_fidelity_both_ways": null
+  },
+  "FU2": {
+   "robots": [
+    "robot_4",
+    "robot_5"
+   ],
+   "t0_rel": 73.507,
+   "chain_start_rel": 49.067,
+   "t1_new_snapshots": {
+    "2461ee6bf74647828d201c02e8446d23": {
+     "t_rel": 11.9,
+     "on_timeline": false,
+     "published": false,
+     "withheld": true,
+     "in_chain_rubric": false,
+     "t1": {
+      "snapshot_rel": 11.9,
+      "candidates": [
+       "robot_4",
+       "robot_5",
+       "robot_1",
+       "robot_2"
+      ],
+      "params_source": "m5V_t01_a1:2461ee6b",
+      "as_written": {
+       "fidelity": "pass",
+       "t1": {
+        "n_motion": 6,
+        "n_h": 88,
+        "n_errors": 0,
+        "nonempty": true,
+        "motion": [
+         "R:robot_4",
+         "R:robot_5",
+         "R:robot_2+robot_4",
+         "R:robot_2+robot_5",
+         "R:robot_4+robot_5",
+         "R:robot_1+robot_2+robot_4+robot_5"
+        ],
+        "n_motion_counting_empty_reroute": 8
+       }
+      },
+      "S3_stage2_label_and_task_intents": {
+       "fidelity": "pass",
+       "t1": {
+        "n_motion": 6,
+        "n_h": 88,
+        "n_errors": 0,
+        "nonempty": true,
+        "motion": [
+         "R:robot_4",
+         "R:robot_5",
+         "R:robot_2+robot_4",
+         "R:robot_2+robot_5",
+         "R:robot_4+robot_5",
+         "R:robot_1+robot_2+robot_4+robot_5"
+        ],
+        "n_motion_counting_empty_reroute": 8
+       },
+       "note": "post-freeze sensitivity S3; never the primary"
+      },
+      "all_guards_on_sensitivity": {
+       "t1": {
+        "n_motion": 6,
+        "n_h": 88,
+        "n_errors": 0,
+        "nonempty": true,
+        "motion": [
+         "R:robot_4",
+         "R:robot_5",
+         "R:robot_2+robot_4",
+         "R:robot_2+robot_5",
+         "R:robot_4+robot_5",
+         "R:robot_1+robot_2+robot_4+robot_5"
+        ],
+        "n_motion_counting_empty_reroute": 8
+       }
+      }
+     },
+     "t2": {
+      "result": true,
+      "shortest": {
+       "robot": "robot_5",
+       "heading_deg": 0,
+       "distance_m": 0.01
+      },
+      "required_gap_m": 0.14,
+      "start_within_required_clearance": {
+       "robot_4": false,
+       "robot_5": false
+      }
+     }
+    },
+    "597e224f49f44265b8b4c55ae8d6a5c3": {
+     "t_rel": 15.833,
+     "on_timeline": true,
+     "published": false,
+     "withheld": true,
+     "in_chain_rubric": false,
+     "t1": {
+      "snapshot_rel": 15.833,
+      "candidates": [
+       "robot_4",
+       "robot_5",
+       "robot_1",
+       "robot_2"
+      ],
+      "params_source": "m5V_t01_a1:597e224f",
+      "as_written": {
+       "fidelity": "pass",
+       "t1": {
+        "n_motion": 5,
+        "n_h": 88,
+        "n_errors": 0,
+        "nonempty": true,
+        "motion": [
+         "R:robot_4",
+         "R:robot_5",
+         "R:robot_2+robot_4",
+         "R:robot_2+robot_5",
+         "R:robot_1+robot_2+robot_4+robot_5"
+        ],
+        "n_motion_counting_empty_reroute": 7
+       }
+      },
+      "S3_stage2_label_and_task_intents": {
+       "fidelity": "pass",
+       "t1": {
+        "n_motion": 5,
+        "n_h": 88,
+        "n_errors": 0,
+        "nonempty": true,
+        "motion": [
+         "R:robot_4",
+         "R:robot_5",
+         "R:robot_2+robot_4",
+         "R:robot_2+robot_5",
+         "R:robot_1+robot_2+robot_4+robot_5"
+        ],
+        "n_motion_counting_empty_reroute": 7
+       },
+       "note": "post-freeze sensitivity S3; never the primary"
+      },
+      "all_guards_on_sensitivity": {
+       "t1": {
+        "n_motion": 5,
+        "n_h": 88,
+        "n_errors": 0,
+        "nonempty": true,
+        "motion": [
+         "R:robot_4",
+         "R:robot_5",
+         "R:robot_2+robot_4",
+         "R:robot_2+robot_5",
+         "R:robot_1+robot_2+robot_4+robot_5"
+        ],
+        "n_motion_counting_empty_reroute": 7
+       }
+      }
+     },
+     "t2": {
+      "result": true,
+      "shortest": {
+       "robot": "robot_5",
+       "heading_deg": 0,
+       "distance_m": 0.01
+      },
+      "required_gap_m": 0.14,
+      "start_within_required_clearance": {
+       "robot_4": false,
+       "robot_5": false
+      }
+     }
+    },
+    "b07a700f441b4745a6be81f3899668ed": {
+     "t_rel": 30.067,
+     "on_timeline": true,
+     "published": true,
+     "withheld": false,
+     "in_chain_rubric": false,
+     "t1": {
+      "snapshot_rel": 30.067,
+      "candidates": [
+       "robot_4",
+       "robot_5",
+       "robot_1",
+       "robot_2"
+      ],
+      "params_source": "m5V_t01_a1:b07a700f",
+      "as_written": {
+       "fidelity": "pass",
+       "t1": {
+        "n_motion": 7,
+        "n_h": 88,
+        "n_errors": 0,
+        "nonempty": true,
+        "motion": [
+         "R:robot_4",
+         "R:robot_5",
+         "R:robot_1+robot_5",
+         "R:robot_2+robot_4",
+         "R:robot_2+robot_5",
+         "R:robot_4+robot_5",
+         "R:robot_1+robot_2+robot_4+robot_5"
+        ],
+        "n_motion_counting_empty_reroute": 9
+       }
+      },
+      "S3_stage2_label_and_task_intents": {
+       "fidelity": "pass",
+       "t1": {
+        "n_motion": 7,
+        "n_h": 88,
+        "n_errors": 0,
+        "nonempty": true,
+        "motion": [
+         "R:robot_4",
+         "R:robot_5",
+         "R:robot_1+robot_5",
+         "R:robot_2+robot_4",
+         "R:robot_2+robot_5",
+         "R:robot_4+robot_5",
+         "R:robot_1+robot_2+robot_4+robot_5"
+        ],
+        "n_motion_counting_empty_reroute": 9
+       },
+       "note": "post-freeze sensitivity S3; never the primary"
+      },
+      "all_guards_on_sensitivity": {
+       "t1": {
+        "n_motion": 7,
+        "n_h": 88,
+        "n_errors": 0,
+        "nonempty": true,
+        "motion": [
+         "R:robot_4",
+         "R:robot_5",
+         "R:robot_1+robot_5",
+         "R:robot_2+robot_4",
+         "R:robot_2+robot_5",
+         "R:robot_4+robot_5",
+         "R:robot_1+robot_2+robot_4+robot_5"
+        ],
+        "n_motion_counting_empty_reroute": 9
+       }
+      }
+     },
+     "t2": {
+      "result": true,
+      "shortest": {
+       "robot": "robot_5",
+       "heading_deg": 0,
+       "distance_m": 0.01
+      },
+      "required_gap_m": 0.14,
+      "start_within_required_clearance": {
+       "robot_4": false,
+       "robot_5": false
+      }
+     }
+    },
+    "95066420efa54188962f5c4f68806a4c": {
+     "t_rel": 49.067,
+     "on_timeline": true,
+     "published": true,
+     "withheld": false,
+     "in_chain_rubric": true,
+     "t1": {
+      "snapshot_rel": 49.067,
+      "candidates": [
+       "robot_4",
+       "robot_5",
+       "robot_1",
+       "robot_2"
+      ],
+      "params_source": "m5V_t01_a1:95066420",
+      "as_written": {
+       "fidelity": "pass",
+       "t1": {
+        "n_motion": 27,
+        "n_h": 88,
+        "n_errors": 0,
+        "nonempty": true,
+        "motion": [
+         "Y:robot_4>robot_5",
+         "Y:robot_5>robot_4",
+         "Y:robot_4>robot_2>robot_5",
+         "Y:robot_4>robot_5>robot_1",
+         "Y:robot_4>robot_5>robot_2",
+         "Y:robot_4>robot_1>robot_2>robot_5",
+         "Y:robot_4>robot_1>robot_5>robot_2",
+         "Y:robot_4>robot_2>robot_1>robot_5",
+         "Y:robot_4>robot_2>robot_5>robot_1",
+         "Y:robot_4>robot_5>robot_1>robot_2",
+         "Y:robot_4>robot_5>robot_2>robot_1",
+         "Y:robot_5>robot_1>robot_4",
+         "Y:robot_5>robot_2>robot_4",
+         "Y:robot_5>robot_4>robot_1",
+         "Y:robot_5>robot_4>robot_2",
+         "Y:robot_5>robot_1>robot_2>robot_4",
+         "Y:robot_5>robot_1>robot_4>robot_2",
+         "Y:robot_5>robot_2>robot_1>robot_4",
+         "Y:robot_5>robot_2>robot_4>robot_1",
+         "Y:robot_5>robot_4>robot_1>robot_2",
+         "Y:robot_5>robot_4>robot_2>robot_1",
+         "R:robot_4",
+         "R:robot_5",
+         "R:robot_2+robot_4",
+         "R:robot_2+robot_5",
+         "R:robot_4+robot_5",
+         "R:robot_1+robot_2+robot_4+robot_5"
+        ],
+        "n_motion_counting_empty_reroute": 29
+       }
+      },
+      "S3_stage2_label_and_task_intents": {
+       "fidelity": "pass",
+       "t1": {
+        "n_motion": 27,
+        "n_h": 88,
+        "n_errors": 0,
+        "nonempty": true,
+        "motion": [
+         "Y:robot_4>robot_5",
+         "Y:robot_5>robot_4",
+         "Y:robot_4>robot_2>robot_5",
+         "Y:robot_4>robot_5>robot_1",
+         "Y:robot_4>robot_5>robot_2",
+         "Y:robot_4>robot_1>robot_2>robot_5",
+         "Y:robot_4>robot_1>robot_5>robot_2",
+         "Y:robot_4>robot_2>robot_1>robot_5",
+         "Y:robot_4>robot_2>robot_5>robot_1",
+         "Y:robot_4>robot_5>robot_1>robot_2",
+         "Y:robot_4>robot_5>robot_2>robot_1",
+         "Y:robot_5>robot_1>robot_4",
+         "Y:robot_5>robot_2>robot_4",
+         "Y:robot_5>robot_4>robot_1",
+         "Y:robot_5>robot_4>robot_2",
+         "Y:robot_5>robot_1>robot_2>robot_4",
+         "Y:robot_5>robot_1>robot_4>robot_2",
+         "Y:robot_5>robot_2>robot_1>robot_4",
+         "Y:robot_5>robot_2>robot_4>robot_1",
+         "Y:robot_5>robot_4>robot_1>robot_2",
+         "Y:robot_5>robot_4>robot_2>robot_1",
+         "R:robot_4",
+         "R:robot_5",
+         "R:robot_2+robot_4",
+         "R:robot_2+robot_5",
+         "R:robot_4+robot_5",
+         "R:robot_1+robot_2+robot_4+robot_5"
+        ],
+        "n_motion_counting_empty_reroute": 29
+       },
+       "note": "post-freeze sensitivity S3; never the primary"
+      },
+      "all_guards_on_sensitivity": {
+       "t1": {
+        "n_motion": 27,
+        "n_h": 88,
+        "n_errors": 0,
+        "nonempty": true,
+        "motion": [
+         "Y:robot_4>robot_5",
+         "Y:robot_5>robot_4",
+         "Y:robot_4>robot_2>robot_5",
+         "Y:robot_4>robot_5>robot_1",
+         "Y:robot_4>robot_5>robot_2",
+         "Y:robot_4>robot_1>robot_2>robot_5",
+         "Y:robot_4>robot_1>robot_5>robot_2",
+         "Y:robot_4>robot_2>robot_1>robot_5",
+         "Y:robot_4>robot_2>robot_5>robot_1",
+         "Y:robot_4>robot_5>robot_1>robot_2",
+         "Y:robot_4>robot_5>robot_2>robot_1",
+         "Y:robot_5>robot_1>robot_4",
+         "Y:robot_5>robot_2>robot_4",
+         "Y:robot_5>robot_4>robot_1",
+         "Y:robot_5>robot_4>robot_2",
+         "Y:robot_5>robot_1>robot_2>robot_4",
+         "Y:robot_5>robot_1>robot_4>robot_2",
+         "Y:robot_5>robot_2>robot_1>robot_4",
+         "Y:robot_5>robot_2>robot_4>robot_1",
+         "Y:robot_5>robot_4>robot_1>robot_2",
+         "Y:robot_5>robot_4>robot_2>robot_1",
+         "R:robot_4",
+         "R:robot_5",
+         "R:robot_2+robot_4",
+         "R:robot_2+robot_5",
+         "R:robot_4+robot_5",
+         "R:robot_1+robot_2+robot_4+robot_5"
+        ],
+        "n_motion_counting_empty_reroute": 29
+       }
+      }
+     },
+     "t2": {
+      "result": true,
+      "shortest": {
+       "robot": "robot_4",
+       "heading_deg": 270,
+       "distance_m": 0.09
+      },
+      "required_gap_m": 0.14,
+      "start_within_required_clearance": {
+       "robot_4": false,
+       "robot_5": false
+      }
+     }
+    },
+    "6e4c8849a89a41c4820fa86606f59391": {
+     "t_rel": 99.767,
+     "on_timeline": true,
+     "published": false,
+     "withheld": true,
+     "in_chain_rubric": false,
+     "t1": {
+      "snapshot_rel": 99.767,
+      "candidates": [
+       "robot_4",
+       "robot_5",
+       "robot_1",
+       "robot_2"
+      ],
+      "params_source": "m5V_t01_a1:6e4c8849",
+      "as_written": {
+       "fidelity": "pass",
+       "t1": {
+        "n_motion": 33,
+        "n_h": 88,
+        "n_errors": 0,
+        "nonempty": true,
+        "motion": [
+         "Y:robot_4>robot_5",
+         "Y:robot_5>robot_4",
+         "Y:robot_4>robot_1>robot_5",
+         "Y:robot_4>robot_2>robot_5",
+         "Y:robot_4>robot_5>robot_1",
+         "Y:robot_4>robot_5>robot_2",
+         "Y:robot_4>robot_1>robot_2>robot_5",
+         "Y:robot_4>robot_1>robot_5>robot_2",
+         "Y:robot_4>robot_2>robot_1>robot_5",
+         "Y:robot_4>robot_2>robot_5>robot_1",
+         "Y:robot_4>robot_5>robot_1>robot_2",
+         "Y:robot_4>robot_5>robot_2>robot_1",
+         "Y:robot_5>robot_1>robot_4",
+         "Y:robot_5>robot_2>robot_4",
+         "Y:robot_5>robot_4>robot_1",
+         "Y:robot_5>robot_4>robot_2",
+         "Y:robot_5>robot_1>robot_2>robot_4",
+         "Y:robot_5>robot_1>robot_4>robot_2",
+         "Y:robot_5>robot_2>robot_1>robot_4",
+         "Y:robot_5>robot_2>robot_4>robot_1",
+         "Y:robot_5>robot_4>robot_1>robot_2",
+         "Y:robot_5>robot_4>robot_2>robot_1",
+         "R:robot_4",
+         "R:robot_5",
+         "R:robot_1+robot_4",
+         "R:robot_1+robot_5",
+         "R:robot_2+robot_4",
+         "R:robot_2+robot_5",
+         "R:robot_4+robot_5",
+         "CV:robot_1",
+         "CV:robot_2",
+         "CV:robot_4",
+         "CV:robot_5"
+        ],
+        "n_motion_counting_empty_reroute": 35
+       }
+      },
+      "S3_stage2_label_and_task_intents": {
+       "fidelity": "pass",
+       "t1": {
+        "n_motion": 33,
+        "n_h": 88,
+        "n_errors": 0,
+        "nonempty": true,
+        "motion": [
+         "Y:robot_4>robot_5",
+         "Y:robot_5>robot_4",
+         "Y:robot_4>robot_1>robot_5",
+         "Y:robot_4>robot_2>robot_5",
+         "Y:robot_4>robot_5>robot_1",
+         "Y:robot_4>robot_5>robot_2",
+         "Y:robot_4>robot_1>robot_2>robot_5",
+         "Y:robot_4>robot_1>robot_5>robot_2",
+         "Y:robot_4>robot_2>robot_1>robot_5",
+         "Y:robot_4>robot_2>robot_5>robot_1",
+         "Y:robot_4>robot_5>robot_1>robot_2",
+         "Y:robot_4>robot_5>robot_2>robot_1",
+         "Y:robot_5>robot_1>robot_4",
+         "Y:robot_5>robot_2>robot_4",
+         "Y:robot_5>robot_4>robot_1",
+         "Y:robot_5>robot_4>robot_2",
+         "Y:robot_5>robot_1>robot_2>robot_4",
+         "Y:robot_5>robot_1>robot_4>robot_2",
+         "Y:robot_5>robot_2>robot_1>robot_4",
+         "Y:robot_5>robot_2>robot_4>robot_1",
+         "Y:robot_5>robot_4>robot_1>robot_2",
+         "Y:robot_5>robot_4>robot_2>robot_1",
+         "R:robot_4",
+         "R:robot_5",
+         "R:robot_1+robot_4",
+         "R:robot_1+robot_5",
+         "R:robot_2+robot_4",
+         "R:robot_2+robot_5",
+         "R:robot_4+robot_5",
+         "CV:robot_1",
+         "CV:robot_2",
+         "CV:robot_4",
+         "CV:robot_5"
+        ],
+        "n_motion_counting_empty_reroute": 35
+       },
+       "note": "post-freeze sensitivity S3; never the primary"
+      },
+      "all_guards_on_sensitivity": {
+       "t1": {
+        "n_motion": 33,
+        "n_h": 88,
+        "n_errors": 0,
+        "nonempty": true,
+        "motion": [
+         "Y:robot_4>robot_5",
+         "Y:robot_5>robot_4",
+         "Y:robot_4>robot_1>robot_5",
+         "Y:robot_4>robot_2>robot_5",
+         "Y:robot_4>robot_5>robot_1",
+         "Y:robot_4>robot_5>robot_2",
+         "Y:robot_4>robot_1>robot_2>robot_5",
+         "Y:robot_4>robot_1>robot_5>robot_2",
+         "Y:robot_4>robot_2>robot_1>robot_5",
+         "Y:robot_4>robot_2>robot_5>robot_1",
+         "Y:robot_4>robot_5>robot_1>robot_2",
+         "Y:robot_4>robot_5>robot_2>robot_1",
+         "Y:robot_5>robot_1>robot_4",
+         "Y:robot_5>robot_2>robot_4",
+         "Y:robot_5>robot_4>robot_1",
+         "Y:robot_5>robot_4>robot_2",
+         "Y:robot_5>robot_1>robot_2>robot_4",
+         "Y:robot_5>robot_1>robot_4>robot_2",
+         "Y:robot_5>robot_2>robot_1>robot_4",
+         "Y:robot_5>robot_2>robot_4>robot_1",
+         "Y:robot_5>robot_4>robot_1>robot_2",
+         "Y:robot_5>robot_4>robot_2>robot_1",
+         "R:robot_4",
+         "R:robot_5",
+         "R:robot_1+robot_4",
+         "R:robot_1+robot_5",
+         "R:robot_2+robot_4",
+         "R:robot_2+robot_5",
+         "R:robot_4+robot_5",
+         "CV:robot_1",
+         "CV:robot_2",
+         "CV:robot_4",
+         "CV:robot_5"
+        ],
+        "n_motion_counting_empty_reroute": 35
+       }
+      }
+     },
+     "t2": {
+      "result": true,
+      "shortest": {
+       "robot": "robot_4",
+       "heading_deg": 270,
+       "distance_m": 0.04
+      },
+      "required_gap_m": 0.14,
+      "start_within_required_clearance": {
+       "robot_4": false,
+       "robot_5": false
+      }
+     }
+    }
+   },
+   "t0_fidelity_both_ways": null
+  }
+ },
+ "regression": {
+  "fidelity_rows_equal_round1": true,
+  "t1_row": {
+   "unit": "FU1",
+   "key": "6a621c29c66549009e2cffb40d4b20f6",
+   "equal": true,
+   "t2_equal": true
+  }
+ },
+ "clock": {
+  "offset": {
+   "offset_s": 1794731204.6464152,
+   "n": 19,
+   "spread_s": 0.0825
+  },
+  "n_scene_anchors": 2583,
+  "scene_anchor_wall_span": [
+   1794731643.0,
+   1794735090.7
+  ],
+  "m4_fit": {
+   "a": 0.1632564860425442,
+   "b": -293001551.95289713,
+   "n": 39,
+   "max_resid_s": 1.368,
+   "wall_span": [
+    1794731825.8,
+    1794732180.9
+   ],
+   "rtf": 0.1633
+  },
+  "n_m4_anchors": 39,
+  "validation": {
+   "vs_m4_fit": {
+    "n": 39,
+    "max_abs_s": 1.108,
+    "median_abs_s": 0.662,
+    "signed_median_s": -0.587
+   },
+   "vs_m4_anchor": {
+    "n": 39,
+    "max_abs_s": 0.319,
+    "median_abs_s": 0.167,
+    "signed_median_s": -0.167
+   },
+   "m4_anchors_outside_scene_span": 0,
+   "single_line_vs_m4_fit": {
+    "n": 39,
+    "max_abs_s": 2.173,
+    "median_abs_s": 1.815,
+    "signed_median_s": -1.815
+   },
+   "single_line_vs_m4_anchor": {
+    "n": 39,
+    "max_abs_s": 3.393,
+    "median_abs_s": 1.579,
+    "signed_median_s": -1.579
+   }
+  }
+ }
+}

@@ -1,0 +1,250 @@
+{
+ "episodes": [
+  {
+   "label": "E6",
+   "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/churn_wave/s1b_E6_seed6_er2_a3",
+   "stratum": "pilot_er2",
+   "arm": "A",
+   "cut_short_stop_rule": false
+  },
+  {
+   "label": "E7",
+   "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/live_batch/s1b_E7_seed7_er2_a1",
+   "stratum": "pilot_er2",
+   "arm": "A",
+   "cut_short_stop_rule": false
+  },
+  {
+   "label": "E8",
+   "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/live_batch/s1b_E8_seed8_er2_a1",
+   "stratum": "pilot_er2",
+   "arm": "A",
+   "cut_short_stop_rule": false
+  },
+  {
+   "label": "E9",
+   "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/resume/s1b_E9_seed9_er2_b1",
+   "stratum": "pilot_er2",
+   "arm": "A",
+   "cut_short_stop_rule": false
+  },
+  {
+   "label": "E10",
+   "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/live_batch/s1b_E10_seed10_er2_a1",
+   "stratum": "pilot_er2",
+   "arm": "A",
+   "cut_short_stop_rule": true
+  },
+  {
+   "label": "E11",
+   "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/resume/s1b_E11_seed11_er2_b1",
+   "stratum": "pilot_er2",
+   "arm": "A",
+   "cut_short_stop_rule": false
+  },
+  {
+   "label": "E12",
+   "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch2/s1b_E12_seed12_er2_c1",
+   "stratum": "pilot_er2",
+   "arm": "A",
+   "cut_short_stop_rule": false
+  },
+  {
+   "label": "E13",
+   "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch2/s1b_E13_seed13_er2_c1",
+   "stratum": "pilot_er2",
+   "arm": "A",
+   "cut_short_stop_rule": false
+  },
+  {
+   "label": "E14",
+   "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch2/s1b_E14_seed14_er2_c1",
+   "stratum": "pilot_er2",
+   "arm": "A",
+   "cut_short_stop_rule": false
+  },
+  {
+   "label": "E15",
+   "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch2/s1b_E15_seed15_er2_c1",
+   "stratum": "pilot_er2",
+   "arm": "A",
+   "cut_short_stop_rule": false
+  },
+  {
+   "label": "E16",
+   "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch2/s1b_E16_seed16_er2_c1",
+   "stratum": "pilot_er2",
+   "arm": "A",
+   "cut_short_stop_rule": false
+  },
+  {
+   "label": "E17",
+   "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch2/s1b_E17_seed17_er2_c1",
+   "stratum": "pilot_er2",
+   "arm": "A",
+   "cut_short_stop_rule": true
+  },
+  {
+   "label": "E18",
+   "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch3/s1b_E18_seed18_er2_d1",
+   "stratum": "pilot_er2",
+   "arm": "A",
+   "cut_short_stop_rule": false
+  },
+  {
+   "label": "E19",
+   "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch3/s1b_E19_seed19_er2_d1",
+   "stratum": "pilot_er2",
+   "arm": "A",
+   "cut_short_stop_rule": false
+  },
+  {
+   "label": "E20",
+   "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch3/s1b_E20_seed20_er2_d1",
+   "stratum": "pilot_er2",
+   "arm": "A",
+   "cut_short_stop_rule": false
+  },
+  {
+   "label": "E21",
+   "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch4/s1b_E21_seed21_er2_e1",
+   "stratum": "pilot_er2",
+   "arm": "A",
+   "cut_short_stop_rule": false
+  },
+  {
+   "label": "E22",
+   "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch4/s1b_E22_seed22_er2_e2",
+   "stratum": "pilot_er2",
+   "arm": "A",
+   "cut_short_stop_rule": false
+  },
+  {
+   "label": "E23",
+   "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch4/s1b_E23_seed23_er2_e1",
+   "stratum": "pilot_er2",
+   "arm": "A",
+   "cut_short_stop_rule": true
+  },
+  {
+   "label": "E24",
+   "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch5/s1b_E24_seed24_er2_f2",
+   "stratum": "pilot_er2",
+   "arm": "A",
+   "cut_short_stop_rule": true
+  },
+  {
+   "label": "E25",
+   "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch5/s1b_E25_seed25_er2_f2",
+   "stratum": "pilot_er2",
+   "arm": "A",
+   "cut_short_stop_rule": true
+  },
+  {
+   "label": "E26",
+   "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch5/s1b_E26_seed26_er2_f1",
+   "stratum": "pilot_er2",
+   "arm": "A",
+   "cut_short_stop_rule": true
+  },
+  {
+   "label": "E27A",
+   "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch6/s1b_E27_seed1_armA_er2_confT1_a1",
+   "stratum": "prereg_v3_tranche1",
+   "arm": "A",
+   "cut_short_stop_rule": false
+  },
+  {
+   "label": "E27B",
+   "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch6/s1b_E27_seed1_armB_l2off_confT1_a2",
+   "stratum": "prereg_v3_tranche1",
+   "arm": "B",
+   "cut_short_stop_rule": false,
+   "params_from": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch6/s1b_E27_seed1_armA_er2_confT1_a1"
+  },
+  {
+   "label": "E28A",
+   "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch6/s1b_E28_seed2_armA_er2_confT1_a1",
+   "stratum": "prereg_v3_tranche1",
+   "arm": "A",
+   "cut_short_stop_rule": false
+  },
+  {
+   "label": "E28B",
+   "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch6/s1b_E28_seed2_armB_l2off_confT1_a1",
+   "stratum": "prereg_v3_tranche1",
+   "arm": "B",
+   "cut_short_stop_rule": false,
+   "params_from": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch6/s1b_E28_seed2_armA_er2_confT1_a1"
+  },
+  {
+   "label": "E29A",
+   "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch6/s1b_E29_seed3_armA_er2_confT1_a1",
+   "stratum": "prereg_v3_tranche1",
+   "arm": "A",
+   "cut_short_stop_rule": false
+  },
+  {
+   "label": "E29B",
+   "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch6/s1b_E29_seed3_armB_l2off_confT1_a1",
+   "stratum": "prereg_v3_tranche1",
+   "arm": "B",
+   "cut_short_stop_rule": false,
+   "params_from": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch6/s1b_E29_seed3_armA_er2_confT1_a1"
+  },
+  {
+   "label": "E30A",
+   "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch6/s1b_E30_seed4_armA_er2_confT1_a1",
+   "stratum": "prereg_v3_tranche1",
+   "arm": "A",
+   "cut_short_stop_rule": false
+  },
+  {
+   "label": "E30B",
+   "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch6/s1b_E30_seed4_armB_l2off_confT1_a1",
+   "stratum": "prereg_v3_tranche1",
+   "arm": "B",
+   "cut_short_stop_rule": false,
+   "params_from": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch6/s1b_E30_seed4_armA_er2_confT1_a1"
+  },
+  {
+   "label": "E31A",
+   "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch6/s1b_E31_seed5_armA_er2_confT1_a1",
+   "stratum": "prereg_v3_tranche1",
+   "arm": "A",
+   "cut_short_stop_rule": false
+  },
+  {
+   "label": "E31B",
+   "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch6/s1b_E31_seed5_armB_l2off_confT1_a1",
+   "stratum": "prereg_v3_tranche1",
+   "arm": "B",
+   "cut_short_stop_rule": false,
+   "params_from": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch6/s1b_E31_seed5_armA_er2_confT1_a1"
+  },
+  {
+   "label": "m5D_t01_a1",
+   "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7j/data/logs/vm_runs/demo_campaign/m5/runs/m5D_t01_a1",
+   "stratum": "nov_2026_takes",
+   "arm": "A",
+   "cut_short_stop_rule": false
+  },
+  {
+   "label": "m5V_t01_a1",
+   "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7j/data/logs/vm_runs/demo_campaign/m5v/runs/m5V_t01_a1",
+   "stratum": "nov_2026_takes",
+   "arm": "A",
+   "cut_short_stop_rule": false
+  }
+ ],
+ "excluded": [
+  {
+   "label": "E1-E5",
+   "reason": "echo mock (apparatus), out of scope per planning session; rubric 5.2/7.6"
+  },
+  {
+   "label": "v4 shadow pos21-pos27",
+   "reason": "exploratory v4 per-cluster shadow (v6d), different kit; out of scope per planning session"
+  }
+ ]
+}

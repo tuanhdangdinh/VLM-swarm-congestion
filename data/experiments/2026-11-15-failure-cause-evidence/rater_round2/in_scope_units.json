@@ -1,0 +1,367 @@
+{
+ "rule": "Round-2 note, scope section: (a) walk passes a decision with a new T1 row; (b) T1 at onset U:T1_fidelity as written; (c) clock mapping applied (not applied, so (c) is empty).",
+ "n_in_scope": 34,
+ "units": [
+  {
+   "sheet_id": "EV-072a17",
+   "unit_id": "FU1",
+   "criteria": [
+    "a"
+   ],
+   "decisions_a": [
+    "D1",
+    "D2"
+   ]
+  },
+  {
+   "sheet_id": "EV-0bdad6",
+   "unit_id": "FU1",
+   "criteria": [
+    "a",
+    "b"
+   ],
+   "decisions_a": [
+    "D1",
+    "D2"
+   ]
+  },
+  {
+   "sheet_id": "EV-0bdad6",
+   "unit_id": "FU2",
+   "criteria": [
+    "a",
+    "b"
+   ],
+   "decisions_a": [
+    "D8"
+   ]
+  },
+  {
+   "sheet_id": "EV-295a3e",
+   "unit_id": "FU1",
+   "criteria": [
+    "a",
+    "b"
+   ],
+   "decisions_a": [
+    "D1"
+   ]
+  },
+  {
+   "sheet_id": "EV-298037",
+   "unit_id": "FU1",
+   "criteria": [
+    "b"
+   ],
+   "decisions_a": []
+  },
+  {
+   "sheet_id": "EV-298037",
+   "unit_id": "FU2",
+   "criteria": [
+    "a",
+    "b"
+   ],
+   "decisions_a": [
+    "D1",
+    "D2"
+   ]
+  },
+  {
+   "sheet_id": "EV-2c719b",
+   "unit_id": "FU2",
+   "criteria": [
+    "a"
+   ],
+   "decisions_a": [
+    "D1",
+    "D3",
+    "D7"
+   ]
+  },
+  {
+   "sheet_id": "EV-344706",
+   "unit_id": "FU1",
+   "criteria": [
+    "a"
+   ],
+   "decisions_a": [
+    "D13"
+   ]
+  },
+  {
+   "sheet_id": "EV-359e3d",
+   "unit_id": "FU1",
+   "criteria": [
+    "a"
+   ],
+   "decisions_a": [
+    "D2"
+   ]
+  },
+  {
+   "sheet_id": "EV-359e3d",
+   "unit_id": "FU2",
+   "criteria": [
+    "a"
+   ],
+   "decisions_a": [
+    "D1"
+   ]
+  },
+  {
+   "sheet_id": "EV-37a70e",
+   "unit_id": "FU1",
+   "criteria": [
+    "a",
+    "b"
+   ],
+   "decisions_a": [
+    "D2"
+   ]
+  },
+  {
+   "sheet_id": "EV-37a70e",
+   "unit_id": "FU2",
+   "criteria": [
+    "a",
+    "b"
+   ],
+   "decisions_a": [
+    "D3"
+   ]
+  },
+  {
+   "sheet_id": "EV-41a9d4",
+   "unit_id": "FU1",
+   "criteria": [
+    "a"
+   ],
+   "decisions_a": [
+    "D1",
+    "D3"
+   ]
+  },
+  {
+   "sheet_id": "EV-41a9d4",
+   "unit_id": "FU2",
+   "criteria": [
+    "a"
+   ],
+   "decisions_a": [
+    "D3",
+    "D4"
+   ]
+  },
+  {
+   "sheet_id": "EV-52a0c3",
+   "unit_id": "FU1",
+   "criteria": [
+    "b"
+   ],
+   "decisions_a": []
+  },
+  {
+   "sheet_id": "EV-62b8d0",
+   "unit_id": "FU1",
+   "criteria": [
+    "a",
+    "b"
+   ],
+   "decisions_a": [
+    "D1",
+    "D2"
+   ]
+  },
+  {
+   "sheet_id": "EV-7bda3f",
+   "unit_id": "FU1",
+   "criteria": [
+    "a"
+   ],
+   "decisions_a": [
+    "D2"
+   ]
+  },
+  {
+   "sheet_id": "EV-7bda3f",
+   "unit_id": "FU2",
+   "criteria": [
+    "a"
+   ],
+   "decisions_a": [
+    "D2",
+    "D3"
+   ]
+  },
+  {
+   "sheet_id": "EV-7bf1e2",
+   "unit_id": "FU2",
+   "criteria": [
+    "a"
+   ],
+   "decisions_a": [
+    "D1"
+   ]
+  },
+  {
+   "sheet_id": "EV-80fb2a",
+   "unit_id": "FU2",
+   "criteria": [
+    "a"
+   ],
+   "decisions_a": [
+    "D4"
+   ]
+  },
+  {
+   "sheet_id": "EV-830943",
+   "unit_id": "FU1",
+   "criteria": [
+    "a",
+    "b"
+   ],
+   "decisions_a": [
+    "D1"
+   ]
+  },
+  {
+   "sheet_id": "EV-a2cfc5",
+   "unit_id": "FU1",
+   "criteria": [
+    "a"
+   ],
+   "decisions_a": [
+    "D1",
+    "D2"
+   ]
+  },
+  {
+   "sheet_id": "EV-a6761e",
+   "unit_id": "FU1",
+   "criteria": [
+    "a",
+    "b"
+   ],
+   "decisions_a": [
+    "D1"
+   ]
+  },
+  {
+   "sheet_id": "EV-a6761e",
+   "unit_id": "FU2",
+   "criteria": [
+    "a",
+    "b"
+   ],
+   "decisions_a": [
+    "D1"
+   ]
+  },
+  {
+   "sheet_id": "EV-cb3996",
+   "unit_id": "FU1",
+   "criteria": [
+    "a"
+   ],
+   "decisions_a": [
+    "D1"
+   ]
+  },
+  {
+   "sheet_id": "EV-cb3996",
+   "unit_id": "FU2",
+   "criteria": [
+    "a"
+   ],
+   "decisions_a": [
+    "D1",
+    "D4"
+   ]
+  },
+  {
+   "sheet_id": "EV-db0df6",
+   "unit_id": "FU1",
+   "criteria": [
+    "a"
+   ],
+   "decisions_a": [
+    "D3",
+    "D7",
+    "D8"
+   ]
+  },
+  {
+   "sheet_id": "EV-db0df6",
+   "unit_id": "FU2",
+   "criteria": [
+    "a"
+   ],
+   "decisions_a": [
+    "D4",
+    "D9"
+   ]
+  },
+  {
+   "sheet_id": "EV-e0f9cf",
+   "unit_id": "FU1",
+   "criteria": [
+    "a",
+    "b"
+   ],
+   "decisions_a": [
+    "D1"
+   ]
+  },
+  {
+   "sheet_id": "EV-e0f9cf",
+   "unit_id": "FU2",
+   "criteria": [
+    "a",
+    "b"
+   ],
+   "decisions_a": [
+    "D1",
+    "D2"
+   ]
+  },
+  {
+   "sheet_id": "EV-e26384",
+   "unit_id": "FU1",
+   "criteria": [
+    "b"
+   ],
+   "decisions_a": []
+  },
+  {
+   "sheet_id": "EV-ef4e73",
+   "unit_id": "FU1",
+   "criteria": [
+    "b"
+   ],
+   "decisions_a": []
+  },
+  {
+   "sheet_id": "EV-ef4e73",
+   "unit_id": "FU2",
+   "criteria": [
+    "a",
+    "b"
+   ],
+   "decisions_a": [
+    "D5"
+   ]
+  },
+  {
+   "sheet_id": "EV-f7ab58",
+   "unit_id": "FU1",
+   "criteria": [
+    "a",
+    "b"
+   ],
+   "decisions_a": [
+    "D1"
+   ]
+  }
+ ]
+}

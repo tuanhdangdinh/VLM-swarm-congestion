@@ -1,0 +1,986 @@
+[
+ {
+  "label": "E10",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "censor": "stop_flag",
+  "n_fu": 2,
+  "n_excluded_units": 0,
+  "n_decisions": 40,
+  "fidelity_rates": {
+   "as_written": "1/2",
+   "plus_stage2": "2/2",
+   "plus_stage2_intents": "2/2"
+  },
+  "episode_t1_usable": {
+   "as_written": false,
+   "plus_stage2": true,
+   "plus_stage2_intents": true
+  },
+  "t1_snapshot_status": {
+   "U:T1_fidelity": 2
+  },
+  "t0_snapshot_missing": 0,
+  "m4_log": true,
+  "wall_fit": true,
+  "n_motion_legs": 3,
+  "legs_t3_unusable": 0,
+  "legs_end_censored": 0,
+  "contact_recompute": true
+ },
+ {
+  "label": "E11",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "censor": "horizon",
+  "n_fu": 2,
+  "n_excluded_units": 0,
+  "n_decisions": 9,
+  "fidelity_rates": {
+   "as_written": "5/6",
+   "plus_stage2": "6/6",
+   "plus_stage2_intents": "6/6"
+  },
+  "episode_t1_usable": {
+   "as_written": false,
+   "plus_stage2": true,
+   "plus_stage2_intents": true
+  },
+  "t1_snapshot_status": {
+   "U:T1_fidelity": 2,
+   "pass": 4
+  },
+  "t0_snapshot_missing": 0,
+  "m4_log": true,
+  "wall_fit": true,
+  "n_motion_legs": 3,
+  "legs_t3_unusable": 0,
+  "legs_end_censored": 0,
+  "contact_recompute": true
+ },
+ {
+  "label": "E12",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "censor": "horizon",
+  "n_fu": 2,
+  "n_excluded_units": 0,
+  "n_decisions": 7,
+  "fidelity_rates": {
+   "as_written": "4/4",
+   "plus_stage2": "4/4",
+   "plus_stage2_intents": "4/4"
+  },
+  "episode_t1_usable": {
+   "as_written": true,
+   "plus_stage2": true,
+   "plus_stage2_intents": true
+  },
+  "t1_snapshot_status": {
+   "episode_gate_pass": 2,
+   "pass": 2
+  },
+  "t0_snapshot_missing": 0,
+  "m4_log": true,
+  "wall_fit": true,
+  "n_motion_legs": 2,
+  "legs_t3_unusable": 0,
+  "legs_end_censored": 0,
+  "contact_recompute": true
+ },
+ {
+  "label": "E13",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "censor": "horizon",
+  "n_fu": 1,
+  "n_excluded_units": 0,
+  "n_decisions": 4,
+  "fidelity_rates": {
+   "as_written": "3/4",
+   "plus_stage2": "4/4",
+   "plus_stage2_intents": "4/4"
+  },
+  "episode_t1_usable": {
+   "as_written": false,
+   "plus_stage2": true,
+   "plus_stage2_intents": true
+  },
+  "t1_snapshot_status": {
+   "U:T1_fidelity": 1,
+   "pass": 2
+  },
+  "t0_snapshot_missing": 0,
+  "m4_log": true,
+  "wall_fit": true,
+  "n_motion_legs": 6,
+  "legs_t3_unusable": 0,
+  "legs_end_censored": 0,
+  "contact_recompute": true
+ },
+ {
+  "label": "E14",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "censor": "horizon",
+  "n_fu": 2,
+  "n_excluded_units": 0,
+  "n_decisions": 4,
+  "fidelity_rates": {
+   "as_written": "4/4",
+   "plus_stage2": "4/4",
+   "plus_stage2_intents": "4/4"
+  },
+  "episode_t1_usable": {
+   "as_written": true,
+   "plus_stage2": true,
+   "plus_stage2_intents": true
+  },
+  "t1_snapshot_status": {
+   "episode_gate_pass": 2,
+   "pass": 4
+  },
+  "t0_snapshot_missing": 0,
+  "m4_log": true,
+  "wall_fit": true,
+  "n_motion_legs": 2,
+  "legs_t3_unusable": 0,
+  "legs_end_censored": 0,
+  "contact_recompute": true
+ },
+ {
+  "label": "E15",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "censor": "horizon",
+  "n_fu": 2,
+  "n_excluded_units": 0,
+  "n_decisions": 3,
+  "fidelity_rates": {
+   "as_written": "3/3",
+   "plus_stage2": "3/3",
+   "plus_stage2_intents": "3/3"
+  },
+  "episode_t1_usable": {
+   "as_written": true,
+   "plus_stage2": true,
+   "plus_stage2_intents": true
+  },
+  "t1_snapshot_status": {
+   "episode_gate_pass": 2,
+   "pass": 2
+  },
+  "t0_snapshot_missing": 0,
+  "m4_log": true,
+  "wall_fit": true,
+  "n_motion_legs": 2,
+  "legs_t3_unusable": 0,
+  "legs_end_censored": 1,
+  "contact_recompute": true
+ },
+ {
+  "label": "E16",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "censor": "horizon",
+  "n_fu": 2,
+  "n_excluded_units": 0,
+  "n_decisions": 4,
+  "fidelity_rates": {
+   "as_written": "4/4",
+   "plus_stage2": "4/4",
+   "plus_stage2_intents": "4/4"
+  },
+  "episode_t1_usable": {
+   "as_written": true,
+   "plus_stage2": true,
+   "plus_stage2_intents": true
+  },
+  "t1_snapshot_status": {
+   "episode_gate_pass": 2,
+   "pass": 2
+  },
+  "t0_snapshot_missing": 0,
+  "m4_log": true,
+  "wall_fit": true,
+  "n_motion_legs": 3,
+  "legs_t3_unusable": 0,
+  "legs_end_censored": 0,
+  "contact_recompute": true
+ },
+ {
+  "label": "E17",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "censor": "stop_flag",
+  "n_fu": 1,
+  "n_excluded_units": 0,
+  "n_decisions": 14,
+  "fidelity_rates": {
+   "as_written": "14/14",
+   "plus_stage2": "14/14",
+   "plus_stage2_intents": "14/14"
+  },
+  "episode_t1_usable": {
+   "as_written": true,
+   "plus_stage2": true,
+   "plus_stage2_intents": true
+  },
+  "t1_snapshot_status": {
+   "episode_gate_pass": 1,
+   "pass": 1
+  },
+  "t0_snapshot_missing": 0,
+  "m4_log": true,
+  "wall_fit": true,
+  "n_motion_legs": 9,
+  "legs_t3_unusable": 0,
+  "legs_end_censored": 0,
+  "contact_recompute": true
+ },
+ {
+  "label": "E18",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "censor": "horizon",
+  "n_fu": 1,
+  "n_excluded_units": 0,
+  "n_decisions": 9,
+  "fidelity_rates": {
+   "as_written": "8/9",
+   "plus_stage2": "8/9",
+   "plus_stage2_intents": "8/9"
+  },
+  "episode_t1_usable": {
+   "as_written": false,
+   "plus_stage2": false,
+   "plus_stage2_intents": false
+  },
+  "t1_snapshot_status": {
+   "U:T1_fidelity": 1,
+   "pass": 8
+  },
+  "t0_snapshot_missing": 0,
+  "m4_log": true,
+  "wall_fit": true,
+  "n_motion_legs": 6,
+  "legs_t3_unusable": 0,
+  "legs_end_censored": 1,
+  "contact_recompute": true
+ },
+ {
+  "label": "E19",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "censor": "horizon",
+  "n_fu": 1,
+  "n_excluded_units": 0,
+  "n_decisions": 6,
+  "fidelity_rates": {
+   "as_written": "6/6",
+   "plus_stage2": "6/6",
+   "plus_stage2_intents": "6/6"
+  },
+  "episode_t1_usable": {
+   "as_written": true,
+   "plus_stage2": true,
+   "plus_stage2_intents": true
+  },
+  "t1_snapshot_status": {
+   "episode_gate_pass": 1,
+   "pass": 6
+  },
+  "t0_snapshot_missing": 0,
+  "m4_log": true,
+  "wall_fit": true,
+  "n_motion_legs": 2,
+  "legs_t3_unusable": 0,
+  "legs_end_censored": 0,
+  "contact_recompute": true
+ },
+ {
+  "label": "E20",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "censor": "horizon",
+  "n_fu": 2,
+  "n_excluded_units": 0,
+  "n_decisions": 7,
+  "fidelity_rates": {
+   "as_written": "3/6",
+   "plus_stage2": "4/6",
+   "plus_stage2_intents": "4/6"
+  },
+  "episode_t1_usable": {
+   "as_written": false,
+   "plus_stage2": false,
+   "plus_stage2_intents": false
+  },
+  "t1_snapshot_status": {
+   "U:T1_fidelity": 2,
+   "pass": 2
+  },
+  "t0_snapshot_missing": 0,
+  "m4_log": true,
+  "wall_fit": true,
+  "n_motion_legs": 5,
+  "legs_t3_unusable": 0,
+  "legs_end_censored": 0,
+  "contact_recompute": true
+ },
+ {
+  "label": "E21",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "censor": "horizon",
+  "n_fu": 2,
+  "n_excluded_units": 0,
+  "n_decisions": 4,
+  "fidelity_rates": {
+   "as_written": "3/4",
+   "plus_stage2": "3/4",
+   "plus_stage2_intents": "4/4"
+  },
+  "episode_t1_usable": {
+   "as_written": false,
+   "plus_stage2": false,
+   "plus_stage2_intents": true
+  },
+  "t1_snapshot_status": {
+   "U:T1_fidelity": 2,
+   "pass": 3
+  },
+  "t0_snapshot_missing": 0,
+  "m4_log": true,
+  "wall_fit": true,
+  "n_motion_legs": 2,
+  "legs_t3_unusable": 0,
+  "legs_end_censored": 0,
+  "contact_recompute": true
+ },
+ {
+  "label": "E22",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "censor": "horizon",
+  "n_fu": 1,
+  "n_excluded_units": 0,
+  "n_decisions": 4,
+  "fidelity_rates": {
+   "as_written": "2/3",
+   "plus_stage2": "2/3",
+   "plus_stage2_intents": "3/3"
+  },
+  "episode_t1_usable": {
+   "as_written": false,
+   "plus_stage2": false,
+   "plus_stage2_intents": true
+  },
+  "t1_snapshot_status": {
+   "U:T1_fidelity": 2,
+   "pass": 2
+  },
+  "t0_snapshot_missing": 0,
+  "m4_log": true,
+  "wall_fit": true,
+  "n_motion_legs": 2,
+  "legs_t3_unusable": 0,
+  "legs_end_censored": 1,
+  "contact_recompute": true
+ },
+ {
+  "label": "E23",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "censor": "stop_flag",
+  "n_fu": 1,
+  "n_excluded_units": 0,
+  "n_decisions": 6,
+  "fidelity_rates": {
+   "as_written": "6/6",
+   "plus_stage2": "6/6",
+   "plus_stage2_intents": "6/6"
+  },
+  "episode_t1_usable": {
+   "as_written": true,
+   "plus_stage2": true,
+   "plus_stage2_intents": true
+  },
+  "t1_snapshot_status": {
+   "episode_gate_pass": 1,
+   "pass": 5
+  },
+  "t0_snapshot_missing": 0,
+  "m4_log": true,
+  "wall_fit": true,
+  "n_motion_legs": 2,
+  "legs_t3_unusable": 0,
+  "legs_end_censored": 0,
+  "contact_recompute": true
+ },
+ {
+  "label": "E24",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "censor": "stop_flag",
+  "n_fu": 1,
+  "n_excluded_units": 0,
+  "n_decisions": 6,
+  "fidelity_rates": {
+   "as_written": "3/4",
+   "plus_stage2": "4/4",
+   "plus_stage2_intents": "4/4"
+  },
+  "episode_t1_usable": {
+   "as_written": false,
+   "plus_stage2": true,
+   "plus_stage2_intents": true
+  },
+  "t1_snapshot_status": {
+   "U:T1_fidelity": 1,
+   "pass": 3
+  },
+  "t0_snapshot_missing": 0,
+  "m4_log": true,
+  "wall_fit": true,
+  "n_motion_legs": 2,
+  "legs_t3_unusable": 0,
+  "legs_end_censored": 0,
+  "contact_recompute": true
+ },
+ {
+  "label": "E25",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "censor": "stop_flag",
+  "n_fu": 1,
+  "n_excluded_units": 0,
+  "n_decisions": 6,
+  "fidelity_rates": {
+   "as_written": "5/6",
+   "plus_stage2": "6/6",
+   "plus_stage2_intents": "6/6"
+  },
+  "episode_t1_usable": {
+   "as_written": false,
+   "plus_stage2": true,
+   "plus_stage2_intents": true
+  },
+  "t1_snapshot_status": {
+   "U:T1_fidelity": 1,
+   "pass": 5
+  },
+  "t0_snapshot_missing": 0,
+  "m4_log": true,
+  "wall_fit": true,
+  "n_motion_legs": 2,
+  "legs_t3_unusable": 0,
+  "legs_end_censored": 0,
+  "contact_recompute": true
+ },
+ {
+  "label": "E26",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "censor": "stop_flag",
+  "n_fu": 2,
+  "n_excluded_units": 0,
+  "n_decisions": 6,
+  "fidelity_rates": {
+   "as_written": "6/6",
+   "plus_stage2": "6/6",
+   "plus_stage2_intents": "6/6"
+  },
+  "episode_t1_usable": {
+   "as_written": true,
+   "plus_stage2": true,
+   "plus_stage2_intents": true
+  },
+  "t1_snapshot_status": {
+   "episode_gate_pass": 2,
+   "pass": 4
+  },
+  "t0_snapshot_missing": 0,
+  "m4_log": true,
+  "wall_fit": true,
+  "n_motion_legs": 2,
+  "legs_t3_unusable": 0,
+  "legs_end_censored": 0,
+  "contact_recompute": true
+ },
+ {
+  "label": "E27A",
+  "stratum": "prereg_v3_tranche1",
+  "arm": "A",
+  "censor": "horizon",
+  "n_fu": 2,
+  "n_excluded_units": 0,
+  "n_decisions": 11,
+  "fidelity_rates": {
+   "as_written": "9/9",
+   "plus_stage2": "9/9",
+   "plus_stage2_intents": "9/9"
+  },
+  "episode_t1_usable": {
+   "as_written": true,
+   "plus_stage2": true,
+   "plus_stage2_intents": true
+  },
+  "t1_snapshot_status": {
+   "episode_gate_pass": 2,
+   "pass": 9
+  },
+  "t0_snapshot_missing": 0,
+  "m4_log": true,
+  "wall_fit": true,
+  "n_motion_legs": 0,
+  "legs_t3_unusable": 0,
+  "legs_end_censored": 0,
+  "contact_recompute": true
+ },
+ {
+  "label": "E27B",
+  "stratum": "prereg_v3_tranche1",
+  "arm": "B",
+  "censor": "horizon",
+  "n_fu": 2,
+  "n_excluded_units": 0,
+  "n_decisions": 0,
+  "fidelity_rates": {
+   "as_written": "0/0",
+   "plus_stage2": "0/0",
+   "plus_stage2_intents": "0/0"
+  },
+  "episode_t1_usable": {
+   "as_written": false,
+   "plus_stage2": false,
+   "plus_stage2_intents": false
+  },
+  "t1_snapshot_status": {
+   "unverifiable_in_bundle": 2
+  },
+  "t0_snapshot_missing": 0,
+  "m4_log": true,
+  "wall_fit": false,
+  "n_motion_legs": 0,
+  "legs_t3_unusable": 0,
+  "legs_end_censored": 0,
+  "contact_recompute": true
+ },
+ {
+  "label": "E28A",
+  "stratum": "prereg_v3_tranche1",
+  "arm": "A",
+  "censor": "horizon",
+  "n_fu": 1,
+  "n_excluded_units": 0,
+  "n_decisions": 4,
+  "fidelity_rates": {
+   "as_written": "3/4",
+   "plus_stage2": "3/4",
+   "plus_stage2_intents": "4/4"
+  },
+  "episode_t1_usable": {
+   "as_written": false,
+   "plus_stage2": false,
+   "plus_stage2_intents": true
+  },
+  "t1_snapshot_status": {
+   "U:T1_fidelity": 1,
+   "pass": 3
+  },
+  "t0_snapshot_missing": 0,
+  "m4_log": true,
+  "wall_fit": true,
+  "n_motion_legs": 2,
+  "legs_t3_unusable": 0,
+  "legs_end_censored": 0,
+  "contact_recompute": true
+ },
+ {
+  "label": "E28B",
+  "stratum": "prereg_v3_tranche1",
+  "arm": "B",
+  "censor": "horizon",
+  "n_fu": 2,
+  "n_excluded_units": 0,
+  "n_decisions": 0,
+  "fidelity_rates": {
+   "as_written": "0/0",
+   "plus_stage2": "0/0",
+   "plus_stage2_intents": "0/0"
+  },
+  "episode_t1_usable": {
+   "as_written": false,
+   "plus_stage2": false,
+   "plus_stage2_intents": false
+  },
+  "t1_snapshot_status": {
+   "unverifiable_in_bundle": 2
+  },
+  "t0_snapshot_missing": 0,
+  "m4_log": true,
+  "wall_fit": false,
+  "n_motion_legs": 0,
+  "legs_t3_unusable": 0,
+  "legs_end_censored": 0,
+  "contact_recompute": true
+ },
+ {
+  "label": "E29A",
+  "stratum": "prereg_v3_tranche1",
+  "arm": "A",
+  "censor": "horizon",
+  "n_fu": 2,
+  "n_excluded_units": 0,
+  "n_decisions": 5,
+  "fidelity_rates": {
+   "as_written": "4/5",
+   "plus_stage2": "5/5",
+   "plus_stage2_intents": "5/5"
+  },
+  "episode_t1_usable": {
+   "as_written": false,
+   "plus_stage2": true,
+   "plus_stage2_intents": true
+  },
+  "t1_snapshot_status": {
+   "U:T1_fidelity": 2,
+   "pass": 3
+  },
+  "t0_snapshot_missing": 0,
+  "m4_log": true,
+  "wall_fit": true,
+  "n_motion_legs": 3,
+  "legs_t3_unusable": 0,
+  "legs_end_censored": 0,
+  "contact_recompute": true
+ },
+ {
+  "label": "E29B",
+  "stratum": "prereg_v3_tranche1",
+  "arm": "B",
+  "censor": "horizon",
+  "n_fu": 2,
+  "n_excluded_units": 0,
+  "n_decisions": 0,
+  "fidelity_rates": {
+   "as_written": "0/0",
+   "plus_stage2": "0/0",
+   "plus_stage2_intents": "0/0"
+  },
+  "episode_t1_usable": {
+   "as_written": false,
+   "plus_stage2": false,
+   "plus_stage2_intents": false
+  },
+  "t1_snapshot_status": {
+   "unverifiable_in_bundle": 2
+  },
+  "t0_snapshot_missing": 0,
+  "m4_log": true,
+  "wall_fit": false,
+  "n_motion_legs": 0,
+  "legs_t3_unusable": 0,
+  "legs_end_censored": 0,
+  "contact_recompute": true
+ },
+ {
+  "label": "E30A",
+  "stratum": "prereg_v3_tranche1",
+  "arm": "A",
+  "censor": "horizon",
+  "n_fu": 3,
+  "n_excluded_units": 0,
+  "n_decisions": 5,
+  "fidelity_rates": {
+   "as_written": "5/5",
+   "plus_stage2": "5/5",
+   "plus_stage2_intents": "5/5"
+  },
+  "episode_t1_usable": {
+   "as_written": true,
+   "plus_stage2": true,
+   "plus_stage2_intents": true
+  },
+  "t1_snapshot_status": {
+   "episode_gate_pass": 3,
+   "pass": 5
+  },
+  "t0_snapshot_missing": 0,
+  "m4_log": true,
+  "wall_fit": true,
+  "n_motion_legs": 0,
+  "legs_t3_unusable": 0,
+  "legs_end_censored": 0,
+  "contact_recompute": true
+ },
+ {
+  "label": "E30B",
+  "stratum": "prereg_v3_tranche1",
+  "arm": "B",
+  "censor": "horizon",
+  "n_fu": 3,
+  "n_excluded_units": 0,
+  "n_decisions": 0,
+  "fidelity_rates": {
+   "as_written": "0/0",
+   "plus_stage2": "0/0",
+   "plus_stage2_intents": "0/0"
+  },
+  "episode_t1_usable": {
+   "as_written": false,
+   "plus_stage2": false,
+   "plus_stage2_intents": false
+  },
+  "t1_snapshot_status": {
+   "unverifiable_in_bundle": 3
+  },
+  "t0_snapshot_missing": 0,
+  "m4_log": true,
+  "wall_fit": false,
+  "n_motion_legs": 0,
+  "legs_t3_unusable": 0,
+  "legs_end_censored": 0,
+  "contact_recompute": true
+ },
+ {
+  "label": "E31A",
+  "stratum": "prereg_v3_tranche1",
+  "arm": "A",
+  "censor": "horizon",
+  "n_fu": 2,
+  "n_excluded_units": 0,
+  "n_decisions": 3,
+  "fidelity_rates": {
+   "as_written": "3/3",
+   "plus_stage2": "3/3",
+   "plus_stage2_intents": "3/3"
+  },
+  "episode_t1_usable": {
+   "as_written": true,
+   "plus_stage2": true,
+   "plus_stage2_intents": true
+  },
+  "t1_snapshot_status": {
+   "episode_gate_pass": 2,
+   "pass": 2
+  },
+  "t0_snapshot_missing": 0,
+  "m4_log": true,
+  "wall_fit": true,
+  "n_motion_legs": 2,
+  "legs_t3_unusable": 0,
+  "legs_end_censored": 0,
+  "contact_recompute": true
+ },
+ {
+  "label": "E31B",
+  "stratum": "prereg_v3_tranche1",
+  "arm": "B",
+  "censor": "horizon",
+  "n_fu": 2,
+  "n_excluded_units": 0,
+  "n_decisions": 0,
+  "fidelity_rates": {
+   "as_written": "0/0",
+   "plus_stage2": "0/0",
+   "plus_stage2_intents": "0/0"
+  },
+  "episode_t1_usable": {
+   "as_written": false,
+   "plus_stage2": false,
+   "plus_stage2_intents": false
+  },
+  "t1_snapshot_status": {
+   "unverifiable_in_bundle": 2
+  },
+  "t0_snapshot_missing": 0,
+  "m4_log": true,
+  "wall_fit": false,
+  "n_motion_legs": 0,
+  "legs_t3_unusable": 0,
+  "legs_end_censored": 0,
+  "contact_recompute": true
+ },
+ {
+  "label": "E6",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "censor": "horizon",
+  "n_fu": 2,
+  "n_excluded_units": 0,
+  "n_decisions": 5,
+  "fidelity_rates": {
+   "as_written": "5/5",
+   "plus_stage2": "5/5",
+   "plus_stage2_intents": "5/5"
+  },
+  "episode_t1_usable": {
+   "as_written": true,
+   "plus_stage2": true,
+   "plus_stage2_intents": true
+  },
+  "t1_snapshot_status": {
+   "episode_gate_pass": 2,
+   "pass": 1
+  },
+  "t0_snapshot_missing": 0,
+  "m4_log": true,
+  "wall_fit": true,
+  "n_motion_legs": 6,
+  "legs_t3_unusable": 0,
+  "legs_end_censored": 0,
+  "contact_recompute": true
+ },
+ {
+  "label": "E7",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "censor": "horizon",
+  "n_fu": 2,
+  "n_excluded_units": 0,
+  "n_decisions": 4,
+  "fidelity_rates": {
+   "as_written": "4/4",
+   "plus_stage2": "4/4",
+   "plus_stage2_intents": "4/4"
+  },
+  "episode_t1_usable": {
+   "as_written": true,
+   "plus_stage2": true,
+   "plus_stage2_intents": true
+  },
+  "t1_snapshot_status": {
+   "episode_gate_pass": 2,
+   "pass": 3
+  },
+  "t0_snapshot_missing": 0,
+  "m4_log": true,
+  "wall_fit": true,
+  "n_motion_legs": 4,
+  "legs_t3_unusable": 0,
+  "legs_end_censored": 0,
+  "contact_recompute": true
+ },
+ {
+  "label": "E8",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "censor": "horizon",
+  "n_fu": 1,
+  "n_excluded_units": 0,
+  "n_decisions": 4,
+  "fidelity_rates": {
+   "as_written": "4/4",
+   "plus_stage2": "4/4",
+   "plus_stage2_intents": "4/4"
+  },
+  "episode_t1_usable": {
+   "as_written": true,
+   "plus_stage2": true,
+   "plus_stage2_intents": true
+  },
+  "t1_snapshot_status": {
+   "episode_gate_pass": 1,
+   "pass": 2
+  },
+  "t0_snapshot_missing": 0,
+  "m4_log": true,
+  "wall_fit": true,
+  "n_motion_legs": 2,
+  "legs_t3_unusable": 0,
+  "legs_end_censored": 0,
+  "contact_recompute": true
+ },
+ {
+  "label": "E9",
+  "stratum": "pilot_er2",
+  "arm": "A",
+  "censor": "horizon",
+  "n_fu": 2,
+  "n_excluded_units": 0,
+  "n_decisions": 7,
+  "fidelity_rates": {
+   "as_written": "7/7",
+   "plus_stage2": "7/7",
+   "plus_stage2_intents": "7/7"
+  },
+  "episode_t1_usable": {
+   "as_written": true,
+   "plus_stage2": true,
+   "plus_stage2_intents": true
+  },
+  "t1_snapshot_status": {
+   "episode_gate_pass": 2,
+   "pass": 7
+  },
+  "t0_snapshot_missing": 0,
+  "m4_log": true,
+  "wall_fit": true,
+  "n_motion_legs": 0,
+  "legs_t3_unusable": 0,
+  "legs_end_censored": 0,
+  "contact_recompute": true
+ },
+ {
+  "label": "m5D_t01_a1",
+  "stratum": "nov_2026_takes",
+  "arm": "A",
+  "censor": "horizon",
+  "n_fu": 2,
+  "n_excluded_units": 0,
+  "n_decisions": 8,
+  "fidelity_rates": {
+   "as_written": "6/8",
+   "plus_stage2": "6/8",
+   "plus_stage2_intents": "8/8"
+  },
+  "episode_t1_usable": {
+   "as_written": false,
+   "plus_stage2": false,
+   "plus_stage2_intents": true
+  },
+  "t1_snapshot_status": {
+   "U:T1_fidelity": 2,
+   "pass": 6
+  },
+  "t0_snapshot_missing": 0,
+  "m4_log": true,
+  "wall_fit": true,
+  "n_motion_legs": 4,
+  "legs_t3_unusable": 0,
+  "legs_end_censored": 0,
+  "contact_recompute": true
+ },
+ {
+  "label": "m5V_t01_a1",
+  "stratum": "nov_2026_takes",
+  "arm": "A",
+  "censor": "horizon",
+  "n_fu": 2,
+  "n_excluded_units": 0,
+  "n_decisions": 9,
+  "fidelity_rates": {
+   "as_written": "9/9",
+   "plus_stage2": "9/9",
+   "plus_stage2_intents": "9/9"
+  },
+  "episode_t1_usable": {
+   "as_written": true,
+   "plus_stage2": true,
+   "plus_stage2_intents": true
+  },
+  "t1_snapshot_status": {
+   "episode_gate_pass": 2,
+   "pass": 5
+  },
+  "t0_snapshot_missing": 0,
+  "m4_log": true,
+  "wall_fit": true,
+  "n_motion_legs": 5,
+  "legs_t3_unusable": 0,
+  "legs_end_censored": 0,
+  "contact_recompute": true
+ }
+]

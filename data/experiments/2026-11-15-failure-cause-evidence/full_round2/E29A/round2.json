@@ -1,0 +1,481 @@
+{
+ "label": "E29A",
+ "arm": "A",
+ "provenance": {
+  "scorer_tree": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7q @ 89d9bf3",
+  "scorer_files_equal_3c71503": true,
+  "t1_tree": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7n @ a412949",
+  "t1_command_grounder_md5": "951c23b7f2e0168dab10022abccff77a",
+  "contact_tree": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7m @ b5eaee5",
+  "tool_md5": "675f561006afd7d3127ef8490048e394",
+  "functions": {
+   "units": "benchmarks.s1_scoring.bundle_io.read_bundle; benchmarks.s1_scoring.conflicts.conflict_episodes(ConflictParams())",
+   "matching": "conflicts.classify_analysis + conflicts.match_analysis",
+   "t1": "reasoning.rag.command_grounder.ground_reasoner_result (v7n a412949)",
+   "withheld": "swarm_orchestrator.reasoning_pipeline.yield_refusal_fan_out, empty_reroute_fallback (v7n a412949)",
+   "contacts": "isaac.vgu_sim.contact_geometry.compute_contact_frame / scene_static_boxes (v7m b5eaee5); recompute_gt_contacts.recompute_bundle"
+  }
+ },
+ "units": {
+  "FU1": {
+   "robots": [
+    "robot_2",
+    "robot_3",
+    "robot_5"
+   ],
+   "t0_rel": 19.373,
+   "chain_start_rel": null,
+   "t1_new_snapshots": {},
+   "t0_fidelity_both_ways": {
+    "as_written": {
+     "fidelity": "U:T1_fidelity (episode gate, as round 1)",
+     "gate_reproduced": "4/5"
+    },
+    "S3_stage2_label_and_task_intents": {
+     "fidelity": "episode_gate_pass",
+     "gate_reproduced": "5/5",
+     "t1": {
+      "n_motion": 96,
+      "n_h": 237,
+      "n_errors": 0,
+      "nonempty": true,
+      "motion": [
+       "Y:robot_2>robot_3",
+       "Y:robot_2>robot_5",
+       "Y:robot_3>robot_2",
+       "Y:robot_5>robot_2",
+       "Y:robot_2>robot_1>robot_3",
+       "Y:robot_2>robot_1>robot_5",
+       "Y:robot_2>robot_3>robot_1",
+       "Y:robot_2>robot_3>robot_4",
+       "Y:robot_2>robot_3>robot_5",
+       "Y:robot_2>robot_4>robot_3",
+       "Y:robot_2>robot_4>robot_5",
+       "Y:robot_2>robot_5>robot_1",
+       "Y:robot_2>robot_5>robot_3",
+       "Y:robot_2>robot_5>robot_4",
+       "Y:robot_2>robot_1>robot_3>robot_4",
+       "Y:robot_2>robot_1>robot_3>robot_5",
+       "Y:robot_2>robot_1>robot_4>robot_3",
+       "Y:robot_2>robot_1>robot_4>robot_5",
+       "Y:robot_2>robot_1>robot_5>robot_3",
+       "Y:robot_2>robot_1>robot_5>robot_4",
+       "Y:robot_2>robot_3>robot_1>robot_4",
+       "Y:robot_2>robot_3>robot_1>robot_5",
+       "Y:robot_2>robot_3>robot_4>robot_1",
+       "Y:robot_2>robot_3>robot_4>robot_5",
+       "Y:robot_2>robot_3>robot_5>robot_1",
+       "Y:robot_2>robot_3>robot_5>robot_4",
+       "Y:robot_2>robot_4>robot_1>robot_3",
+       "Y:robot_2>robot_4>robot_1>robot_5",
+       "Y:robot_2>robot_4>robot_3>robot_1",
+       "Y:robot_2>robot_4>robot_3>robot_5",
+       "Y:robot_2>robot_4>robot_5>robot_1",
+       "Y:robot_2>robot_4>robot_5>robot_3",
+       "Y:robot_2>robot_5>robot_1>robot_3",
+       "Y:robot_2>robot_5>robot_1>robot_4",
+       "Y:robot_2>robot_5>robot_3>robot_1",
+       "Y:robot_2>robot_5>robot_3>robot_4",
+       "Y:robot_2>robot_5>robot_4>robot_1",
+       "Y:robot_2>robot_5>robot_4>robot_3",
+       "Y:robot_3>robot_1>robot_2",
+       "Y:robot_3>robot_2>robot_1",
+       "Y:robot_3>robot_2>robot_4",
+       "Y:robot_3>robot_2>robot_5",
+       "Y:robot_3>robot_4>robot_2",
+       "Y:robot_3>robot_5>robot_2",
+       "Y:robot_3>robot_1>robot_2>robot_4",
+       "Y:robot_3>robot_1>robot_2>robot_5",
+       "Y:robot_3>robot_1>robot_4>robot_2",
+       "Y:robot_3>robot_1>robot_5>robot_2",
+       "Y:robot_3>robot_2>robot_1>robot_4",
+       "Y:robot_3>robot_2>robot_1>robot_5",
+       "Y:robot_3>robot_2>robot_4>robot_1",
+       "Y:robot_3>robot_2>robot_4>robot_5",
+       "Y:robot_3>robot_2>robot_5>robot_1",
+       "Y:robot_3>robot_2>robot_5>robot_4",
+       "Y:robot_3>robot_4>robot_1>robot_2",
+       "Y:robot_3>robot_4>robot_2>robot_1",
+       "Y:robot_3>robot_4>robot_2>robot_5",
+       "Y:robot_3>robot_4>robot_5>robot_2",
+       "Y:robot_3>robot_5>robot_1>robot_2",
+       "Y:robot_3>robot_5>robot_2>robot_1",
+       "Y:robot_3>robot_5>robot_2>robot_4",
+       "Y:robot_3>robot_5>robot_4>robot_2",
+       "Y:robot_5>robot_1>robot_2",
+       "Y:robot_5>robot_2>robot_1",
+       "Y:robot_5>robot_2>robot_3",
+       "Y:robot_5>robot_2>robot_4",
+       "Y:robot_5>robot_3>robot_2",
+       "Y:robot_5>robot_4>robot_2",
+       "Y:robot_5>robot_1>robot_2>robot_3",
+       "Y:robot_5>robot_1>robot_2>robot_4",
+       "Y:robot_5>robot_1>robot_3>robot_2",
+       "Y:robot_5>robot_1>robot_4>robot_2",
+       "Y:robot_5>robot_2>robot_1>robot_3",
+       "Y:robot_5>robot_2>robot_1>robot_4",
+       "Y:robot_5>robot_2>robot_3>robot_1",
+       "Y:robot_5>robot_2>robot_3>robot_4",
+       "Y:robot_5>robot_2>robot_4>robot_1",
+       "Y:robot_5>robot_2>robot_4>robot_3",
+       "Y:robot_5>robot_3>robot_1>robot_2",
+       "Y:robot_5>robot_3>robot_2>robot_1",
+       "Y:robot_5>robot_3>robot_2>robot_4",
+       "Y:robot_5>robot_3>robot_4>robot_2",
+       "Y:robot_5>robot_4>robot_1>robot_2",
+       "Y:robot_5>robot_4>robot_2>robot_1",
+       "Y:robot_5>robot_4>robot_2>robot_3",
+       "Y:robot_5>robot_4>robot_3>robot_2",
+       "R:robot_2",
+       "R:robot_3",
+       "R:robot_5",
+       "R:robot_1+robot_2",
+       "R:robot_1+robot_3",
+       "R:robot_2+robot_3",
+       "R:robot_2+robot_4",
+       "R:robot_2+robot_5",
+       "R:robot_3+robot_4",
+       "R:robot_3+robot_5"
+      ]
+     },
+     "note": "post-freeze sensitivity S3; never the primary"
+    },
+    "per_decision_gate": [
+     {
+      "request_id": "988fd4c5b5bc4c9aa2c58a2231d5fe55",
+      "as_written": "reproduced",
+      "plus_stage2_intents": "reproduced"
+     },
+     {
+      "request_id": "14aefebe6c4b472d85194ae4c093d2b2",
+      "as_written": "differs",
+      "plus_stage2_intents": "reproduced"
+     },
+     {
+      "request_id": "5622ed9cf4cd44e89ec752f4b9d49ca6",
+      "as_written": "reproduced",
+      "plus_stage2_intents": "reproduced"
+     },
+     {
+      "request_id": "40b4c0c975cc4005a065dc1fbcf8e0f7",
+      "as_written": "reproduced",
+      "plus_stage2_intents": "reproduced"
+     },
+     {
+      "request_id": "ca3aecdfc6fa4aac8bcfac58cae0c725",
+      "as_written": "reproduced",
+      "plus_stage2_intents": "reproduced"
+     }
+    ]
+   }
+  },
+  "FU2": {
+   "robots": [
+    "robot_1",
+    "robot_4"
+   ],
+   "t0_rel": 72.673,
+   "chain_start_rel": 22.4,
+   "t1_new_snapshots": {
+    "988fd4c5b5bc4c9aa2c58a2231d5fe55": {
+     "t_rel": 18.267,
+     "on_timeline": true,
+     "published": false,
+     "withheld": true,
+     "in_chain_rubric": false,
+     "t1": {
+      "snapshot_rel": 18.267,
+      "candidates": [
+       "robot_1",
+       "robot_4",
+       "robot_5",
+       "robot_3"
+      ],
+      "params_source": "s1b_E29_seed3_armA_er2_confT1_a1:988fd4c5",
+      "as_written": {
+       "fidelity": "pass",
+       "t1": {
+        "n_motion": 5,
+        "n_h": 88,
+        "n_errors": 0,
+        "nonempty": true,
+        "motion": [
+         "R:robot_1",
+         "R:robot_4",
+         "R:robot_1+robot_3",
+         "R:robot_1+robot_4",
+         "R:robot_3+robot_4"
+        ],
+        "n_motion_counting_empty_reroute": 7
+       }
+      },
+      "S3_stage2_label_and_task_intents": {
+       "fidelity": "pass",
+       "t1": {
+        "n_motion": 5,
+        "n_h": 88,
+        "n_errors": 0,
+        "nonempty": true,
+        "motion": [
+         "R:robot_1",
+         "R:robot_4",
+         "R:robot_1+robot_3",
+         "R:robot_1+robot_4",
+         "R:robot_3+robot_4"
+        ],
+        "n_motion_counting_empty_reroute": 7
+       },
+       "note": "post-freeze sensitivity S3; never the primary"
+      },
+      "all_guards_on_sensitivity": {
+       "t1": {
+        "n_motion": 5,
+        "n_h": 88,
+        "n_errors": 0,
+        "nonempty": true,
+        "motion": [
+         "R:robot_1",
+         "R:robot_4",
+         "R:robot_1+robot_3",
+         "R:robot_1+robot_4",
+         "R:robot_3+robot_4"
+        ],
+        "n_motion_counting_empty_reroute": 7
+       }
+      }
+     },
+     "t2": {
+      "result": true,
+      "shortest": {
+       "robot": "robot_1",
+       "heading_deg": 45,
+       "distance_m": 0.19
+      },
+      "required_gap_m": 0.14,
+      "start_within_required_clearance": {
+       "robot_1": false,
+       "robot_4": false
+      }
+     }
+    },
+    "14aefebe6c4b472d85194ae4c093d2b2": {
+     "t_rel": 22.4,
+     "on_timeline": true,
+     "published": true,
+     "withheld": false,
+     "in_chain_rubric": true,
+     "t1": {
+      "snapshot_rel": 22.4,
+      "candidates": [
+       "robot_1",
+       "robot_4",
+       "robot_3",
+       "robot_5"
+      ],
+      "params_source": "s1b_E29_seed3_armA_er2_confT1_a1:14aefebe",
+      "as_written": {
+       "fidelity": "U:T1_fidelity",
+       "t1": {
+        "n_motion": 14,
+        "n_h": 88,
+        "n_errors": 0,
+        "nonempty": true,
+        "motion": [
+         "Y:robot_1>robot_4",
+         "Y:robot_4>robot_1",
+         "Y:robot_1>robot_3>robot_4",
+         "Y:robot_1>robot_4>robot_3",
+         "Y:robot_4>robot_1>robot_3",
+         "Y:robot_4>robot_3>robot_1",
+         "R:robot_1",
+         "R:robot_4",
+         "R:robot_1+robot_3",
+         "R:robot_1+robot_4",
+         "R:robot_1+robot_5",
+         "R:robot_3+robot_4",
+         "R:robot_4+robot_5",
+         "R:robot_1+robot_3+robot_4+robot_5"
+        ],
+        "n_motion_counting_empty_reroute": 16
+       }
+      },
+      "S3_stage2_label_and_task_intents": {
+       "fidelity": "pass",
+       "t1": {
+        "n_motion": 14,
+        "n_h": 88,
+        "n_errors": 0,
+        "nonempty": true,
+        "motion": [
+         "Y:robot_1>robot_4",
+         "Y:robot_4>robot_1",
+         "Y:robot_1>robot_3>robot_4",
+         "Y:robot_1>robot_4>robot_3",
+         "Y:robot_4>robot_1>robot_3",
+         "Y:robot_4>robot_3>robot_1",
+         "R:robot_1",
+         "R:robot_4",
+         "R:robot_1+robot_3",
+         "R:robot_1+robot_4",
+         "R:robot_1+robot_5",
+         "R:robot_3+robot_4",
+         "R:robot_4+robot_5",
+         "R:robot_1+robot_3+robot_4+robot_5"
+        ],
+        "n_motion_counting_empty_reroute": 16
+       },
+       "note": "post-freeze sensitivity S3; never the primary"
+      },
+      "all_guards_on_sensitivity": {
+       "t1": {
+        "n_motion": 14,
+        "n_h": 88,
+        "n_errors": 0,
+        "nonempty": true,
+        "motion": [
+         "Y:robot_1>robot_4",
+         "Y:robot_4>robot_1",
+         "Y:robot_1>robot_3>robot_4",
+         "Y:robot_1>robot_4>robot_3",
+         "Y:robot_4>robot_1>robot_3",
+         "Y:robot_4>robot_3>robot_1",
+         "R:robot_1",
+         "R:robot_4",
+         "R:robot_1+robot_3",
+         "R:robot_1+robot_4",
+         "R:robot_1+robot_5",
+         "R:robot_3+robot_4",
+         "R:robot_4+robot_5",
+         "R:robot_1+robot_3+robot_4+robot_5"
+        ],
+        "n_motion_counting_empty_reroute": 16
+       }
+      }
+     },
+     "t2": {
+      "result": false,
+      "shortest": null,
+      "required_gap_m": 0.14,
+      "start_within_required_clearance": {
+       "robot_1": true,
+       "robot_4": true
+      }
+     }
+    }
+   },
+   "t0_fidelity_both_ways": {
+    "as_written": {
+     "fidelity": "U:T1_fidelity (episode gate, as round 1)",
+     "gate_reproduced": "4/5"
+    },
+    "S3_stage2_label_and_task_intents": {
+     "fidelity": "episode_gate_pass",
+     "gate_reproduced": "5/5",
+     "t1": {
+      "n_motion": 7,
+      "n_h": 88,
+      "n_errors": 0,
+      "nonempty": true,
+      "motion": [
+       "R:robot_1",
+       "R:robot_4",
+       "R:robot_1+robot_2",
+       "R:robot_1+robot_5",
+       "R:robot_2+robot_4",
+       "R:robot_4+robot_5",
+       "R:robot_1+robot_2+robot_4+robot_5"
+      ]
+     },
+     "note": "post-freeze sensitivity S3; never the primary"
+    },
+    "per_decision_gate": [
+     {
+      "request_id": "988fd4c5b5bc4c9aa2c58a2231d5fe55",
+      "as_written": "reproduced",
+      "plus_stage2_intents": "reproduced"
+     },
+     {
+      "request_id": "14aefebe6c4b472d85194ae4c093d2b2",
+      "as_written": "differs",
+      "plus_stage2_intents": "reproduced"
+     },
+     {
+      "request_id": "5622ed9cf4cd44e89ec752f4b9d49ca6",
+      "as_written": "reproduced",
+      "plus_stage2_intents": "reproduced"
+     },
+     {
+      "request_id": "40b4c0c975cc4005a065dc1fbcf8e0f7",
+      "as_written": "reproduced",
+      "plus_stage2_intents": "reproduced"
+     },
+     {
+      "request_id": "ca3aecdfc6fa4aac8bcfac58cae0c725",
+      "as_written": "reproduced",
+      "plus_stage2_intents": "reproduced"
+     }
+    ]
+   }
+  }
+ },
+ "regression": {
+  "fidelity_rows_equal_round1": true,
+  "t1_row": {
+   "unit": "FU1",
+   "key": "5622ed9cf4cd44e89ec752f4b9d49ca6",
+   "equal": true,
+   "t2_equal": true
+  }
+ },
+ "clock": {
+  "offset": {
+   "offset_s": 1792590794.664648,
+   "n": 10,
+   "spread_s": 0.0254
+  },
+  "n_scene_anchors": 2437,
+  "scene_anchor_wall_span": [
+   1792605382.9,
+   1792608429.6
+  ],
+  "m4_fit": {
+   "a": 0.1905952847037661,
+   "b": -341662102.88411075,
+   "n": 20,
+   "max_resid_s": 0.447,
+   "wall_span": [
+    1792605516.2,
+    1792606411.1
+   ],
+   "rtf": 0.1906
+  },
+  "n_m4_anchors": 20,
+  "validation": {
+   "vs_m4_fit": {
+    "n": 20,
+    "max_abs_s": 0.552,
+    "median_abs_s": 0.213,
+    "signed_median_s": 0.012
+   },
+   "vs_m4_anchor": {
+    "n": 20,
+    "max_abs_s": 0.337,
+    "median_abs_s": 0.059,
+    "signed_median_s": -0.059
+   },
+   "m4_anchors_outside_scene_span": 0,
+   "single_line_vs_m4_fit": {
+    "n": 20,
+    "max_abs_s": 1.964,
+    "median_abs_s": 0.569,
+    "signed_median_s": 0.511
+   },
+   "single_line_vs_m4_anchor": {
+    "n": 20,
+    "max_abs_s": 1.808,
+    "median_abs_s": 0.404,
+    "signed_median_s": 0.402
+   }
+  }
+ }
+}
