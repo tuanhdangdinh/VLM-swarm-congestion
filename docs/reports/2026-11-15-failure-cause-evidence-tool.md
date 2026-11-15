@@ -154,7 +154,11 @@ Report text is never read. The `attribution` and `churn_class` fields are never 
 | November takes | 15/17 | 15/17 | 17/17 |
 | Arm B | no recorded decisions (fidelity unverifiable in-bundle; T1 params taken from the paired Arm A bundle's artifact nearest before the snapshot) | | |
 
-- **Every miss is the A26 retreat shield.** Waits lack `retreat_shield_hold`, or shield tags are missing, or the stage-2 letter is missing. Under "+ intents" only 3 remain: E18 `56b599af` and E20 `f269ab37` / `c18ade97`. There the rebuilt task intents do not reproduce the live shield choice.
+- **Why the 15 as-written misses differ** (tabulated over every miss's diff):
+  - 7 are cleared by the stored stage-2 label alone: E10 `63f8d1ce`, E11 `7a47f2f7`, E13 `984e3bdf`, E20 `6cf402ed`, E24 `dfb33b91`, E25 `c1fd8b36`, E29A `14aefebe`. Without the label, the replay grounds `retreat=default:no_choice` with another retreat.
+  - 5 also need the A26 retreat-shield task intents: E21 `04457772`, E22 `07da775d`, E28A `3c234140`, `m5D` `03bba450` / `a15f3fc5`. Without them, shield waits or tags are missing.
+  - 3 still differ with both: E18 `56b599af` and E20 `f269ab37` / `c18ade97`. Only `retreat_shield_hold` keys or shield tags differ, so the rebuilt intents do not reproduce the live shield choice.
+  - Neither input is named in rubric 7.4's "Inputs" sentence.
 - **Episode-level gate as written:**
   - fully usable: E6–E9, E12, E14–E17, E19, E23, E26, E27A, E30A, E31A, `m5V`;
   - unusable (at least one decision does not reproduce): E10, E11, E13, E18, E20–E22, E24, E25, E28A, E29A, `m5D`.
@@ -176,7 +180,7 @@ Report text is never read. The `attribution` and `churn_class` fields are never 
 
 ## Validation on the Two Documented Cases (Not Used for Tuning)
 
-Every tool parameter was fixed in code before either case's output was read.
+Every numeric threshold (0.05 m near, 10 s still, the 0.005 m contact, the deadline formula) was fixed in code before either case's output was read. One rule changed after `m5D`'s first output had been seen. Prompted by E17's COMPLETED reverses, which looked short, the T3 window end moved from the single fit to the local anchor interpolation. `m5D`'s pin (115.24 to 172.04 rel-s, gap −0.0002 m) is identical before and after the change, because there both clocks give 172.05. E12 was first run after the change.
 
 - **`m5D_t01_a1`, verified by running.** Leg `a15f3fc5:robot_3:escort` belongs to decision 2 in time order (`D2` on the events sheet).
   - M4 FAILED, "escort timed out in phase drive"; `ended_by_deadline` true.
@@ -205,6 +209,58 @@ Every tool parameter was fixed in code before either case's output was read.
 
 A separate plain `grep` for the same literals, and for the request-id prefixes cited in reports (`d374802a`, `a15f3fc5`, `95066420`), also found nothing.
 
+**Blinding limits that the grep cannot see.**
+
+- The GT-only and events sheets carry the same `t_end_rel` and FU onsets. Their opaque ids are therefore linkable by matching numbers. The control has to be procedural: code the GT-derived fields (FU list, T2, X3/X5 from GT) from `rater_gt/` before `rater/` is released.
+- The events sheets keep the m4 fit's `wall_span` and the Nav2 lines' `wall` epoch stamps. These date the run (October against November). They are disclosed here, not removed.
+
+## Coverage per Episode
+
+Columns:
+
+- fidelity: recorded decisions reproduced / re-grounded;
+- T1 usable: the episode-level gate;
+- wall fit: rubric 7.1's m4 `sim_t=` fit;
+- motion legs: backup, reverse and escort legs, with how many have no T3 and how many have a window censored at the episode end.
+
+Every episode has its GT, `m4.log`, decision artifacts (none for Arm B) and a t0 snapshot for every FU.
+
+| Episode | Stratum | Censor | FUs | Decisions | Fidelity as written / +intents | T1 usable (as written / +intents) | Wall fit | Motion legs (T3 unusable, window censored) | Contact recompute |
+|---|---|---|---|---|---|---|---|---|---|
+| E27A | tranche 1 | horizon | 2 | 11 | 9/9 / 9/9 | yes / yes | yes | 0 (0, 0) | yes |
+| E27B | tranche 1 | horizon | 2 | 0 | none recorded | n/a (Arm B: params from paired Arm A) | missing | 0 (0, 0) | yes |
+| E28A | tranche 1 | horizon | 1 | 4 | 3/4 / 4/4 | no / yes | yes | 2 (0, 0) | yes |
+| E28B | tranche 1 | horizon | 2 | 0 | none recorded | n/a (Arm B: params from paired Arm A) | missing | 0 (0, 0) | yes |
+| E29A | tranche 1 | horizon | 2 | 5 | 4/5 / 5/5 | no / yes | yes | 3 (0, 0) | yes |
+| E29B | tranche 1 | horizon | 2 | 0 | none recorded | n/a (Arm B: params from paired Arm A) | missing | 0 (0, 0) | yes |
+| E30A | tranche 1 | horizon | 3 | 5 | 5/5 / 5/5 | yes / yes | yes | 0 (0, 0) | yes |
+| E30B | tranche 1 | horizon | 3 | 0 | none recorded | n/a (Arm B: params from paired Arm A) | missing | 0 (0, 0) | yes |
+| E31A | tranche 1 | horizon | 2 | 3 | 3/3 / 3/3 | yes / yes | yes | 2 (0, 0) | yes |
+| E31B | tranche 1 | horizon | 2 | 0 | none recorded | n/a (Arm B: params from paired Arm A) | missing | 0 (0, 0) | yes |
+| E6 | pilot | horizon | 2 | 5 | 5/5 / 5/5 | yes / yes | yes | 6 (0, 0) | yes |
+| E7 | pilot | horizon | 2 | 4 | 4/4 / 4/4 | yes / yes | yes | 4 (0, 0) | yes |
+| E8 | pilot | horizon | 1 | 4 | 4/4 / 4/4 | yes / yes | yes | 2 (0, 0) | yes |
+| E9 | pilot | horizon | 2 | 7 | 7/7 / 7/7 | yes / yes | yes | 0 (0, 0) | yes |
+| E10 | pilot | stop_flag (cut short) | 2 | 40 | 1/2 / 2/2 | no / yes | yes | 3 (0, 0) | yes |
+| E11 | pilot | horizon | 2 | 9 | 5/6 / 6/6 | no / yes | yes | 3 (0, 0) | yes |
+| E12 | pilot | horizon | 2 | 7 | 4/4 / 4/4 | yes / yes | yes | 2 (0, 0) | yes |
+| E13 | pilot | horizon | 1 | 4 | 3/4 / 4/4 | no / yes | yes | 6 (0, 0) | yes |
+| E14 | pilot | horizon | 2 | 4 | 4/4 / 4/4 | yes / yes | yes | 2 (0, 0) | yes |
+| E15 | pilot | horizon | 2 | 3 | 3/3 / 3/3 | yes / yes | yes | 2 (0, 1) | yes |
+| E16 | pilot | horizon | 2 | 4 | 4/4 / 4/4 | yes / yes | yes | 3 (0, 0) | yes |
+| E17 | pilot | stop_flag (cut short) | 1 | 14 | 14/14 / 14/14 | yes / yes | yes | 9 (0, 0) | yes |
+| E18 | pilot | horizon | 1 | 9 | 8/9 / 8/9 | no / no | yes | 6 (0, 1) | yes |
+| E19 | pilot | horizon | 1 | 6 | 6/6 / 6/6 | yes / yes | yes | 2 (0, 0) | yes |
+| E20 | pilot | horizon | 2 | 7 | 3/6 / 4/6 | no / no | yes | 5 (0, 0) | yes |
+| E21 | pilot | horizon | 2 | 4 | 3/4 / 4/4 | no / yes | yes | 2 (0, 0) | yes |
+| E22 | pilot | horizon | 1 | 4 | 2/3 / 3/3 | no / yes | yes | 2 (0, 1) | yes |
+| E23 | pilot | stop_flag (cut short) | 1 | 6 | 6/6 / 6/6 | yes / yes | yes | 2 (0, 0) | yes |
+| E24 | pilot | stop_flag (cut short) | 1 | 6 | 3/4 / 4/4 | no / yes | yes | 2 (0, 0) | yes |
+| E25 | pilot | stop_flag (cut short) | 1 | 6 | 5/6 / 6/6 | no / yes | yes | 2 (0, 0) | yes |
+| E26 | pilot | stop_flag (cut short) | 2 | 6 | 6/6 / 6/6 | yes / yes | yes | 2 (0, 0) | yes |
+| m5D_t01_a1 | Nov | horizon | 2 | 8 | 6/8 / 8/8 | no / yes | yes | 4 (0, 0) | yes |
+| m5V_t01_a1 | Nov | horizon | 2 | 9 | 9/9 / 9/9 | yes / yes | yes | 5 (0, 0) | yes |
+
 ## Rubric Clauses Not Applied Mechanically as Written
 
 1. **7.1, wall-clock mapping.** "wall-clock lines are mapped with the linear fit over `sim_t=` lines in `m4.log`."
@@ -229,6 +285,11 @@ A separate plain `grep` for the same literals, and for the request-id prefixes c
 8. **7.2 V5.** No `accepted_strategies` is registered for the S1b cell, so V5 is not applicable.
 9. **T1 at t0.** No recorded decision exists to gate, so the episode-level gate is used.
 10. **7.1, "sub-margin interval"** has no threshold. 0.05 m was used.
+11. **7.5 step 2, chain rule** ("received a dispatched command in the 60 sim-s before t0, or was executing one at t0"). Applied as written. It does not reproduce the rubric's own 7.8 illustration for `m5D`.
+    - The A33 unit {robot_2, robot_3} opens at 240.94 rel-s.
+    - The `a15f3fc5` escort was dispatched at 70.93 and ended at 172.05, 69 s before that onset. It is therefore unlinked.
+    - robot_3 stays in contact with `obstacle_2` from 114.74 rel-s to censoring.
+    - The pin is recorded on the leg and in the unit's GT contacts, but the unit's walk does not start at that command.
 
 ## Stall-Abort Column
 
@@ -246,6 +307,9 @@ A separate plain `grep` for the same literals, and for the request-id prefixes c
 - The task-intent rebuild misses 3 live shield choices.
 - T3's "pinned" and "stalled" tags look only at the leg's last 10 s. A pin that clears earlier shows up only in `contacts_in_window`.
 - Arm B has no wall-clock mapping (clause 1).
+- A yield's `backup` leg covers the whole yield action, because M4's status is per command and per robot. Its displacement fraction (which can exceed 1), its terminal status and `ended_by_deadline` can therefore come from the pull-off or the hold, not the backup itself. For example, E17 `6d37a549` robot_1 moved 1.365 of 1.308 m and is flagged as a deadline failure. Read X1 on yield backups with this in mind. Reverse legs are single primitives.
+- `GATE.txt` (an X6 harness input) is not surfaced on the sheets. The stop-rule censor is.
+- In the stall-abort replay, the documented pinned reverses E10 `d5541ff0` robot_2 and E13 `ea23b1a7` robot_1 report "not fired" (minimum ratios 0.82 and 0.90). The join is complete: every FAILED, pinned or stalled interception leg has a value.
 - No primary or contributing code is assigned here; coding is the raters' job.
 
 ## Verified and Inferred
@@ -256,6 +320,6 @@ A separate plain `grep` for the same literals, and for the request-id prefixes c
 | Fidelity rates, unit counts, T1/T2 counts | verified (run) |
 | Both validation cases | verified (run) |
 | Leak check zero hits | verified (run) |
-| Shield as the cause of every fidelity miss | verified from the diffs |
-| `retreat_shield` needs intents that the rubric omitted, rather than another cause | inferred |
+| Split of the 15 as-written fidelity misses (7 stage-2 label, 5 task intents, 3 unresolved shield) | verified from the diffs |
+| The 3 unresolved misses come from the intent rebuild, not another cause | inferred (only shield keys and tags differ) |
 | Stall-abort column values | provisional (uncommitted code) |
