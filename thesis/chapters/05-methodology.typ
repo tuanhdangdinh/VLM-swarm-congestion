@@ -6,7 +6,7 @@
 
 This chapter states how the system described in Chapters 3 and 4 was evaluated. It covers the research questions, the history of the preregistration, the simulated scenes, the experimental arms, the outcome measures, the run procedure, the analysis plan, the offline benchmark used for the v4 extensions, the offline analyses, the demonstration campaign, and the threats to validity that were known before any data was seen. It reports no outcome; every result belongs to Chapter 6.
 
-Three live comparisons, one offline benchmark, three offline analyses and one demonstration campaign are described. Their evidential status differs, and the chapter keeps them apart:
+Three live comparisons, one offline benchmark, three offline analyses, one demonstration campaign and one post hoc classification are described. Their evidential status differs, and the chapter keeps them apart:
 
 - *prereg-v3 tranche 1* on the five-robot S1b scene, Layer 2 on against Layer 2 off. It was registered as confirmatory. This report reports it as a *pilot*, for the reason given in the section on research questions.
 - *IB10 live resolution* on the four-robot intersection, Layer 2 on against Layer 2 off. Exploratory.
@@ -16,8 +16,9 @@ Three live comparisons, one offline benchmark, three offline analyses and one de
 - *the plan-influence trace*, a counterfactual re-grounding of every live four-robot analysis. Decision-level only (@sec:ch5-decision).
 - *the offline contact recompute*, a geometric check of recorded ground truth. Offline, pending live validation (@sec:ch5-decision).
 - *the demonstration campaign*, twelve valid live takes in four scenes. Illustrative only (@sec:ch5-demo).
+- *the failure-cause classification and interception analysis* of the five-robot episodes, in three strata. Exploratory and post hoc (@sec:ch5-failure-cause).
 
-The IB10 runs and the v4 bench are never pooled with prereg-v3 data, and the two IB10 runs are never pooled with each other. None of the offline analyses or demonstration takes is pooled with any experiment.
+The IB10 runs and the v4 bench are never pooled with prereg-v3 data, and the two IB10 runs are never pooled with each other. None of the offline analyses or demonstration takes is pooled with any experiment, and the classification keeps its three strata apart.
 
 == Research Questions and Hypotheses <sec:ch5-rq>
 
@@ -205,7 +206,7 @@ All IB10 scoring uses the criteria frozen for the scene before either experiment
 
 *Secondary.* Time to full resolution is the last arrival minus the GT jam onset, censored at the horizon when the jam is not resolved. Also reported are the minimum pairwise GT distance, the floor-stop count, the number of arrivals out of four, and an outcome rank that orders episodes first by whether all robots arrived, then by the phase reached, then by arrivals #ev("5.26").
 
-*Attribution.* For every dispatched decision of Arm A the scorer reports the strategy, the plan provenance and whether the dispatched command matches the audited plan (`dispatch_matches_plan`) #ev("5.26"). The provenance labels are `vlm_verbatim` (the model's proposed plan passed M3’s audit unchanged), `repaired` (it passed after M3’s edits) or `m3_default` (absent, rejected or not repairable, so M3’s own default plan is the reference). In every case the dispatched command is the grounder's output; the label records how that plan relates to the model's proposal (@sec:design-grounding). The episode's label is the provenance of its `junction_clear` dispatch, or of its last dispatch before the final arrival #ev("5.26"). The provenance labels describe the audit of the model's proposed plan and are reported beside every outcome. They do not bound the model's contribution, which also reaches execution through the decision's strategy, robot set and yielder; Chapter 6 therefore adds a re-grounding of each decision without its plan #ev("6.02"). Arm C is `m3_default` by construction, and its condition gate enforces it #ev("5.20").
+*Attribution.* For every dispatched decision of Arm A the scorer reports the strategy, the plan provenance and whether the dispatched command matches the audited plan (`dispatch_matches_plan`) #ev("5.26"). The provenance labels are `vlm_verbatim` (the model's proposed plan passed M3’s audit unchanged), `repaired` (it passed after M3’s edits) or `m3_default` (absent, rejected or not repairable, so M3’s own default plan is the reference). In every case the dispatched command is the grounder's output; the label records how that plan relates to the model's proposal (@sec:design-grounding). The episode's label is the provenance of its `junction_clear` dispatch, or of its last dispatch before the final arrival #ev("5.26"). The provenance labels describe the audit of the model's proposed plan and are reported beside every outcome. They do not bound the model's contribution, which also reaches execution through the decision's strategy, robot set and yielder; Chapter 6 therefore adds a re-grounding of each decision without its plan #ev("6.02"). Arm C is `m3_default` by construction, and its condition gate enforces it #ev("5.20"). For `reverse` and `reroute` the label can record agreement while the dispatch contradicts the plan (@sec:disc-failure-cause).
 
 *Safety-fix signals.* The grounder-default run adds descriptive per-episode counts of the log lines that only the switched-on safety fix can write, and of commands that ended on a deadline rather than on completion #ev("5.33").
 
@@ -292,7 +293,7 @@ The registered analysis is therefore descriptive. Per arm it reports resolved ep
 
 === Separation of evidence
 
-No measure is pooled across the three comparisons or with the bench. Arm C is compared only with the Arm A of its own run, and the first IB10 run is a separate, unpooled reference for the second #ev("5.20").
+No measure is pooled across the three comparisons or with the bench. Arm C is compared only with the Arm A of its own run, and the first IB10 run is a separate, unpooled reference for the second #ev("5.20"). The failure-cause classification keeps the registered tranche, the pilots and the November takes apart in every table and pools no outcome.
 
 == Failure-Cause Classification <sec:ch5-failure-cause>
 
@@ -417,13 +418,13 @@ The threats below were known before the data they affect was collected. Each is 
 
 === Statistical conclusion validity
 
-*Small n.* Tranche 1 has five pairs, the first IB10 run five episodes per arm, and the grounder-default run five per arm. Only large, consistent differences can be seen at all, and the absence of a difference is not evidence of no effect. The tranche-1 bootstrap over five pairs has few distinct resamples #ev("5.34").
+*Small n.* Tranche 1 has five pairs, the first IB10 run five episodes per arm, and the grounder-default run five per arm. Only large, consistent differences can be seen at all, and the absence of a difference is not evidence of no effect. The tranche-1 bootstrap over five pairs has few distinct resamples #ev("5.34"). The failure-cause classification has 10, 21 and 2 episodes in its three strata.
 
 *Why five per arm, and why Layer 2 off as the only live control.* Five per arm is not the result of a power analysis. In prereg-v3 it is the first tranche of the registered 20 seeds per arm #ev("5.04"), and tranche 2 was not run (@sec:ch5-rq). The constraint the records name is machine time. At a real-time factor of about 0.18, a full-horizon S1b episode took about 55 min of wall-clock time and the ten tranche-1 episodes took 9 h 18 min on one GPU machine; v3 addendum A36 estimated the 30 episodes of tranche 2 at about 28 GPU-hours, with the model's own spend extra and small #ev("5.50"). The IB10 registration fixed five episodes per arm without a stated rationale and estimated 28–35 min per episode #ev("5.50"). The hosted model's spend was capped at \$1.30 for tranche 1 and \$3.00 for IB10 #ev("5.28") #ev("5.29"). Arm B is Layer 2 off because v3 addendum A34 ruled it so, replacing the classical reasoner of v1 #ev("5.46"). No classical rule, such as first-come-first-served or corridor-exit first, was run as a live arm, so every live comparison measures pipeline on against pipeline off, and each further live arm would have cost the same machine time per episode.
 
 *Non-independence.* The IB10 episodes are near-repeats of one scene, which is why no p-values or intervals are registered for them #ev("5.35").
 
-*Exploratory status.* Only prereg-v3 was registered as confirmatory, and its tranche is reported as a pilot. IB10, Arm C, Stage 1 and the bench are exploratory and are read as such #ev("5.04") #ev("5.37").
+*Exploratory status.* Only prereg-v3 was registered as confirmatory, and its tranche is reported as a pilot. IB10, Arm C, Stage 1, the bench and the failure-cause classification are exploratory and are read as such #ev("5.04") #ev("5.37").
 
 === External validity
 
