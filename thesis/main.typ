@@ -93,28 +93,24 @@
 
 #pagebreak()
 
-#include "chapters/00-front.typ"
+#include "short/s00-front.typ"
 
 #set heading(numbering: "1.1")
 #pagebreak()
 #set page(numbering: "1")
 #counter(page).update(1)
 
-#include "chapters/01-introduction.typ"
-#include "chapters/02-background.typ"
-#include "chapters/03-system-design.typ"
-#include "chapters/04-implementation.typ"
-#include "chapters/05-methodology.typ"
-#include "chapters/06-results.typ"
-#include "chapters/07-discussion.typ"
-#include "chapters/08-conclusion.typ"
+#include "short/s01-introduction.typ"
+#include "short/s02-background.typ"
+#include "short/s03-system-design.typ"
+#include "short/s04-implementation.typ"
+#include "short/s05-methodology.typ"
+#include "short/s06-results.typ"
+#include "short/s07-discussion-conclusion.typ"
 
 // Template APA style with name disambiguation off: Typst 0.15 drops author lists when it disambiguates by name; year suffixes (2023a/b) are used instead.
 #bibliography("bibliography/refs.bib", style: "bibliography/apa.csl", title: "References")
 
 #set heading(numbering: "A.1")
 #counter(heading).update(0)
-#include "chapters/09-appendix-evidence.typ"
-#include "chapters/10-appendix-traces.typ"
-#include "chapters/11-appendix-prompts.typ"
-#include "chapters/12-appendix-physical.typ"
+#include "short/s08-sources.typ"

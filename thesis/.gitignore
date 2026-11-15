@@ -1,4 +1,4 @@
 main.pdf
 *.png
 !assets/images/*.png
-supplement.pdf
+extended.pdf

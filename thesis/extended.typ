@@ -5,7 +5,7 @@
 
 #set page(
   paper: "a4",
-  numbering: "1",
+  numbering: "i",
   margin: (left: 25mm, right: 25mm, top: 22mm, bottom: 25mm),
   header: context {
     if here().page() > 1 {
@@ -63,18 +63,61 @@
 )
 
 #align(center)[
-  #text(size: 15pt, weight: "bold")[Supplementary Evidence Index]
-  #v(4pt)
-  #text(size: 11pt)[to the project report "Leveraging Vision-Language Models (VLM) for Congestion Management in Warehouse Swarm Robotics"]
-  #v(4pt)
-  #text(size: 10pt)[Dang Dinh Tu Anh, Nguyen Khanh Tuong · Vietnamese-German University · 11/2026]
+  #set text(size: 12pt)
+  VIETNAMESE - GERMAN UNIVERSITY \
+  DEPARTMENT OF COMPUTER SCIENCE
+
+  #v(1cm)
+  #image("assets/images/vgu_logo.png", width: 3cm)
+  #v(2cm)
+
+  #text(size: 13pt, weight: "bold")[Project Report: Extended Version] \
+  #text(size: 11pt)[Companion to the condensed project report: full methods, results, appendices and Evidence Index]
+  #v(1cm)
+  #text(size: 15pt, weight: "bold")[Leveraging Vision-Language Models (VLM) for Congestion Management in Warehouse Swarm Robotics]
+  #v(1cm)
+  #text(size: 12pt)[Instructor: Dr. Vo Bich Hien]
+
+  #v(2.5cm)
+  #grid(
+    columns: (auto, auto),
+    column-gutter: 10pt,
+    row-gutter: 8pt,
+    align: left,
+    [_Students:_], [Dang Dinh Tu Anh - 10422086],
+    [], [Nguyen Khanh Tuong - 10422121],
+  )
+
+  #v(1fr)
+  #text(size: 8pt)[HO CHI MINH CITY, 11/2026]
 ]
 
-#v(1em)
+#pagebreak()
 
-This supplement belongs to the project report above. Every bracketed tag in the report, such as [6.02], is the identifier of a row in the Evidence Index below, which names the claim and the file, commit and section that support it. The supplementary tables hold detail moved out of the report's appendices.
+#include "chapters/00-front.typ"
 
-#set heading(numbering: "S.1")
-#set figure(numbering: "S.1")
+#set heading(numbering: "1.1")
+#pagebreak()
+#set page(numbering: "1")
+#counter(page).update(1)
+
+#include "chapters/01-introduction.typ"
+#include "chapters/02-background.typ"
+#include "chapters/03-system-design.typ"
+#include "chapters/04-implementation.typ"
+#include "chapters/05-methodology.typ"
+#include "chapters/06-results.typ"
+#include "chapters/07-discussion.typ"
+#include "chapters/08-conclusion.typ"
+
+// Template APA style with name disambiguation off: Typst 0.15 drops author lists when it disambiguates by name; year suffixes (2023a/b) are used instead.
+#bibliography("bibliography/refs.bib", style: "bibliography/apa.csl", title: "References")
+
+#set heading(numbering: "A.1")
+#counter(heading).update(0)
+#include "chapters/09-appendix-evidence.typ"
+#include "chapters/10-appendix-traces.typ"
+#include "chapters/11-appendix-prompts.typ"
+#include "chapters/12-appendix-physical.typ"
 #include "chapters/supp-evidence.typ"
 #include "chapters/supp-tables.typ"

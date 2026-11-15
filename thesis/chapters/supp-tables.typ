@@ -1,6 +1,6 @@
 #import "../lib.typ": *
 
-= Supplementary Tables
+= Detail Tables <sec:supp-tables>
 
 == Safety-Exemption Key <sec:supp-sx>
 
