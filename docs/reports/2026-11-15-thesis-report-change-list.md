@@ -8,6 +8,7 @@
 - Rev 2 (2026-11-15): added section 10, "Scenario Images: What to Insert and Where" (15 extracted stills with md5s, a placement table, Typst snippets, reading order, outdated figures, missing figures).
 - Rev 3 (2026-11-15): added section 10.8, the drawn take 5 decision-flow figure with real output and a head-on gate contrast strip (files with md5s, insertion point, caveats).
 - Rev 4 (2026-11-15): added section 10.9, a simplified take 5 figure for the main text (four blocks; only the back-out order comparison marked as the VLM's contribution); the detailed 10.8 figure moves to a new appendix as the traceable reference, with one added caption sentence on the safety scope.
+- Rev 5 (2026-11-15): added section 11, "Failure-Cause Classification and Interception: Text Prepared for the Thesis" (where each piece goes, rewording of 14 existing statements, paste-ready Typst for methods, three table shells, results template, caveats, limitations and future work, a fill-in checklist with 225 placeholders, new Evidence Index rows, superseded notes, open points); six sources added to the Source Key. No result of the classification is included.
 
 ---
 
@@ -661,6 +662,371 @@ Row 15:
 
 ---
 
+## 11. Failure-Cause Classification and Interception: Text Prepared for the Thesis
+
+Added in Rev 5. It extends section 2 (existing statements), section 3 item 13 (tranche 1), section 5 (limitations and future work) and section 7 (evidence rows); it does not replace them.
+
+### 11.0 Status and Rules
+
+- **What this is.** Method text, table shells and caveats for a failure-cause classification of five-robot S1b episodes and for an interception analysis of three safety mechanisms, written **before** the two blinded rating passes and the reconciliation have finished. It contains no result of that classification. Every result is a visible placeholder of the form `[[TBD-ID: what goes here]]`.
+- **Evidence directory not opened.** Nothing under `/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7q/data/experiments/2026-11-15-failure-cause-evidence/` (rater sheets, key, full sheets, interception, replay, ratings) was opened, listed or read. Methods were taken from the three reports in `docs/reports/` of branch `analysis/failure-cause-classification` (v7q; the git log of those files was read, not the working tree) and from the mechanism reports named below. Per-episode outcomes that appear in the evidence-tool note were not copied.
+- **Numbers that are not placeholders.** Only design constants and numbers already reported elsewhere: 33 episodes (10, 21 and 2 in the three strata), the 0.05 m, 0.14 m, 0.45 m, 60 s and 10 Hz parameters, and the registered tranche-1 outcome, 0 of 10 episodes complete (section 3 item 13; thesis word "complete"). Nothing was taken from the guard replays (`EG` section 8.6), the stall-abort replay (`SA` section 6), the evidence-tool results or Part A's scan, because their scopes differ from the final tables and the stall-abort values are provisional.
+- **Short names added to the Source Key.** `FC` = failure-cause rubric and robot_5 trace (Part A is the plan-versus-dispatch finding; Part B the rubric); `FP` = rating protocol; `FT` = evidence-tool methods note; `SA` = M4 stall abort; `VT` = validation take report; `PV` = plan-dispatch mismatch visibility. `EG` now also means its Rev 2 section 8 (reverse guard) at `92158d3`.
+- **Thesis state read.** Thesis worktree HEAD was `12fdc38` when read and `b44ba52` (a front-matter commit) at the end of the task (the owner's `main.typ` edit is committed as `573d17a`; `10-appendix-traces.typ` exists; `thesis/evidence/ch6.typ` already holds rows 6.01 to 6.20 and says finer rows follow from 6.30). Line numbers of chapters 1 to 8 are unchanged from those used in sections 2 and 10. Nothing in the thesis worktree was edited, staged or committed. New Evidence Index ids below use **6.60 to 6.64** to avoid collisions with 6.01 to 6.20 and the 6.30 series.
+- **Compile check.** The drafts were spliced into a scratch copy of the thesis outside the worktree, with stub Evidence Index rows 6.60 to 6.64, and compiled once with the Tinymist-bundled compiler (no errors, no warnings). The scratch copy was deleted. The placeholders in the Typst blocks are 222 unique ids, all present once.
+
+### 11.1 Where It Goes
+
+| # | Piece | File and position (line numbers of 2026-11-15) | Heading and label |
+|---|---|---|---|
+| a | Methods (11.2.1) | `thesis/chapters/05-methodology.typ`, insert before line 266 (`== Offline v4 Bench`), after the "Separation of evidence" paragraph (line 264) | `== Failure-Cause Classification <sec:ch5-failure-cause>` with `===` subsections for units, classes, rule, raters, strata and frozen outcomes, and interception |
+| b | Results (11.2.2): Tables 1 to 3, results template, caveats | `thesis/chapters/06-results.typ`, insert after line 12 (the `#todo` of "== prereg-v3 Tranche 1 Pilot") and before line 14 (`== v4 Offline Bench and Stage 1 Shadow`) | `== Failure Causes of the Five-Robot Episodes <sec:ch6-failure-cause>`; tables `<tab:ch6-fc-primary>`, `<tab:ch6-fc-agree>`, `<tab:ch6-fc-intercept-a>`, `-p`, `-n`; `=== How to read these tables <sec:ch6-fc-caveats>` |
+| c | Limitations including plan versus dispatch (11.2.3) | `thesis/chapters/07-discussion.typ`, insert before line 14 (`== Threats to Validity`), after `== Limitations` (line 11, `#todo` line 12) | `=== Failure-cause classification <sec:ch7-failure-cause>` |
+| d | Future work (11.2.4) | `thesis/chapters/08-conclusion.typ`, after line 9 (`#todo` of `== Future Work`) | two paragraphs, no heading |
+| e | Threat sentence (11.2.5) | `thesis/chapters/05-methodology.typ`, after line 299 (`*Seeds were not unseen.*`), Internal validity | one paragraph |
+
+The tranche-1 section (06-results line 11) keeps its own table, from section 3 item 13; the classification refers to it and changes none of it.
+
+**Existing statements that must be reworded once the classification exists.** The thesis does not yet state any cause for the October results (chapters 6 to 8 are skeletons), so the list is of statements that would otherwise mislead, presume a cause, or lack a pointer. Rows 3, 10, 11, 27, 42 and 44 of section 2 (provenance labels as a measure of the model's share) now also need the plan-versus-dispatch qualifier of 11.2.3: for `reverse` and `reroute` the label can record agreement while dispatch contradicts the plan.
+
+| # | File:line | Current text (short) | Replacement or addition (template) |
+|---|---|---|---|
+| W1 | `01-introduction.typ:37` | RQ bullet for tranche 1: "how large is the effect of switching Layer 2 on, against switching it off ... and how uncertain is that estimate?" | Append: "A descriptive classification of why the episodes that did not finish stalled, by stage of the pipeline, is added as an exploratory analysis (@sec:ch6-failure-cause); it is not part of the registered question." |
+| W2 | `01-introduction.typ:51` | table cell "Layer 2 off. Decision measures ... exist only for Arm A, which calls the model." | Append: " An exploratory failure-cause classification covers the episodes that did not finish (Chapter 6)." |
+| W3 | `01-introduction.typ:75` (`#todo`, tranche-1 pilot outcome) | held item | "In the ten tranche-1 episodes, none was complete #ev("6.14"). An exploratory classification assigns [[TBD-W01: failure units in the Layer-2-on arm, tranche 1 Arm A]] failure units in Arm A to the decision, grounding, execution and geometry classes as Table @tab:ch6-fc-primary shows, and [[TBD-W02: failure units in Arm B, tranche 1]] units in Arm B, where no command is dispatched, to execution, geometry and undetermined causes; it is post hoc and changes no outcome." |
+| W4 | `01-introduction.typ:81-82` | "*Grounding as the limiting stage.* The report examines whether grounding, rather than detection, limits the pipeline ..." | "*Which stage limits the pipeline.* The report asks which stage limits the pipeline, using decision-only re-grounding of recorded live analyses, the offline bench, and a classification of the primary cause of each unfinished episode of the five-robot scene by stage (decision, grounding and verification, execution, environment geometry). The classification is exploratory, and its counts are reported per stratum without pooling." Keep the `#todo` until Chapters 6 and 7 are released; the new wording presumes no answer. |
+| W5 | `01-introduction.typ:92` | "*Small samples and exploratory status.* The live comparisons have five episodes or seed pairs per arm ..." | Append: " The failure-cause classification covers 33 episodes in three strata of 10, 21 and 2 episodes that are never pooled." |
+| W6 | `01-introduction.typ:106` | Chapter 6 outline | Insert before "the exploratory findings": "the failure-cause classification and interception analysis of the five-robot episodes," |
+| W7 | `01-introduction.typ:109` | Chapter 7 outline: "whether grounding rather than detection is the bottleneck" | "which stage of the pipeline limits it" |
+| W8 | `07-discussion.typ:8` | heading `== Grounding as the Bottleneck` | `== Which Stage Limits the Pipeline` (the heading names an answer; section 2.7's content for Chapter 7 stays, under a neutral heading) |
+| W9 | `04-implementation.typ:165` | "None of them ran in tranche 1 or the first IB10 run" | Append: "Chapter 6 applies the escort and reverse obstacle guards and the stall abort offline, as a counterfactual, to recorded tranche-1 and pilot episodes; none of them ran in those episodes (@sec:ch6-failure-cause)." |
+| W10 | `05-methodology.typ:9` and `11-16` | "Three live comparisons and one offline benchmark are described." plus four bullets and the line "The IB10 runs and the v4 bench are never pooled ..." | "... one offline benchmark and one post hoc classification are described." Add bullet: "- *failure-cause classification and interception analysis* of the five-robot episodes, in three strata. Exploratory and post hoc (@sec:ch5-failure-cause)." Extend the last line: "... and the classification keeps its three strata apart." |
+| W11 | `05-methodology.typ:262-264` | "No measure is pooled across the three comparisons or with the bench." | Append: " The failure-cause classification keeps the registered tranche, the pilots and the November takes apart in every table and pools no outcome." |
+| W12 | `05-methodology.typ:307` | Small n | Append: " The failure-cause classification has 10, 21 and 2 episodes in its three strata." |
+| W13 | `05-methodology.typ:313` | "IB10, Arm C, Stage 1 and the bench are exploratory" | "IB10, Arm C, Stage 1, the bench and the failure-cause classification are exploratory ..." |
+| W14 | `05-methodology.typ:293` | "Provenance labels on every dispatch bound the model's share." (also rows 42 and 44) | Use the rows 42 and 44 wording and add: "For `reverse` and `reroute` the label can record agreement while the dispatch contradicts the plan (@sec:ch7-failure-cause)." |
+
+### 11.2 Paste-Ready Typst Drafts
+
+Conventions followed (read from the thesis, not changed): `flex-caption([short], [long#fig-source("id")])`, tables inside `#figure(placement: auto, table(...))` with `stroke: 0.4pt + luma(160)`, a `luma(235)` header fill, table captions at the top (the `main.typ` show rule), labels `<tab:ch6-...>`, `#ev("id")` and `#fig-source("id")` in string form. Evidence ids 6.60 to 6.64 are new (11.4); 6.12, 6.13, 6.14, 6.17 and 6.18 are existing rows. A placeholder never directly follows a function call, and no placeholder contains `_ * $ # @ < >`, a backtick or `//`. Table cells carry a short placeholder `[[TBD-<table>-<row>-<column>: unit]]`; the full description of each is in 11.3, by pattern.
+
+#### 11.2.1 Methods (Chapter 5)
+
+```text
+== Failure-Cause Classification <sec:ch5-failure-cause>
+
+The comparison of Layer 2 on against Layer 2 off says how many episodes of the five-robot S1b scene finished, not why the others did not. This section describes an additional analysis that assigns a cause to what did not finish. It is exploratory and post hoc: it was designed after the tranche-1 results were known and after the pilot episodes had run, and its rules were written down and frozen before any episode was coded #ev("6.60") #ev("6.61").
+
+=== Failure units <sec:ch5-fc-units>
+
+A *failure unit* is the thing that receives a cause. It is defined from ground truth alone, so that it exists in every arm. A unit is either a conflict episode of the scorer (@sec:ch5-measures) that is still open at the last ground-truth sample, or a *lone stall*: a robot that moved less than 0.05 m in the last 60 s of the episode while it was not waiting at a task node and was not part of a conflict unit. A robot that had finished its last task and was parked is not a failure unit and is listed separately. Each unit has an onset time, the start of the conflict or of the stall, and an episode can hold several units or none.
+
+=== Cause classes <sec:ch5-fc-classes>
+
+Each unit receives one *primary* cause and any number of *contributing* causes. Codes are assigned to events, such as an analysis, a dispatched or withheld command, or a command that ended in failure. There are four classes of cause, and a fifth code for evidence that is missing.
+
+- *Decision (V).* The model's answer was missing or unusable, missed the conflict, left out a robot that had to act, named a role that the robot had no room to perform while another robot had room, or contradicted its own plan. Example: a decision names as yielder a robot with no room behind it while its partner has room.
+- *Grounding and verification (G).* M3 or the plan verifier refused, replaced or altered a sound decision, or let an unsafe manoeuvre through. Example: a feasible yield is refused by a geometric check, or a retreat leg is dispatched through a declared rack.
+- *Execution (X).* A command was dispatched as intended and the robots did not carry it out: a manoeuvre failed or timed out, navigation made no progress, perception lost a robot, or the proximity latch left two robots pinned. Example: a backing manoeuvre ends against the face of a rack.
+- *Environment geometry (EG).* The scene left no way out: no robot of the unit has a straight move that clears its neighbours and no hypothetical decision would ground to motion, or an obstacle that the scene file does not declare is in contact with a robot of the unit. Example: a robot boxed in by walls and two neighbours.
+- *Undetermined (U).* The evidence needed to apply the rule is missing, and the code names what is missing. Raters do not guess.
+
+Two offline tests support these codes. The first substitutes every hypothetical decision of a fixed set through the pinned grounder, on the scene snapshot of each analysis, and asks whether any of them would have produced a motion for a robot of the unit. Before it is used at a snapshot, the recorded decision must re-ground to its recorded command; this fidelity check passed for [[TBD-R01: fidelity check passes as written, all Layer-2-on episodes, count]] of [[TBD-R02: recorded positive decisions re-grounded, count]] recorded positive decisions as written, and for [[TBD-R03: fidelity passes with stage-2 label and task intents added, count]] with the stored second-stage label and the task intents added #ev("6.62"). The second is purely geometric: whether any robot of the unit has a straight move in one of eight headings that reaches the required distance from every other robot without passing within 0.14 m of a box or a robot.
+
+=== Primary-cause rule <sec:ch5-fc-rule>
+
+The primary cause follows an ordered rule in which the first step that applies decides. A unit whose evidence is missing is undetermined; if a robot of the unit received a dispatched command in the 60 simulated seconds before the onset, or was executing one at the onset, the walk starts at that command, so that a state a command produced is coded by that command and not by geometry, and otherwise a geometry check at the onset applies. The unit's events are then read in time order and the first deviation decides, whether it is an analysis coded as a decision cause, a grounding outcome, or a command outcome coded as an execution cause. When one event carries several codes the most upstream class wins, except that an unsafe leg is coded before the execution failure of the same leg, and all other codes seen on the unit are contributing.
+
+=== Raters, blinding and agreement <sec:ch5-fc-raters>
+
+Two independent raters coded every unit. Each was a separate language-model agent, given the frozen rule, evidence sheets computed mechanically from the run bundles, and the bundles themselves. Neither saw the other's output, any report's stated cause, or the scorer's attribution labels. The evidence sheets hide the arm, the episode label, the seed, the outcome and the request identifiers. The arm cannot be hidden completely, because the content of a decision reveals it, so only the fields derived from ground truth were coded blind to arm, and each rater coded these before opening the events sheet. Agreement on the primary class is reported as raw agreement and Cohen's kappa, and agreement on the full code as raw agreement, for each stratum. Disagreements were resolved by re-reading the rule, with the resolution and its reason recorded, and a case that stayed open stays undetermined. Only after reconciliation were the opaque identifiers mapped back to episodes and arms.
+
+=== Strata, frozen outcomes and the Layer-2-off arm <sec:ch5-fc-strata>
+
+The analysis covers 33 episodes in three strata that are never pooled: the 10 episodes of registered prereg-v3 tranche 1 (five seed pairs, Arm A and Arm B), the 21 ER-2 pilot episodes that preceded it, and two November takes, one demonstration and one validation. Pilot episodes that the batch stop rule ended early are tabulated apart from those that ran to the horizon. The echo-mock pilots and the v4 shadow bundles are excluded. The registered episodes are never pooled with the exploratory runs, in any table.
+
+The outcome fields of every episode (tasks completed, completeness status, censor reason, end time, the conflict and detection measures and the ground-truth minimum pair distance) were copied from the scorer files and frozen before coding. No episode was rescored, no historical record was changed, and the original outcome of every episode stands as reported in Chapter 6.
+
+In the Layer-2-off arm no analysis is made and no command is dispatched, so the decision and grounding codes are not applicable by construction, which is different from being absent. Its units are coded with the environment, execution and undetermined codes only, each carries a context code that records the absence of a Layer 2 action by design, and whether a Layer 2 action was available is reported as a yes or no and never used to assign a decision or grounding code. The arms are therefore compared only on these codes and on the outcome fields.
+
+=== Interception analysis <sec:ch5-fc-intercept>
+
+Three mechanisms were written after the pinned runtime and were not in the runtime that produced the episodes (@sec:impl-later): an escort obstacle guard and a reverse obstacle guard in M3, which refuse a leg whose straight path, grown by the robot half-width plus a margin, crosses a declared obstacle, and a stall abort in M4, which ends a primitive that commands motion while odometry shows none. The interception analysis asks, offline and for each dispatched escort or reverse leg, which of them would have refused or aborted it. A leg is linked to a failure unit by the chain rule of the primary-cause rule. The physical outcome of a leg comes from ground-truth poses recomputed against the footprint geometry of the scene, because the contact fields of the October logs were empty. A refusal or abort is *justified* when the leg touched an obstacle or was pinned, or came within the 0.05 m margin of the guards, and a *false positive* when the leg ran to completion with clearance at or above the margin, or, for the stall abort, with free motion. Legs that never reached an obstacle are *untested*. A unit counts as intercepted when at least one linked leg would have been refused or aborted by at least one mechanism.
+
+Two sensitivity analyses were declared before rating, are labelled post-freeze, and are reported beside the primary coding and never in place of it #ev("6.61"). *S1* also links a command to a unit when the commanded robot is in the unit and, from the end of the command's motion to the onset, stayed continuously within 0.05 m of the same box or within 0.45 m centre distance of the same robot with no later command to it. *S2* recomputes the straight-move test with the rule that the obstacle guards use, under which a robot that starts inside the required clearance may move along or away from the obstacle but never deeper.
+```
+
+#### 11.2.2 Results (Chapter 6)
+
+Contents: Table 1 (primary and contributing causes by stratum, with S1 and S2 rows), Table 2 (rater agreement), the results template, Table 3 in three panels (interception per stratum) and the caveat list. The Layer-2-off arm appears in Table 1 only: it dispatched nothing, so no mechanism applies to it by construction. Cells that are not applicable by construction are literal text, not placeholders.
+
+```text
+== Failure Causes of the Five-Robot Episodes <sec:ch6-failure-cause>
+
+This section reports the classification of @sec:ch5-failure-cause. It is an exploratory, post hoc analysis of 33 episodes in three strata that are never pooled, and it explains outcomes that are reported in the previous sections without changing any of them. The original tranche-1 outcome, 0 of 10 episodes complete, stands as reported #ev("6.14").
+
+#figure(
+  placement: auto,
+  table(
+    columns: (1.7fr, 1fr, 1fr, 1fr, 1fr, 1fr),
+    align: (left, center, center, center, center, center),
+    stroke: 0.4pt + luma(160),
+    fill: (_, y) => if y == 0 { luma(235) },
+    table.header([*Primary cause*], [*Tranche 1, Arm A*], [*Tranche 1, Arm B*], [*Pilots, horizon*], [*Pilots, stop rule*], [*November takes*]),
+    table.cell(colspan: 6, fill: luma(245))[*Primary cause, failure units (episodes whose episode-level primary cause is this class)*],
+    [Decision (V)], [[[TBD-T1-V-A: units (eps)]]], [n/a by construction], [[[TBD-T1-V-H: units (eps)]]], [[[TBD-T1-V-S: units (eps)]]], [[[TBD-T1-V-N: units (eps)]]],
+    [Grounding and verification (G)], [[[TBD-T1-G-A: units (eps)]]], [n/a by construction], [[[TBD-T1-G-H: units (eps)]]], [[[TBD-T1-G-S: units (eps)]]], [[[TBD-T1-G-N: units (eps)]]],
+    [Execution (X)], [[[TBD-T1-X-A: units (eps)]]], [[[TBD-T1-X-B: units (eps)]]], [[[TBD-T1-X-H: units (eps)]]], [[[TBD-T1-X-S: units (eps)]]], [[[TBD-T1-X-N: units (eps)]]],
+    [Environment geometry (EG)], [[[TBD-T1-EG-A: units (eps)]]], [[[TBD-T1-EG-B: units (eps)]]], [[[TBD-T1-EG-H: units (eps)]]], [[[TBD-T1-EG-S: units (eps)]]], [[[TBD-T1-EG-N: units (eps)]]],
+    [Undetermined (U)], [[[TBD-T1-U-A: units (eps)]]], [[[TBD-T1-U-B: units (eps)]]], [[[TBD-T1-U-H: units (eps)]]], [[[TBD-T1-U-S: units (eps)]]], [[[TBD-T1-U-N: units (eps)]]],
+    [*All failure units*], [[[TBD-T1-TOT-A: units (eps with a unit)]]], [[[TBD-T1-TOT-B: units (eps with a unit)]]], [[[TBD-T1-TOT-H: units (eps with a unit)]]], [[[TBD-T1-TOT-S: units (eps with a unit)]]], [[[TBD-T1-TOT-N: units (eps with a unit)]]],
+    [Parked robots excluded, not units], [[[TBD-T1-PARK-A: robots]]], [[[TBD-T1-PARK-B: robots]]], [[[TBD-T1-PARK-H: robots]]], [[[TBD-T1-PARK-S: robots]]], [[[TBD-T1-PARK-N: robots]]],
+    table.cell(colspan: 6, fill: luma(245))[*Contributing causes, failure units carrying the code (never summed with the primary counts)*],
+    [Decision (V)], [[[TBD-T1-cV-A: units]]], [n/a by construction], [[[TBD-T1-cV-H: units]]], [[[TBD-T1-cV-S: units]]], [[[TBD-T1-cV-N: units]]],
+    [Grounding and verification (G)], [[[TBD-T1-cG-A: units]]], [n/a by construction], [[[TBD-T1-cG-H: units]]], [[[TBD-T1-cG-S: units]]], [[[TBD-T1-cG-N: units]]],
+    [Execution (X)], [[[TBD-T1-cX-A: units]]], [[[TBD-T1-cX-B: units]]], [[[TBD-T1-cX-H: units]]], [[[TBD-T1-cX-S: units]]], [[[TBD-T1-cX-N: units]]],
+    [Environment geometry (EG)], [[[TBD-T1-cEG-A: units]]], [[[TBD-T1-cEG-B: units]]], [[[TBD-T1-cEG-H: units]]], [[[TBD-T1-cEG-S: units]]], [[[TBD-T1-cEG-N: units]]],
+    table.cell(colspan: 6, fill: luma(245))[*Sensitivity analyses, failure units whose primary cause changes (reported beside the primary coding)*],
+    [S1, persistent-state chain rule], [[[TBD-T1-S1-A: units]]], [n/a, nothing dispatched], [[[TBD-T1-S1-H: units]]], [[[TBD-T1-S1-S: units]]], [[[TBD-T1-S1-N: units]]],
+    [S2, start-inside straight-move check], [[[TBD-T1-S2-A: units]]], [[[TBD-T1-S2-B: units]]], [[[TBD-T1-S2-H: units]]], [[[TBD-T1-S2-S: units]]], [[[TBD-T1-S2-N: units]]],
+  ),
+  caption: flex-caption([Primary and contributing causes of failure units, by stratum.], [Primary and contributing causes of the failure units of the five-robot S1b episodes, by stratum. The strata are never pooled. Pilot episodes that the batch stop rule ended early are shown apart from those that ran to the horizon. In the Layer-2-off arm the decision and grounding classes are not applicable by construction, and every unit carries the context code N0. Exploratory, post hoc classification by two raters (@sec:ch5-failure-cause).#fig-source("6.63")]),
+) <tab:ch6-fc-primary>
+
+#figure(
+  placement: auto,
+  table(
+    columns: (1.6fr, 0.8fr, 1fr, 0.9fr, 1fr, 1fr, 1fr),
+    align: (left, center, center, center, center, center, center),
+    stroke: 0.4pt + luma(160),
+    fill: (_, y) => if y == 0 { luma(235) },
+    table.header([*Stratum*], [*Units rated*], [*Raw agreement, primary class*], [*Cohen's kappa, primary class*], [*Raw agreement, full code*], [*Disagreements*], [*Still undetermined after reconciliation*]),
+    [Tranche 1 Arm A], [[[TBD-T2-A-U: units rated]]], [[[TBD-T2-A-RC: raw agreement]]], [[[TBD-T2-A-K: kappa]]], [[[TBD-T2-A-RF: raw agreement]]], [[[TBD-T2-A-D: disagreements]]], [[[TBD-T2-A-DU: units]]],
+    [Tranche 1 Arm B], [[[TBD-T2-B-U: units rated]]], [[[TBD-T2-B-RC: raw agreement]]], [[[TBD-T2-B-K: kappa]]], [[[TBD-T2-B-RF: raw agreement]]], [[[TBD-T2-B-D: disagreements]]], [[[TBD-T2-B-DU: units]]],
+    [Pilots, horizon], [[[TBD-T2-H-U: units rated]]], [[[TBD-T2-H-RC: raw agreement]]], [[[TBD-T2-H-K: kappa]]], [[[TBD-T2-H-RF: raw agreement]]], [[[TBD-T2-H-D: disagreements]]], [[[TBD-T2-H-DU: units]]],
+    [Pilots, stop rule], [[[TBD-T2-S-U: units rated]]], [[[TBD-T2-S-RC: raw agreement]]], [[[TBD-T2-S-K: kappa]]], [[[TBD-T2-S-RF: raw agreement]]], [[[TBD-T2-S-D: disagreements]]], [[[TBD-T2-S-DU: units]]],
+    [November takes], [[[TBD-T2-N-U: units rated]]], [[[TBD-T2-N-RC: raw agreement]]], [[[TBD-T2-N-K: kappa]]], [[[TBD-T2-N-RF: raw agreement]]], [[[TBD-T2-N-D: disagreements]]], [[[TBD-T2-N-DU: units]]],
+    [All strata (agreement statistic only; no outcome is pooled)], [[[TBD-T2-ALL-U: units rated]]], [[[TBD-T2-ALL-RC: raw agreement]]], [[[TBD-T2-ALL-K: kappa]]], [[[TBD-T2-ALL-RF: raw agreement]]], [[[TBD-T2-ALL-D: disagreements]]], [[[TBD-T2-ALL-DU: units]]],
+  ),
+  caption: flex-caption([Agreement between the two raters, by stratum.], [Agreement between the two independent raters before reconciliation, by stratum. Kappa is reported as n/a where it is undefined, for example where every unit of a stratum falls in one class. Disagreements are listed one by one with both codes and the reconciled code in the reconciliation report.#fig-source("6.63")]),
+) <tab:ch6-fc-agree>
+
+The ten registered tranche-1 episodes held [[TBD-R04: failure units, tranche 1 Arm A]] failure units in Arm A and [[TBD-R05: failure units, tranche 1 Arm B]] in Arm B; the 21 pilot episodes held [[TBD-R06: failure units, ER-2 pilots]] and the two November takes [[TBD-R07: failure units, November takes]] (@tab:ch6-fc-primary). [[TBD-R08: one sentence per stratum naming the class or classes with most primary units, or stating that none stands out, reconciliation table 1]] Contributing causes are counted apart and are not added to the primary counts. The two raters agreed on the primary class for [[TBD-R09: units on which raters agreed on primary class, all strata]] of [[TBD-R10: units rated, all strata]] units, with a kappa of [[TBD-R11: Cohen kappa on primary class, all strata, or n/a]], and the [[TBD-R12: disagreements before reconciliation, count]] disagreements were reconciled as listed in the reconciliation report (@tab:ch6-fc-agree) #ev("6.63"). Sensitivity analysis S1 changed the primary cause of [[TBD-R13: units whose primary cause changes under S1, Layer-2-on strata, sum of the three stratum rows]] units, and S2 of [[TBD-R14: units whose primary cause changes under S2, all strata]] units.
+
+In the Layer-2-on strata, [[TBD-R15: units with a linked leg intercepted by at least one mechanism, primary chain rule, Layer-2-on strata]] of [[TBD-R16: failure units in the Layer-2-on strata]] failure units have a linked dispatched leg that at least one of the three mechanisms would have refused or aborted under the primary chain rule, and [[TBD-R17: same count under S1]] under S1 (@tab:ch6-fc-intercept-a, @tab:ch6-fc-intercept-p and @tab:ch6-fc-intercept-n). Of the [[TBD-R18: legs that at least one mechanism would refuse or abort]] legs that the mechanisms would have refused or aborted, [[TBD-R19: of those, legs in contact or pinned (justified)]] were in contact or pinned and [[TBD-R20: of those, false positives]] were false positives, with [[TBD-R21: of those, untested legs]] untested. For [[TBD-R22: units to which none of the mechanisms applies, Layer-2-on strata]] units none of the mechanisms applies, because no dispatched leg is linked to them or because no linked leg would have been intercepted.
+
+
+#figure(
+  placement: auto,
+  table(
+    columns: (2fr, 1fr, 1fr, 1fr, 1fr, 1fr, 1fr),
+    align: (left, center, center, center, center, center, center),
+    stroke: 0.4pt + luma(160),
+    fill: (_, y) => if y == 0 { luma(235) },
+    table.header([*Mechanism*], [*Legs it would have refused or aborted*], [*of which in contact or pinned (justified)*], [*of which false positives*], [*of which never reached an obstacle (untested)*], [*Units with such a linked leg, primary chain rule*], [*Units with such a linked leg, S1*]),
+    [Dispatched escort and reverse legs in the stratum], [[[TBD-T3A-DEN-L: legs]]], [n/a], [n/a], [n/a], [n/a], [n/a],
+    [Escort obstacle guard (refuses)], [[[TBD-T3A-ESC-L: legs]]], [[[TBD-T3A-ESC-J: legs]]], [[[TBD-T3A-ESC-F: legs]]], [[[TBD-T3A-ESC-UT: legs]]], [[[TBD-T3A-ESC-P: units]]], [[[TBD-T3A-ESC-S: units]]],
+    [Reverse obstacle guard (refuses)], [[[TBD-T3A-REV-L: legs]]], [[[TBD-T3A-REV-J: legs]]], [[[TBD-T3A-REV-F: legs]]], [[[TBD-T3A-REV-UT: legs]]], [[[TBD-T3A-REV-P: units]]], [[[TBD-T3A-REV-S: units]]],
+    [Stall abort (aborts)], [[[TBD-T3A-STL-L: legs]]], [[[TBD-T3A-STL-J: legs]]], [[[TBD-T3A-STL-F: legs]]], [[[TBD-T3A-STL-UT: legs]]], [[[TBD-T3A-STL-P: units]]], [[[TBD-T3A-STL-S: units]]],
+    [Any of the three], [[[TBD-T3A-ANY-L: legs]]], [[[TBD-T3A-ANY-J: legs]]], [[[TBD-T3A-ANY-F: legs]]], [[[TBD-T3A-ANY-UT: legs]]], [[[TBD-T3A-ANY-P: units]]], [[[TBD-T3A-ANY-S: units]]],
+    [*None of these mechanisms applies*], [n/a], [n/a], [n/a], [n/a], [[[TBD-T3A-NONE-P: units]]], [[[TBD-T3A-NONE-S: units]]],
+    [#h(1em)of which no dispatched leg is linked to the unit], [n/a], [n/a], [n/a], [n/a], [[[TBD-T3A-NOL-P: units]]], [[[TBD-T3A-NOL-S: units]]],
+    [#h(1em)of which a linked leg exists but none would be intercepted], [n/a], [n/a], [n/a], [n/a], [[[TBD-T3A-LNI-P: units]]], [[[TBD-T3A-LNI-S: units]]],
+    [*All failure units in the stratum*], [n/a], [n/a], [n/a], [n/a], [[[TBD-T3A-TOT-P: units]]], [[[TBD-T3A-TOT-S: units]]],
+  ),
+  caption: flex-caption([Interception analysis, tranche 1, Arm A.], [Interception analysis, tranche 1, Arm A: what three mechanisms written after the pinned runtime would have refused or aborted among the legs the episodes dispatched, and how many failure units have such a leg linked to them, under the primary chain rule and under sensitivity analysis S1. The rows for the mechanisms overlap, so the row for any of the three is not their sum. The counts say what would have been refused or aborted, not that the scene would then have resolved. The Layer-2-off arm dispatched no command, so no mechanism applies to it by construction; its units are in the first table of this section.#fig-source("6.63")]),
+) <tab:ch6-fc-intercept-a>
+
+#figure(
+  placement: auto,
+  table(
+    columns: (2fr, 1fr, 1fr, 1fr, 1fr, 1fr, 1fr),
+    align: (left, center, center, center, center, center, center),
+    stroke: 0.4pt + luma(160),
+    fill: (_, y) => if y == 0 { luma(235) },
+    table.header([*Mechanism*], [*Legs it would have refused or aborted*], [*of which in contact or pinned (justified)*], [*of which false positives*], [*of which never reached an obstacle (untested)*], [*Units with such a linked leg, primary chain rule*], [*Units with such a linked leg, S1*]),
+    [Dispatched escort and reverse legs in the stratum], [[[TBD-T3P-DEN-L: legs]]], [n/a], [n/a], [n/a], [n/a], [n/a],
+    [Escort obstacle guard (refuses)], [[[TBD-T3P-ESC-L: legs]]], [[[TBD-T3P-ESC-J: legs]]], [[[TBD-T3P-ESC-F: legs]]], [[[TBD-T3P-ESC-UT: legs]]], [[[TBD-T3P-ESC-P: units]]], [[[TBD-T3P-ESC-S: units]]],
+    [Reverse obstacle guard (refuses)], [[[TBD-T3P-REV-L: legs]]], [[[TBD-T3P-REV-J: legs]]], [[[TBD-T3P-REV-F: legs]]], [[[TBD-T3P-REV-UT: legs]]], [[[TBD-T3P-REV-P: units]]], [[[TBD-T3P-REV-S: units]]],
+    [Stall abort (aborts)], [[[TBD-T3P-STL-L: legs]]], [[[TBD-T3P-STL-J: legs]]], [[[TBD-T3P-STL-F: legs]]], [[[TBD-T3P-STL-UT: legs]]], [[[TBD-T3P-STL-P: units]]], [[[TBD-T3P-STL-S: units]]],
+    [Any of the three], [[[TBD-T3P-ANY-L: legs]]], [[[TBD-T3P-ANY-J: legs]]], [[[TBD-T3P-ANY-F: legs]]], [[[TBD-T3P-ANY-UT: legs]]], [[[TBD-T3P-ANY-P: units]]], [[[TBD-T3P-ANY-S: units]]],
+    [*None of these mechanisms applies*], [n/a], [n/a], [n/a], [n/a], [[[TBD-T3P-NONE-P: units]]], [[[TBD-T3P-NONE-S: units]]],
+    [#h(1em)of which no dispatched leg is linked to the unit], [n/a], [n/a], [n/a], [n/a], [[[TBD-T3P-NOL-P: units]]], [[[TBD-T3P-NOL-S: units]]],
+    [#h(1em)of which a linked leg exists but none would be intercepted], [n/a], [n/a], [n/a], [n/a], [[[TBD-T3P-LNI-P: units]]], [[[TBD-T3P-LNI-S: units]]],
+    [*All failure units in the stratum*], [n/a], [n/a], [n/a], [n/a], [[[TBD-T3P-TOT-P: units]]], [[[TBD-T3P-TOT-S: units]]],
+  ),
+  caption: flex-caption([Interception analysis, ER-2 pilots.], [Interception analysis, ER-2 pilots: what three mechanisms written after the pinned runtime would have refused or aborted among the legs the episodes dispatched, and how many failure units have such a leg linked to them, under the primary chain rule and under sensitivity analysis S1. The rows for the mechanisms overlap, so the row for any of the three is not their sum. The counts say what would have been refused or aborted, not that the scene would then have resolved.#fig-source("6.63")]),
+) <tab:ch6-fc-intercept-p>
+
+#figure(
+  placement: auto,
+  table(
+    columns: (2fr, 1fr, 1fr, 1fr, 1fr, 1fr, 1fr),
+    align: (left, center, center, center, center, center, center),
+    stroke: 0.4pt + luma(160),
+    fill: (_, y) => if y == 0 { luma(235) },
+    table.header([*Mechanism*], [*Legs it would have refused or aborted*], [*of which in contact or pinned (justified)*], [*of which false positives*], [*of which never reached an obstacle (untested)*], [*Units with such a linked leg, primary chain rule*], [*Units with such a linked leg, S1*]),
+    [Dispatched escort and reverse legs in the stratum], [[[TBD-T3N-DEN-L: legs]]], [n/a], [n/a], [n/a], [n/a], [n/a],
+    [Escort obstacle guard (refuses)], [[[TBD-T3N-ESC-L: legs]]], [[[TBD-T3N-ESC-J: legs]]], [[[TBD-T3N-ESC-F: legs]]], [[[TBD-T3N-ESC-UT: legs]]], [[[TBD-T3N-ESC-P: units]]], [[[TBD-T3N-ESC-S: units]]],
+    [Reverse obstacle guard (refuses)], [[[TBD-T3N-REV-L: legs]]], [[[TBD-T3N-REV-J: legs]]], [[[TBD-T3N-REV-F: legs]]], [[[TBD-T3N-REV-UT: legs]]], [[[TBD-T3N-REV-P: units]]], [[[TBD-T3N-REV-S: units]]],
+    [Stall abort (aborts)], [[[TBD-T3N-STL-L: legs]]], [[[TBD-T3N-STL-J: legs]]], [[[TBD-T3N-STL-F: legs]]], [[[TBD-T3N-STL-UT: legs]]], [[[TBD-T3N-STL-P: units]]], [[[TBD-T3N-STL-S: units]]],
+    [Any of the three], [[[TBD-T3N-ANY-L: legs]]], [[[TBD-T3N-ANY-J: legs]]], [[[TBD-T3N-ANY-F: legs]]], [[[TBD-T3N-ANY-UT: legs]]], [[[TBD-T3N-ANY-P: units]]], [[[TBD-T3N-ANY-S: units]]],
+    [*None of these mechanisms applies*], [n/a], [n/a], [n/a], [n/a], [[[TBD-T3N-NONE-P: units]]], [[[TBD-T3N-NONE-S: units]]],
+    [#h(1em)of which no dispatched leg is linked to the unit], [n/a], [n/a], [n/a], [n/a], [[[TBD-T3N-NOL-P: units]]], [[[TBD-T3N-NOL-S: units]]],
+    [#h(1em)of which a linked leg exists but none would be intercepted], [n/a], [n/a], [n/a], [n/a], [[[TBD-T3N-LNI-P: units]]], [[[TBD-T3N-LNI-S: units]]],
+    [*All failure units in the stratum*], [n/a], [n/a], [n/a], [n/a], [[[TBD-T3N-TOT-P: units]]], [[[TBD-T3N-TOT-S: units]]],
+  ),
+  caption: flex-caption([Interception analysis, November takes.], [Interception analysis, November takes: what three mechanisms written after the pinned runtime would have refused or aborted among the legs the episodes dispatched, and how many failure units have such a leg linked to them, under the primary chain rule and under sensitivity analysis S1. The rows for the mechanisms overlap, so the row for any of the three is not their sum. The counts say what would have been refused or aborted, not that the scene would then have resolved.#fig-source("6.63")]),
+) <tab:ch6-fc-intercept-n>
+
+=== How to read these tables <sec:ch6-fc-caveats>
+
+- *What interception means.* The counts say what would have been refused or aborted. They do not say that the scene would then have resolved: a refused reverse is replaced by a short wait for the robots involved, which changes every later state, and whether the scene then resolves can only be shown by new live runs.
+- *Validation state of the mechanisms.* The escort obstacle guard was run live in one validation take in which no escort was grounded, so it never fired live; its blocking behaviour rests on unit tests and an offline replay of recorded decisions. The reverse obstacle guard rests on unit tests and an offline replay of recorded reverse commands, with false positives at square box corners and at declared walls that span open arms, and it has not been run live. The stall abort rests on unit and node tests and an offline replay of recorded primitives whose command streams were reconstructed, because the commands were not recorded, and it has not been run live. The ground-truth contact logger ran in one live take and reproduced its offline recompute row by row, but no contact occurred in that take, so the logging of a robot pressed against a box has been shown only offline. The plan-dispatch visibility logging has been tested offline only #ev("6.13") #ev("6.18") #ev("6.12") #ev("6.17") #ev("6.64").
+- *Geometry cannot fire at onset.* The rule assigns the environment-geometry code and the code for a missing strategy only at the onset, and only when the set of hypothetical decisions that ground to motion is empty. In these data that set is never empty at an onset, because a hypothetical one-robot reverse is refused only when both robots stand on the same side, so almost every snapshot admits some motion. Under the rule as written the environment-geometry class can therefore not be the primary cause of a unit here, and a small count in that class does not show that geometry played no part.
+- *The 60-second link window.* A command is linked to a unit only when it was dispatched in the 60 simulated seconds before the onset or was executing at the onset. A robot that stayed pinned for longer than that before the onset is not linked to the command that pinned it. The sensitivity analysis S1 relaxes this and is reported beside the primary counts, never in place of them.
+- *Prior knowledge of the authors.* The authors of the rule and of the application notes had read earlier diagnoses of some of the episodes before writing them, so the rule is not blind to those episodes. The raters were not shown those diagnoses #ev("6.60") #ev("6.61").
+- *Reconstructed replays.* The guard replays re-ground recorded decisions on a later tree and do not ask the second stage again, and the stall-abort replay regenerates the command stream with the primitive's own logic on recorded poses. Neither is a recording of what a live run would have done.
+- *Contact evidence.* The ground-truth contact fields were empty in the October runs, so every contact in them is an offline geometric recomputation of the planar footprint at 10 Hz, not a logged event #ev("6.12").
+- *Size and status.* The strata hold 10, 21 and 2 episodes, so the counts are small. The analysis is exploratory and not confirmatory, no test is registered for it, and the registered tranche-1 episodes are never pooled with the exploratory runs.
+- *Original outcome.* The registered pilot's original outcome, 0 of 10 episodes complete, stands as reported.
+```
+
+The results template is the two paragraphs between Table 2 and Table 3. Each sentence reads true for any numbers: no sentence says which class dominates, and the sentence for that (`TBD-R08`) is itself a placeholder that may state "none stands out".
+
+#### 11.2.3 Limitations (Chapter 7), including plan versus dispatch
+
+```text
+=== Failure-cause classification <sec:ch7-failure-cause>
+
+The classification of Chapter 6 rests on a rule that its authors wrote after reading earlier diagnoses of some of the episodes, applied by two language-model raters to 33 episodes in three strata that are never pooled. It is exploratory and post hoc, its counts are small, and the interception analysis is offline: it shows what three mechanisms would have refused or aborted, not that any scene would then have resolved. The mechanisms themselves are default-off additions that have been validated offline, and at most armed once live (@sec:ch6-fc-caveats).
+
+*Plan versus dispatch.* One finding about the recorded runs limits what their provenance labels can show. The strategies `reverse` and `reroute` are grounded from the list of involved robots alone; the model's proposed plan is not consulted for them, so a plan that says one robot should continue can be recorded as accepted verbatim while the dispatch reverses that robot. The label and the agreement measure derived from it therefore over-count agreement between plan and dispatch, and the label does not show which executed commands came from the model #ev("6.60"). A rescan of the recorded plan-carrying decisions with the corrected definition finds the dispatch contradicting the plan in [[TBD-R23: decisions where corrected dispatch contradicts the plan]] of [[TBD-R24: plan-carrying decisions in scope of the recompute]] decisions, against [[TBD-R25: same count under the recorded provenance label]] under the recorded label, and in [[TBD-R26: reverse and reroute commands contradicting their plan]] of [[TBD-R27: reverse and reroute commands with a plan in scope]] reverse and reroute commands #ev("6.64"). A visibility fix was built on a separate branch behind the key `plan_dispatch_mismatch_visibility`, off by default. It records the mismatch in a companion field of the decision artifact and in the degradation tags, leaves the recorded provenance label unchanged, and changes neither the prompt nor the grounding; it has unit tests and an offline recomputation and has not been run live. The recorded artifacts were not rewritten, and the corrected counts come from a separate recomputation.
+```
+
+#### 11.2.4 Future work (Chapter 8)
+
+```text
+A live comparison after the fixes is the natural next step. It would run the Layer-2-on arm and the Layer-2-off arm on the tranche-1 seed positions, and, if a scripted default-plan arm is added, every M3 and M4 mechanism would have to be keyed identically in all arms that dispatch commands; the Layer-2-off arm dispatches none, so it is unaffected by construction. The three mechanisms would first need a live validation of their own, such as a deterministic safety test with an authored box behind a robot, because none of them has fired live. Such a run would be exploratory, carry its own tag, and never be pooled with the registered tranche.
+
+Further work on the mechanisms follows from the offline results. A reverse could be shortened to its clear length instead of refused, which would keep the manoeuvre but may not open the standoff. The same obstacle check could be extended to other straight manoeuvres that have none: the recede and release legs of the intersection strategy, the backup and pull-off legs of a yield in declared geometry, and legacy-mode yields. For the convoy grounding mode, a check that the robot designated to yield has room to do so, analogous to the yield feasibility gate of Chapter 3, would address a gap that the demonstration campaign exposed.
+```
+
+The sentence on a yielder check for the convoy grounding mode is the one future-work item for which no source read for this task describes the gap; see 11.6.
+
+#### 11.2.5 Threat sentence (Chapter 5, Internal validity)
+
+```text
+Chapter 5, Internal validity (after line 299, "Seeds were not unseen"):
+
+*Classification was designed after the results.* The failure-cause rule of @sec:ch5-failure-cause was written after the tranche-1 results and after earlier diagnoses of some episodes had been read by its authors. It is exploratory, and the raters did not see those diagnoses.
+```
+
+### 11.3 Fill-In Checklist
+
+**Method.** Substitute each `[[TBD-ID: ...]]` string (brackets included) by the value; in table cells keep the cell's own brackets, so `[[[TBD-T1-V-A: units (eps)]]]` becomes `[3 (2)]`. A cell reads `units (episodes)`: failure units with that primary cause, and in brackets the episodes whose episode-level primary cause is that class. Kappa may be `n/a`. After substitution `grep -c "TBD-" <file>` must be 0 in `05`, `06`, `07` and `08`, If a table row is empty in a stratum write 0, not a dash.
+
+**Reconciliation outputs expected** (named generically; the reconciliation report does not exist yet, and these names are what the protocol promises):
+
+- `RR1`: the reconciliation report's table of primary causes by stratum, units and episodes, after opaque ids are mapped back with the key.
+- `RR1c`: its table of contributing causes by stratum.
+- `RR1s`: its sensitivity table, units whose primary cause changes under S1 and under S2.
+- `RR2`: its table of rater agreement by stratum and overall, with the list of disagreements.
+- `RR3`: its interception table under the primary chain rule, built from the interception legs input after reconciliation, with the stall-abort column recomputed from the committed detector (`SA`, commit `1016e0b` or later).
+- `RR3s`: the same under sensitivity S1.
+- `ET`: the evidence-tool methods note (`FT`), table "Decision-substitution fidelity". Its numbers are re-read from the committed tool outputs, not from this note.
+- `PVR`: `PV` section 6, the offline recomputation of the plan-dispatch mismatch.
+
+**Placeholder groups.** Typst drafts: 222 placeholders (60 in Table 1, 36 in Table 2, 99 in Table 3, 27 in prose). Rewording templates: 2 (`W01`, `W02`). Evidence rows: 1 (`E01`). Total 225.
+
+| IDs (pattern) | Count | Value | Source after reconciliation |
+|---|---|---|---|
+| `TBD-T1-{V,G,X,EG,U}-{A,B,H,S,N}` except `T1-V-B` and `T1-G-B` (literal "n/a by construction") | 23 | failure units whose primary cause is the row class, and in brackets the episodes whose episode-level primary is that class; columns A = tranche 1 Arm A, B = tranche 1 Arm B, H = pilots that ran to the horizon, S = pilots ended by the stop rule, N = November takes | `RR1`, row = class, column = stratum; strata from the key's stratum field; the episode-level primary is the earliest unit's primary (rubric 7.5) |
+| `TBD-T1-TOT-{A,B,H,S,N}` | 5 | all failure units, and in brackets episodes holding at least one unit | `RR1`, total row |
+| `TBD-T1-PARK-{A,B,H,S,N}` | 5 | robots that were parked after their last task and are not units | `RR1` list of excluded parked robots (flagged on the ground-truth sheets, listed by the raters) |
+| `TBD-T1-c{V,G,X,EG}-{A,B,H,S,N}` except `cV-B` and `cG-B` | 18 | units carrying the code as a contributing cause | `RR1c`; never added to the primary counts |
+| `TBD-T1-S1-{A,H,S,N}` | 4 | units whose primary cause changes under S1 (persistent-state chain rule); Arm B is literal "n/a, nothing dispatched" | `RR1s`, S1 columns; computed mechanically after both raters finished (`FP`, Pre-declared Sensitivity Analyses) |
+| `TBD-T1-S2-{A,B,H,S,N}` | 5 | units whose primary cause changes under S2 (start-inside straight-move check) | `RR1s`, S2 columns |
+| `TBD-T2-{A,B,H,S,N,ALL}-U` | 6 | units rated | `RR2`, units column |
+| `TBD-T2-{...}-RC` | 6 | raw agreement on the primary class (as a fraction or percentage, one form throughout) | `RR2` |
+| `TBD-T2-{...}-K` | 6 | Cohen's kappa on the primary class, or `n/a` where undefined | `RR2` |
+| `TBD-T2-{...}-RF` | 6 | raw agreement on the full code | `RR2` |
+| `TBD-T2-{...}-D` | 6 | disagreements before reconciliation | `RR2`, count of the listed disagreements |
+| `TBD-T2-{...}-DU` | 6 | units still undetermined after reconciliation | `RR2`, disagreements left `U` |
+| `TBD-T3{A,P,N}-DEN-L` | 3 | dispatched escort and reverse legs in the stratum (A = tranche 1 Arm A, P = ER-2 pilots, N = November takes) | `RR3`, leg denominator row; leg set as defined in the interception input |
+| `TBD-T3{A,P,N}-{ESC,REV,STL,ANY}-L` | 12 | legs the mechanism would have refused (`ESC`, `REV`) or aborted (`STL`); `ANY` = legs intercepted by at least one | `RR3`; `STL` from the committed detector |
+| `TBD-T3{...}-{ESC,REV,STL,ANY}-J` | 12 | of those, legs that touched or were pinned or came within 0.05 m (justified) | `RR3`, physical-outcome column |
+| `TBD-T3{...}-{ESC,REV,STL,ANY}-F` | 12 | false positives | `RR3` |
+| `TBD-T3{...}-{ESC,REV,STL,ANY}-UT` | 12 | untested legs (never reached an obstacle) | `RR3` |
+| `TBD-T3{...}-{ESC,REV,STL,ANY}-P` | 12 | failure units with a linked leg the mechanism would have intercepted, primary chain rule | `RR3` |
+| `TBD-T3{...}-{ESC,REV,STL,ANY}-S` | 12 | same under S1 | `RR3s` |
+| `TBD-T3{...}-NONE-{P,S}` | 6 | units to which none of the mechanisms applies (sum of the next two rows) | `RR3`, `RR3s` |
+| `TBD-T3{...}-NOL-{P,S}` | 6 | units with no linked dispatched leg | `RR3`, `RR3s` |
+| `TBD-T3{...}-LNI-{P,S}` | 6 | units with a linked leg that no mechanism would have intercepted | `RR3`, `RR3s` |
+| `TBD-T3{...}-TOT-{P,S}` | 6 | all failure units in the stratum | `RR1` total (must equal the unit count in Table 1) |
+
+Consistency checks for a later pass: `NONE = NOL + LNI`; `ANY + NONE = TOT`; `TOT` of each panel equals the Table 1 total for that stratum (pilots: sum of columns H and S); `ANY` is at most the sum of the three mechanism rows and at least the largest.
+
+| ID | Value | Source after reconciliation |
+|---|---|---|
+| `TBD-R01` | recorded positive decisions that re-ground to their recorded command, as written | `ET`, row "all Layer-2-on strata", column "as written" (count) |
+| `TBD-R02` | recorded positive decisions re-grounded | `ET`, denominator |
+| `TBD-R03` | same count with the stored stage-2 label and task intents added | `ET`, last column |
+| `TBD-R04`, `R05`, `R06`, `R07` | failure units: tranche 1 Arm A, Arm B, pilots, November takes | `RR1` total row (R06: sum of the two pilot columns) |
+| `TBD-R08` | one sentence per stratum naming the class or classes with the most primary units, or "none stands out" | `RR1`; wording must not claim dominance without a margin |
+| `TBD-R09`, `R10`, `R11` | units on which raters agreed on the primary class, all strata; units rated; kappa or `n/a` | `RR2`, all-strata row |
+| `TBD-R12` | disagreements before reconciliation | `RR2`, all-strata row |
+| `TBD-R13` | units whose primary changes under S1, Layer-2-on strata (sum of three cells) | `RR1s` |
+| `TBD-R14` | same under S2, all strata | `RR1s` |
+| `TBD-R15`, `R16`, `R17` | units with a linked leg intercepted by any mechanism (primary rule); failure units in the Layer-2-on strata; the same count under S1 | `RR3` and `RR3s`, `ANY` rows summed over panels A, P and N; R16 is the sum of the three `TOT` cells. Summing across panels is a convenience; give the three stratum values beside it if the strata are not to be pooled |
+| `TBD-R18`, `R19`, `R20`, `R21` | legs any mechanism would intercept; justified; false positives; untested | `RR3`, `ANY` rows, columns L, J, F, UT, per panel (the same note on summing applies) |
+| `TBD-R22` | units to which none of the mechanisms applies | `RR3`, `NONE` rows |
+| `TBD-R23`, `R24`, `R25` | decisions where the corrected dispatch contradicts the plan; plan-carrying decisions in scope; the same count under the recorded label | `PVR` |
+| `TBD-R26`, `R27` | reverse and reroute commands contradicting their plan; those with a plan in scope | `PVR` |
+| `TBD-W01`, `W02` | failure units, tranche 1 Arm A and Arm B | `RR1` total row |
+| `TBD-E01` | commit and path of the reconciliation report | the commit that adds it |
+
+Notes for `R23` to `R27`: `PV` section 6 reports counts per bundle group (campaign, October series). They must not be pooled across the strata; quote them per group or say explicitly that the scan is a decision-level count over all recorded decisions and not a stratum comparison.
+
+### 11.4 Evidence Index Rows to Add
+
+Add to `thesis/evidence/ch6.typ` (after the 6.30 series, or at 6.60 to 6.64 as used above; renumber by search and replace if the owner prefers). Existing rows reused without change: 6.12 (`GC`), 6.13 (escort guard report), 6.14 (tranche 1), 6.17 (validation take), 6.18 (stall abort). Row 6.13's claim names only the escort guard; add the sentence "Rev 2 section 8 extends the same check to reverse legs behind `reverse_obstacle_guard` (default off), validated by unit tests and an offline replay of recorded reverse commands, not run live." so that the reverse-guard statements in 11.2.2 are covered.
+
+```text
+#evidence("6.60", [Failure-cause rubric (frozen at revision 2): failure units, cause codes V, G, X, EG, N0 and U, the ordered primary-cause rule, counterfactual tests, rater procedure; Part A: the plan is not consulted for reverse and reroute, so a dispatch can contradict a plan that is recorded as accepted verbatim.], [`b70d925:docs/reports/2026-11-15-failure-cause-rubric-and-robot5.md` (branch `analysis/failure-cause-classification`; Part A sections 1-4; Part B sections 5-8)])
+
+#evidence("6.61", [Failure-cause rating protocol written before rating: scope of 33 episodes in three strata never pooled, consequences of applying the rubric as written, sensitivity analyses S1 and S2, reconciliation, interception table definition, disclosed limits.], [`b7a3d25:docs/reports/2026-11-15-failure-cause-rating-protocol.md` (branch `analysis/failure-cause-classification`)])
+
+#evidence("6.62", [Failure-cause evidence tool: what is computed mechanically (failure units, event timelines, decision substitution with its fidelity check, geometric clearing test, leg execution check), rubric clauses not applied as written, stall-abort column provisional.], [`600708c:docs/reports/2026-11-15-failure-cause-evidence-tool.md` (branch `analysis/failure-cause-classification`; What the Tool Computes; Rubric Clauses Not Applied Mechanically as Written; Limits)])
+
+#evidence("6.63", [Failure-cause reconciliation: cause counts by stratum, rater agreement, interception table under the primary chain rule and under S1.], [[[TBD-E01: commit and path of the reconciliation report]]])
+
+#evidence("6.64", [Plan-dispatch mismatch visibility, behind plan_dispatch_mismatch_visibility (default off, logging and provenance only): definition of a dispatch that differs from the plan, provenance decision, unit tests, offline recomputation over recorded decisions; no live run.], [`93655fc:docs/reports/2026-11-15-plan-dispatch-mismatch-visibility.md` (branch `fix/plan-dispatch-mismatch-visibility`; sections 1, 2, 6)])
+```
+
+The `#ev("6.63")` and `#fig-source("6.63")` calls compile only when row 6.63 exists, so add it as a stub with the `TBD-E01` source at once; the Typst drafts then compile, and the visible `TBD` strings are the work list.
+
+### 11.5 Older Notes in This File That This Section Supersedes (Left As Written)
+
+- Section 6, first bullet ("Validation take for the escort guard and contact logging ... no committed result"): the take has run and is reported (`VT`, `a412949`). Escort guard: armed, harmless, never fired (no escort grounded). Contact logging: fields present on every row and reproduced exactly offline, no live contact, so partially validated.
+- Rows 16, 28, 32 and 36 of section 2 and the limitations bullets of section 5 that say "built, not run live" or "not validated in Isaac Sim": for the escort guard and contact logging read the line above. The reverse guard (`EG` section 8, `92158d3`) and the stall abort (`SA`, `1016e0b`, default off, unit and node tests plus replay, no live run) are not in sections 2 to 5 yet; the validation states in 11.2.2 are the ones to use.
+- Section 3 item 14 ("NOT YET CITABLE"): the recompute still lacks a live positive control (no contact occurred in the validation take); its status stays "pending validation".
+- Source Key commit for `EG`: `72c08c8` is the commit of Rev 1; the report is now at `92158d3` (Rev 2, section 8).
+
+### 11.6 Not Described Accurately From the Sources, and Open Points
+
+- **Rater identity.** The rubric (7.7) says two separate agents; the drafts therefore say language-model agents. If the owner adds a human check, the sentence in 11.2.1 changes.
+- **Geometry cannot be primary.** The draft says that EG1 and G7 are assigned only at onset (rubric 7.5 step 3) and that the set of hypothetical decisions that ground to motion is never empty at an onset in these data (`FP`, Known Consequences). That EG2 is not among the codes step 4 can assign is this note's reading of 7.5; the rubric does not say so. Verify before the thesis claims "cannot be the primary cause".
+- **Interception denominator.** The evidence-tool note runs the guard and stall-abort replays over 23 Layer-2-on bundles, while the Layer-2-on strata hold 28 episodes (5, 21 and 2). The reason was not established from the sources read (inferred: the replays need an M4 log). The denominators are therefore placeholders and the final sentence of the interception paragraph must state which legs are in scope.
+- **Definitions of justified and false positive.** Taken from `EG` section 8.6 (guards: gap below the 0.05 m margin; false positive when completed with a gap at or above it) and `SA` section 8 (abort on free motion). The interception table's own definition in the reconciliation report governs; adjust the methods sentence if it differs, especially for the stall abort.
+- **Stall abort.** The interception column must be recomputed from the committed detector (`1016e0b` or later); earlier values are provisional (`FP`; `FT`).
+- **Visibility fix.** Verified: it exists on `fix/plan-dispatch-mismatch-visibility` (`93655fc`), logging and provenance only, default off, unit tests and offline recompute, no live run. Part A of the rubric lists three fix levels as "none implemented"; the visibility fix is owner option 1 and was built afterwards.
+- **Convoy yielder feasibility check.** No source read describes it. The Future Work sentence is written from the task brief and from the existence of a yield feasibility gate (Chapter 3); remove or source it before release.
+- **Plan-versus-dispatch counts.** The rubric's Part A scan gives uncorrected counts; the drafts use none of them. The corrected counts depend on `PV` section 6, which is grouped by bundle series (see the note under 11.3).
+- **Thesis edit conflict risk.** Thesis commits (`12fdc38`, then `b44ba52`) landed during this task. If more rows land in `ch6.typ`, renumber 6.60 to 6.64.
+
+---
+
 ## Source Key
 
 All branches are local and unpushed. Commit = last commit touching the report.
@@ -683,5 +1049,11 @@ All branches are local and unpushed. Commit = last commit touching the report.
 | `JO` | `docs/reports/2026-11-14-head-on-json-only-replay-results.md` | `exp/head-on-json-only-replay` (`vgu-vlm-swarm-jsononly`) | `29696f9` |
 | `GC` | `docs/reports/2026-11-15-gt-contact-logging.md` | `feat/gt-contact-logging` (`vgu-vlm-swarm-v7m`) | `b5eaee5` |
 | `EG` | `docs/reports/2026-11-15-escort-obstacle-guard.md` | `fix/escort-obstacle-guard` (`vgu-vlm-swarm-v7l`) | `72c08c8` |
+| `FC` | `docs/reports/2026-11-15-failure-cause-rubric-and-robot5.md` | `analysis/failure-cause-classification` (`vgu-vlm-swarm-v7q`) | `b70d925` |
+| `FP` | `docs/reports/2026-11-15-failure-cause-rating-protocol.md` | `analysis/failure-cause-classification` (`vgu-vlm-swarm-v7q`) | `b7a3d25` |
+| `FT` | `docs/reports/2026-11-15-failure-cause-evidence-tool.md` | `analysis/failure-cause-classification` (`vgu-vlm-swarm-v7q`) | `600708c` |
+| `SA` | `docs/reports/2026-11-15-m4-stall-abort.md` | `fix/m4-stall-abort` (`vgu-vlm-swarm-v7p`) | `1016e0b` |
+| `VT` | `docs/reports/2026-11-15-validation-guard-contacts-results.md` | `demo/validation-guard-contacts` (`vgu-vlm-swarm-v7n`) | `a412949` |
+| `PV` | `docs/reports/2026-11-15-plan-dispatch-mismatch-visibility.md` | `fix/plan-dispatch-mismatch-visibility` (`vgu-vlm-swarm-v7r`) | `93655fc` |
 
 Commits for `REG`, `GB`, `DC`, `PC`, `CH`, `PT`, `IBL`, `IBS`, `RS`, `SW`, `IA`, `JO`, `GC` and `EG` are as listed in `REG` Citable Artifacts or re-read with `git log -1` on 2026-11-15.
