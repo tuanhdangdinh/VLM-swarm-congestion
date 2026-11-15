@@ -228,3 +228,117 @@ def test_leak_hits_word_aware() -> None:
 def test_leak_hits_finds_episode_label_and_seed() -> None:
     hits = fce.leak_hits("E12 seed 1404977387", ["1404977387"])
     assert len(hits) >= 2
+
+
+# Round 2 (added evidence) ---------------------------------------------------
+
+_SCOPE_PATH = Path(__file__).resolve().parents[2] / "scripts" / "failure_cause_round2_scope.py"
+_SCOPE_SPEC = importlib.util.spec_from_file_location("failure_cause_round2_scope", _SCOPE_PATH)
+scope = importlib.util.module_from_spec(_SCOPE_SPEC)
+_SCOPE_SPEC.loader.exec_module(scope)
+
+
+def test_parse_m5_task_lines_reads_epoch_and_sim() -> None:
+    line = ("[orchestrator_node-1] [INFO] [1792598734.718949235] [orchestrator_node]: task_stream "
+            "event=issued robot=robot_1 task_index=0 node=S label=pickup goal=(-0.25, -1.35) "
+            "sim_t=30.3 completed=0/25")
+    assert fce.parse_m5_task_lines([line, "unrelated"]) == [
+        (1792598734.718949235, "issued", "robot_1", "0", 30.3)]
+
+
+def test_clock_offset_is_median_of_matched_events() -> None:
+    m5 = [(1000.0, "issued", "robot_1", "0", 30.3), (1010.5, "arrived", "robot_1", "0", 40.0),
+          (1020.0, "issued", "robot_2", "0", 50.0)]
+    rows = [{"event": "issued", "robot_id": "robot_1", "task_index": 0, "sim_t": 30.3, "wall_t": 100.0},
+            {"event": "arrived", "robot_id": "robot_1", "task_index": 0, "sim_t": 40.0, "wall_t": 110.0},
+            {"event": "issued", "robot_id": "robot_2", "task_index": 0, "sim_t": 50.0, "wall_t": 120.0}]
+    off = fce.clock_offset(m5, rows)
+    assert (off["offset_s"], off["n"], off["spread_s"]) == (900.0, 3, 0.5)
+
+
+def test_clock_offset_none_without_matches() -> None:
+    assert fce.clock_offset([(1.0, "issued", "robot_9", "0", 1.0)], []) is None
+
+
+def test_scene_clock_anchors_drop_non_increasing_rows() -> None:
+    rows = [{"t": 1.0, "scene": {"stamp": 10.0}}, {"t": 2.0, "scene": {"stamp": 10.0}},
+            {"t": 0.5, "scene": {"stamp": 11.0}}, {"t": 3.0, "scene": {"stamp": 12.0}}]
+    assert fce.scene_clock_anchors(rows, 100.0) == [(101.0, 10.0), (103.0, 12.0)]
+
+
+def test_interp_clock_interpolates_inside_span() -> None:
+    assert fce.interp_clock([(0.0, 10.0), (10.0, 12.0)], 5.0) == pytest.approx(11.0)
+
+
+def test_interp_clock_none_outside_span() -> None:
+    assert fce.interp_clock([(0.0, 10.0), (10.0, 12.0)], 11.0) is None
+
+
+def test_interp_clock_clamp_returns_span_end() -> None:
+    assert fce.interp_clock([(0.0, 10.0), (10.0, 12.0)], 11.0, clamp=True) == 12.0
+
+
+def test_clock_validation_reports_difference_to_fit_and_anchor() -> None:
+    m4 = [(2.0, 11.0), (8.0, 14.0)]
+    fit = {"a": 0.5, "b": 10.0}
+    scene = [(0.0, 10.0), (10.0, 15.0)]
+    v = fce.clock_validation(m4, fit, scene)
+    assert (v["vs_m4_fit"]["max_abs_s"], v["vs_m4_anchor"]["max_abs_s"]) == (0.0, 0.0)
+
+
+def test_clock_validation_counts_anchor_outside_scene_span() -> None:
+    v = fce.clock_validation([(20.0, 1.0)], None, [(0.0, 0.0), (10.0, 5.0)])
+    assert v["m4_anchors_outside_scene_span"] == 1
+
+
+def _dec(rid: str, t: float, involved: list[str], detected: bool = True) -> dict:
+    return {"request_id": rid, "t_rel": t,
+            "decision": {"congestion_detected": detected, "involved_robots": involved},
+            "grounding": {"actions": []}}
+
+
+def test_round2_snapshots_skip_rows_present_in_round1() -> None:
+    unit = {"robots": ["robot_1"], "t0_rel": 100.0, "chain_start_rel": None}
+    decs = [_dec("a", 50.0, ["robot_1"]), _dec("b", 60.0, ["robot_1"])]
+    assert fce.round2_decision_snapshots(unit, decs, {"a"}) == ["b"]
+
+
+def test_round2_snapshots_need_shared_robot_and_detection() -> None:
+    unit = {"robots": ["robot_1"], "t0_rel": 100.0, "chain_start_rel": None}
+    decs = [_dec("a", 50.0, ["robot_2"]), _dec("b", 60.0, ["robot_1"], detected=False)]
+    assert fce.round2_decision_snapshots(unit, decs, set()) == []
+
+
+def test_round2_snapshots_respect_timeline_start_unless_asked() -> None:
+    unit = {"robots": ["robot_1"], "t0_rel": 100.0, "chain_start_rel": None}
+    decs = [_dec("a", 30.0, ["robot_1"])]
+    assert (fce.round2_decision_snapshots(unit, decs, set()),
+            fce.round2_decision_snapshots(unit, decs, set(), before_start=True)) == ([], ["a"])
+
+
+def test_sub_ids_replaces_full_and_prefix_ids_and_drops_private_keys() -> None:
+    rid = "0123456789abcdef"
+    out = fce._sub_ids({rid: f"leg {rid[:8]}:robot_1", "params_source": "x"}, {rid: "D3"})
+    assert out == {"D3": "leg D3:robot_1"}
+
+
+def test_scope_criterion_a_from_walk_start() -> None:
+    unit = {"t0_rel": 50.0, "chain_start_rel": 10.0, "t0_fidelity_both_ways": None}
+    sc = scope.unit_scope(unit, {"D1": 10.0, "D2": 5.0}, {"A": set(), "B": set()}, False, False)
+    assert (sc["criteria"], sc["a_decisions"]) == (["a"], ["D1"])
+
+
+def test_scope_criterion_b_and_c() -> None:
+    unit = {"t0_rel": 50.0, "chain_start_rel": None, "t0_fidelity_both_ways": {"x": 1}}
+    sc = scope.unit_scope(unit, {}, {"A": set(), "B": set()}, True, True)
+    assert sc["criteria"] == ["b", "c"]
+
+
+def test_scope_rater_reference_adds_decision_before_walk_start() -> None:
+    unit = {"t0_rel": 50.0, "chain_start_rel": None, "t0_fidelity_both_ways": None}
+    sc = scope.unit_scope(unit, {"D2": 40.0}, {"A": {"D2"}, "B": set()}, False, False)
+    assert sc["a_decisions"] == ["D2"]
+
+
+def test_rater_decision_refs_reads_ids_anywhere() -> None:
+    assert scope.rater_decision_refs({"evidence": "D1 at 3", "x": ["D12@4", "AD3"]}) == {"D1", "D12"}

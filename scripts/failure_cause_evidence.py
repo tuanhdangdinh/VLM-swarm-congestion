@@ -1926,6 +1926,549 @@ def interception_rows(sheet: dict[str, Any], out: Path, stall: dict[str, Any]) -
 
 
 # --------------------------------------------------------------------------
+# round 2 (added evidence; new files only; see the Round-2 note)
+# --------------------------------------------------------------------------
+#
+# Round 2 adds three things to the round-1 sheets without touching them:
+# T1 at every decision snapshot on a unit's timeline that had no T1 row; the
+# T1 gate reported twice (as written, and S3 with the stored stage-2 label and
+# rebuilt task intents); and a wall->sim mapping built from the M1 scene log
+# for bundles whose m4.log has no sim_t= anchors. Declared in
+# docs/reports/2026-11-15-failure-cause-rating-round2.md before it was run.
+
+CLOCK_TOL_S = 2.0  # Round-2 note: max |scene map - m4 fit| at every m4 anchor
+_M5_TASK = re.compile(
+    r"\[(\d{9,10}\.\d+)\].*task_stream event=(\w+) robot=(\S+) task_index=(\S+) .*sim_t=([0-9.]+)"
+)
+
+
+def parse_m5_task_lines(lines: list[str]) -> list[tuple[float, str, str, str, float]]:
+    """`m5.log` task-stream lines as `(epoch, event, robot, task_index, sim_t)`."""
+    out = []
+    for line in lines:
+        m = _M5_TASK.search(line)
+        if m:
+            out.append((float(m.group(1)), m.group(2), m.group(3), m.group(4),
+                        float(m.group(5))))
+    return out
+
+
+def clock_offset(
+    m5_task: list[tuple[float, str, str, str, float]], task_rows: list[dict[str, Any]]
+) -> dict[str, Any] | None:
+    """Offset from M5's monotonic clock to the ROS-log epoch clock.
+
+    Each task-stream event appears twice: in `m5.log` with an epoch stamp and
+    in `tasks_*.jsonl` with M5's monotonic `wall_t`. The offset is the median of
+    `epoch - wall_t` over events matched by (event, robot, task index, sim_t).
+
+    Args:
+        m5_task: Parsed `m5.log` task-stream lines.
+        task_rows: `tasks_*.jsonl` rows.
+
+    Returns:
+        `offset_s`, `n`, `spread_s` (max - min of the differences), or None
+        when no event matches.
+    """
+    jl: dict[tuple[str, str, str, float], float] = {}
+    for r in task_rows:
+        if r.get("wall_t") is None or r.get("sim_t") is None or not r.get("robot_id"):
+            continue
+        key = (str(r.get("event")), r["robot_id"], str(r.get("task_index")),
+               round(float(r["sim_t"]), 3))
+        jl.setdefault(key, float(r["wall_t"]))
+    diffs = sorted(
+        ep - jl[k] for ep, ev, rob, ti, st in m5_task
+        if (k := (ev, rob, ti, round(st, 3))) in jl
+    )
+    if not diffs:
+        return None
+    n = len(diffs)
+    med = diffs[n // 2] if n % 2 else 0.5 * (diffs[n // 2 - 1] + diffs[n // 2])
+    return {"offset_s": med, "n": n, "spread_s": round(diffs[-1] - diffs[0], 4)}
+
+
+def scene_clock_anchors(
+    scene_rows: list[dict[str, Any]], offset_s: float
+) -> list[tuple[float, float]]:
+    """`(epoch, sim)` anchors from scene-log rows (`t` monotonic, `scene.stamp` sim).
+
+    Rows whose epoch or stamp does not strictly increase are dropped, so the
+    anchors define a monotone piecewise-linear map.
+    """
+    out: list[tuple[float, float]] = []
+    for r in scene_rows:
+        t, st = r.get("t"), (r.get("scene") or {}).get("stamp")
+        if t is None or st is None:
+            continue
+        w = float(t) + offset_s
+        if out and (w <= out[-1][0] or st <= out[-1][1]):
+            continue
+        out.append((w, float(st)))
+    return out
+
+
+def interp_clock(
+    anchors: list[tuple[float, float]], w: float | None, clamp: bool = False
+) -> float | None:
+    """Piecewise-linear wall->sim over sorted anchors.
+
+    Outside the anchor span the result is None, or with `clamp` the span's end
+    value (used only for span ends that run past the last scene row, i.e. past
+    censoring; such ends are flagged by the caller).
+    """
+    if w is None or len(anchors) < 2:
+        return None
+    if w < anchors[0][0] or w > anchors[-1][0]:
+        if not clamp:
+            return None
+        return anchors[0][1] if w < anchors[0][0] else anchors[-1][1]
+    walls = [a for a, _ in anchors]
+    i = bisect.bisect_left(walls, w)
+    if walls[i] == w:
+        return anchors[i][1]
+    (w0, s0), (w1, s1) = anchors[i - 1], anchors[i]
+    return s0 + (s1 - s0) * (w - w0) / (w1 - w0)
+
+
+def _stats(xs: list[float]) -> dict[str, Any]:
+    if not xs:
+        return {"n": 0}
+    a = sorted(abs(x) for x in xs)
+    s = sorted(xs)
+    med = lambda v: v[len(v) // 2] if len(v) % 2 else 0.5 * (v[len(v) // 2 - 1] + v[len(v) // 2])  # noqa: E731
+    return {"n": len(xs), "max_abs_s": round(a[-1], 3), "median_abs_s": round(med(a), 3),
+            "signed_median_s": round(med(s), 3)}
+
+
+def clock_validation(
+    m4_anchors: list[tuple[float, float]], fit: dict[str, Any] | None,
+    scene_anchors: list[tuple[float, float]],
+) -> dict[str, Any]:
+    """Scene-log map against the m4 single fit and the raw m4 anchors, at m4 anchor walls.
+
+    Returns:
+        `vs_m4_fit` and `vs_m4_anchor` stats (scene map minus reference, sim-s),
+        the number of m4 anchors outside the scene anchor span, and the same
+        two comparisons for a single line fitted to the scene anchors.
+    """
+    line = fit_wall_to_sim(scene_anchors)
+    d_fit, d_anc, l_fit, l_anc, outside = [], [], [], [], 0
+    for w, s in m4_anchors:
+        m = interp_clock(scene_anchors, w)
+        if m is None:
+            outside += 1
+            continue
+        d_anc.append(m - s)
+        if fit is not None:
+            d_fit.append(m - (fit["a"] * w + fit["b"]))
+        if line is not None:
+            lv = line["a"] * w + line["b"]
+            l_anc.append(lv - s)
+            if fit is not None:
+                l_fit.append(lv - (fit["a"] * w + fit["b"]))
+    return {"vs_m4_fit": _stats(d_fit), "vs_m4_anchor": _stats(d_anc),
+            "m4_anchors_outside_scene_span": outside,
+            "single_line_vs_m4_fit": _stats(l_fit), "single_line_vs_m4_anchor": _stats(l_anc)}
+
+
+def round2_decision_snapshots(unit: dict[str, Any], decisions: list[dict[str, Any]],
+                              round1_rows: set[str], before_start: bool = False) -> list[str]:
+    """Decision snapshots on a unit's timeline that need T1 and had no round-1 row.
+
+    A decision qualifies when it is a positive analysis (congestion detected)
+    whose involved robots or command robots touch the unit, timed at or after
+    the unit's timeline start (the earlier of t0 - 60 s and the chain start),
+    and the round-1 sheet has no T1 row for it on that unit.
+
+    Args:
+        unit: Round-1 unit (`robots`, `t0_rel`, `chain_start_rel`).
+        decisions: Round-1 sheet decisions.
+        round1_rows: T1 row keys present for the unit in round 1.
+        before_start: Also return decisions before the timeline start (off the
+            walk under the frozen chain rule; supplied for completeness).
+
+    Returns:
+        Request ids in time order.
+    """
+    robots = set(unit["robots"])
+    start = unit["t0_rel"] - STALL_WINDOW_S
+    if unit.get("chain_start_rel") is not None:
+        start = min(start, unit["chain_start_rel"])
+    out = []
+    for d in decisions:
+        dec = d.get("decision") or {}
+        if not dec.get("congestion_detected") or d.get("t_rel") is None:
+            continue
+        g = d.get("grounding") or {}
+        touched = set(dec.get("involved_robots") or []) | {
+            a["robot"] for a in g.get("actions") or []}
+        if not touched & robots or d["request_id"] in round1_rows:
+            continue
+        if d["t_rel"] < start and not before_start:
+            continue
+        out.append(d["request_id"])
+    return out
+
+
+def _t1_brief(r: dict[str, Any]) -> dict[str, Any]:
+    """Round-2 T1 row: as-written and S3 results kept apart."""
+    if "variants" not in r:
+        return {"status": r.get("status")}
+    v = r["variants"]
+    fid = r.get("fidelity") or {}
+
+    def var(name: str) -> dict[str, Any]:
+        x = v[name]
+        return {"n_motion": x["n_motion"], "n_h": x["n_h"], "n_errors": x["n_errors"],
+                "nonempty": x["nonempty"], "motion": x["motion"],
+                "n_motion_counting_empty_reroute": x["n_motion_counting_empty_reroute"]}
+
+    return {
+        "snapshot_rel": r.get("snapshot_rel"), "candidates": r.get("candidates"),
+        "params_source": r.get("params_source"),
+        "as_written": {"fidelity": fid.get("as_written"), "t1": var("as_written")},
+        "S3_stage2_label_and_task_intents": {
+            "fidelity": fid.get("plus_stage2_intents"), "t1": var("plus_intents"),
+            "note": "post-freeze sensitivity S3; never the primary",
+        },
+        "all_guards_on_sensitivity": {"t1": var("all_guards_on")},
+    }
+
+
+def _t2_brief(t: dict[str, Any]) -> dict[str, Any]:
+    if "result" not in t:
+        return {"status": t.get("status")}
+    return {"result": t["result"], "shortest": t["shortest"], "required_gap_m": t["required_gap_m"],
+            "start_within_required_clearance": {
+                r: p["start_within_required_clearance"] for r, p in t["per_robot"].items()}}
+
+
+def round2_episode(ep: Episode, r1: dict[str, Any]) -> dict[str, Any]:
+    """All round-2 evidence for one bundle, from the round-1 sheet plus the bundle."""
+    out: dict[str, Any] = {"label": r1["label"], "arm": r1["arm"],
+                           "provenance": ep.T["provenance"], "units": {}, "regression": {}}
+    fid = ep.fidelity()
+    out["regression"]["fidelity_rows_equal_round1"] = (
+        _strip_private(json.loads(json.dumps(fid, default=str))) == r1["fidelity"])
+    fid_by = {r["request_id"]: r for r in fid["rows"]}
+    art_by = {a["request_id"]: a for a in ep.artifacts}
+    gts = ep.gt_series()
+
+    # Clock: the scene-log map is computed for every bundle (validation where
+    # m4 anchors exist), applied only where the rubric's m4 fit is missing.
+    m5_lines = (ep.bundle / "m5.log").read_text(errors="replace").splitlines()
+    off = clock_offset(parse_m5_task_lines(m5_lines), ep.tasks)
+    anchors = scene_clock_anchors(ep.scene, off["offset_s"]) if off else []
+    clock = {"offset": off, "n_scene_anchors": len(anchors),
+             "scene_anchor_wall_span": [round(anchors[0][0], 1), round(anchors[-1][0], 1)]
+             if anchors else None,
+             "m4_fit": ep.fit, "n_m4_anchors": len(ep.m4["anchors"])}
+    if ep.fit is not None:
+        clock["validation"] = clock_validation(ep.m4["anchors"], ep.fit, anchors)
+    out["clock"] = clock
+
+    regressed = False
+    for u in r1["units"]:
+        if u["excluded"]:
+            continue
+        fu = u["fu"]
+        r1_rows = r1["t1"].get(fu, {})
+        new = {}
+        start = u["t0_rel"] - STALL_WINDOW_S
+        if u.get("chain_start_rel") is not None:
+            start = min(start, u["chain_start_rel"])
+        for rid in round2_decision_snapshots(u, r1["decisions"], set(r1_rows), before_start=True):
+            art = art_by[rid]
+            scene = art["scene"]
+            recorded = art if art.get("grounding_params_source") else None
+            r = ep.t1(scene, u["robots"], scene["stamp"], recorded)
+            fr = fid_by.get(rid, {})
+            if fr.get("status") == "U:T1_no_record":
+                r["fidelity"] = {"as_written": "U:T1_no_record",
+                                 "plus_stage2_intents": "U:T1_no_record"}
+            elif "as_written" not in fr:
+                r["fidelity"] = {"as_written": "U:T1_no_record",
+                                 "plus_stage2_intents": "U:T1_no_record"}
+            else:
+                r["fidelity"] = {
+                    "as_written": "pass" if fr.get("as_written") == "reproduced" else "U:T1_fidelity",
+                    "plus_stage2_intents": "pass" if fr.get("plus_stage2_intents") == "reproduced"
+                    else "U:T1_fidelity"}
+            r["snapshot_rel"] = ep.sim_to_rel(scene["stamp"])
+            d = next(x for x in r1["decisions"] if x["request_id"] == rid)
+            g = d.get("grounding") or {}
+            new[rid] = {
+                "t_rel": d["t_rel"], "on_timeline": d["t_rel"] >= start,
+                "published": g.get("published"),
+                "withheld": bool(g.get("withheld")),
+                "in_chain_rubric": any(l.startswith(rid[:8]) for l in u["chain"]["rubric"]),
+                "t1": _t1_brief(r), "t2": _t2_brief(ep.t2(scene, u["robots"], scene["stamp"])),
+            }
+        t0r = r1_rows.get("t0") or {}
+        t0_fid = (t0r.get("fidelity") or {})
+        t0_item = None
+        if t0_fid.get("as_written") == "U:T1_fidelity":
+            t0_item = {
+                "as_written": {"fidelity": "U:T1_fidelity (episode gate, as round 1)",
+                               "gate_reproduced": fid["rates"]["as_written"]},
+                "S3_stage2_label_and_task_intents": {
+                    "fidelity": t0_fid.get("plus_stage2_intents"),
+                    "gate_reproduced": fid["rates"]["plus_stage2_intents"],
+                    "t1": {k: t0r["variants"]["plus_intents"][k] for k in
+                           ("n_motion", "n_h", "n_errors", "nonempty", "motion")},
+                    "note": "post-freeze sensitivity S3; never the primary"},
+                "per_decision_gate": [
+                    {"request_id": x["request_id"], "as_written": x.get("as_written"),
+                     "plus_stage2_intents": x.get("plus_stage2_intents")}
+                    for x in fid["rows"] if "as_written" in x],
+            }
+        out["units"][fu] = {"robots": u["robots"], "t0_rel": u["t0_rel"],
+                            "chain_start_rel": u.get("chain_start_rel"),
+                            "t1_new_snapshots": new, "t0_fidelity_both_ways": t0_item}
+        # Regression: recompute one round-1 T1 row per episode and compare.
+        if not regressed and r1_rows:
+            key = next((k for k in r1_rows if k != "t0"), "t0")
+            old = r1_rows[key]
+            if key == "t0":
+                t0_m1 = ep.records.t0_m1 + u["t0_rel"]
+                scene, t_m1, rec = ep.snapshot_at(t0_m1), t0_m1, None
+            else:
+                a = art_by[key]
+                scene, t_m1 = a["scene"], a["scene"]["stamp"]
+                rec = a if a.get("grounding_params_source") else None
+            if scene is not None and "variants" in old:
+                rr = ep.t1(scene, u["robots"], t_m1, rec)
+                out["regression"]["t1_row"] = {
+                    "unit": fu, "key": key,
+                    "equal": all(rr["variants"][v]["motion"] == old["variants"][v]["motion"]
+                                 and rr["variants"][v]["n_h"] == old["variants"][v]["n_h"]
+                                 for v in old["variants"]),
+                    "t2_equal": ep.t2(scene, u["robots"], t_m1)["result"]
+                    == (r1["t2"][fu][key] or {}).get("result"),
+                }
+                regressed = True
+
+    if ep.fit is None and r1["arm"] == "B":
+        out["clock_applied"] = _apply_scene_clock(ep, r1, anchors, gts)
+    return out
+
+
+def _apply_scene_clock(ep: Episode, r1: dict[str, Any], anchors, gts) -> dict[str, Any]:
+    """Mapped safety-stop spans, Nav2 times and X2 inputs with the scene-log map."""
+    ep.wall_to_sim = lambda w: interp_clock(anchors, w, clamp=True)  # type: ignore[method-assign]
+    latch = ep.latch()
+    w_first, w_last = anchors[0][0], anchors[-1][0]
+    for (rid, reason), ws in ep.m4["safety_stop"].items():
+        for sp, (a, b, _) in zip(latch["safety_stop_spans"][f"{rid}|{reason}"],
+                                 collapse_spans(ws, LATCH_SPAN_GAP_S), strict=True):
+            sp["from_clamped_to_first_scene_row"] = a < w_first
+            sp["to_clamped_to_last_scene_row"] = b > w_last
+    nav_map = lambda w: ep.sim_to_rel(interp_clock(anchors, w))  # noqa: E731
+    nav2 = [{"robot": r, "rel": nav_map(w), "text": t} for w, r, t in ep.nav2]
+    units = {}
+    for u in r1["units"]:
+        if u["excluded"]:
+            continue
+        robots = set(u["robots"])
+        start = u["t0_rel"] - STALL_WINDOW_S
+        units[u["fu"]] = {
+            "safety_stop_spans": {k: v for k, v in latch["safety_stop_spans"].items()
+                                  if k.split("|")[0] in robots},
+            "nav2": [{**n, "dt_to_t0_s": None if n["rel"] is None else round(n["rel"] - u["t0_rel"], 3)}
+                     for n in nav2 if n["robot"] in robots
+                     and (n["rel"] is None or n["rel"] >= start)],
+            "exempt_changes": [{"rel": nav_map(w), "pairs": pairs} for w, pairs in ep.m4["exempt"]
+                               if any(r in pairs for r in robots)],
+            "x2_input": ep.x2_input(u, gts, [], latch),
+            "x2_input_round1": u.get("x2_input"),
+        }
+    n_spans = sum(len(v) for v in latch["safety_stop_spans"].values())
+    n_unmapped = sum(1 for v in latch["safety_stop_spans"].values() for s in v
+                     if s["from_rel"] is None or s["to_rel"] is None)
+    n_clamped = sum(1 for v in latch["safety_stop_spans"].values() for s in v
+                    if s["from_clamped_to_first_scene_row"] or s["to_clamped_to_last_scene_row"])
+    return {"units": units, "n_safety_stop_spans": n_spans, "n_spans_unmapped": n_unmapped,
+            "n_spans_clamped": n_clamped,
+            "n_nav2": len(nav2), "n_nav2_unmapped": sum(1 for n in nav2 if n["rel"] is None)}
+
+
+def cmd_round2(args: argparse.Namespace) -> None:
+    """One bundle's round-2 evidence into `full_round2/<label>/round2.json`."""
+    out = Path(args.out)
+    bundle = Path(args.bundle).resolve()
+    if str(out.resolve()).startswith(str(bundle)) or "/data/logs/" in str(out.resolve()):
+        raise SystemExit("output must lie outside every bundle and data/logs tree")
+    r1 = json.loads((out / "full" / args.label / "evidence.json").read_text())
+    if Path(r1["bundle"]).resolve() != bundle:
+        raise SystemExit("bundle differs from the round-1 sheet's")
+    trees = load_trees()
+    ep = Episode(trees, bundle, args)
+    res = round2_episode(ep, r1)
+    d = out / "full_round2" / args.label
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "round2.json").write_text(json.dumps(res, indent=1, default=str))
+    n_new = sum(len(u["t1_new_snapshots"]) for u in res["units"].values())
+    print(f"{args.label}: new T1 snapshots {n_new}; regression {res['regression']}; "
+          f"clock {res['clock'].get('validation', {}).get('vs_m4_fit')}")
+
+
+_SUPPLIES_T1 = ("T1 at this decision's own snapshot. Round 1 had no T1 row here (T1 ran only at "
+                "the onset snapshot and at analyses matched to the unit); rubric 7.5 step 4 judges "
+                "an analysis 'against T1 at that snapshot' and V2/V3 need T1 non-empty "
+                "(round-1 missing evidence: U:T1_not_run).")
+_SUPPLIES_OFF = ("T1 at this decision's own snapshot, supplied for completeness. The decision is "
+                 "before the unit's timeline start (earlier of t0 - 60 s and the chain start), so "
+                 "the frozen chain rule does not walk it; it is not round-1 missing evidence.")
+_SUPPLIES_T0 = ("T1 fidelity at onset reported both ways. The as-written status is unchanged and "
+                "governs the primary; the S3 result (stored stage-2 label and rebuilt task intents) "
+                "is a post-freeze sensitivity input (round-1 missing evidence: U:T1_fidelity).")
+_CLOCK_NOT = ("No wall-to-sim mapping is supplied for this sheet's safety-stop spans and Nav2 "
+              "lines: the scene-log mapping did not meet the acceptance criterion declared in the "
+              "round-2 note before validation. The round-1 status U:no_m4_clock_anchor stands.")
+_SUPPLIES_CLOCK = ("Safety-stop spans, Nav2 times and the X2 input mapped with the scene-log clock "
+                   "(round-1 missing evidence: U:no_m4_clock_anchor).")
+
+
+def _sub_ids(obj: Any, did: dict[str, str]) -> Any:
+    """Replace request ids (full and 8-character prefix) by D-ids, in keys and strings."""
+    if isinstance(obj, str):
+        for rid, d in did.items():
+            obj = obj.replace(rid, d).replace(rid[:8], d)
+        return obj
+    if isinstance(obj, list):
+        return [_sub_ids(x, did) for x in obj]
+    if isinstance(obj, dict):
+        return {_sub_ids(k, did): _sub_ids(v, did) for k, v in obj.items() if k not in _RATER_DROP}
+    return obj
+
+
+def round2_rater_addendum(r2: dict[str, Any], with_clock: bool) -> dict[str, Any]:
+    """Rater-facing addendum for one sheet (before id substitution)."""
+    units = {}
+    for fu, u in r2["units"].items():
+        items = []
+        for rid, s in u["t1_new_snapshots"].items():
+            items.append({"decision": rid, "supplies": _SUPPLIES_T1 if s["on_timeline"]
+                          else _SUPPLIES_OFF, "t_rel": s["t_rel"], "on_unit_timeline": s["on_timeline"],
+                          "published": s["published"], "withheld": s["withheld"],
+                          "in_round1_chain_list": s["in_chain_rubric"],
+                          "t1": s["t1"], "t2": s["t2"]})
+        t0 = u.get("t0_fidelity_both_ways")
+        if t0:
+            items.append({"snapshot": "t0", "supplies": _SUPPLIES_T0, **t0})
+        if "clock_applied" in r2:
+            if with_clock:
+                items.append({"clock": "scene-log mapping", "supplies": _SUPPLIES_CLOCK,
+                              **r2["clock_applied"]["units"].get(fu, {})})
+            else:
+                items.append({"clock": "not supplied", "supplies": _CLOCK_NOT})
+        units[fu] = items
+    return {"round": 2, "note": "New evidence only; the round-1 sheet is unchanged. Unit and "
+            "decision ids are those of the round-1 sheet.", "units": units}
+
+
+def md_addendum(add: dict[str, Any], oid: str) -> str:
+    """Readable Markdown of one rater addendum."""
+    L = [f"# Round-2 Addendum {oid}", "", f"- {add['note']}",
+         "- As written governs the primary coding; S3 is a post-freeze sensitivity input.", ""]
+    for fu, items in add["units"].items():
+        L += [f"## {fu}", ""]
+        if not items:
+            L += ["- No new evidence for this unit.", ""]
+        for it in items:
+            if "decision" in it:
+                t1 = it["t1"]
+                L.append(f"### {it['decision']} at {it['t_rel']} rel-s (T1 at decision snapshot"
+                         + ("" if it["on_unit_timeline"] else "; before the unit's timeline") + ")")
+                L += ["", f"- Supplies: {it['supplies']}",
+                      f"- Published {it['published']}, withheld {it['withheld']}, in round-1 "
+                      f"chain list {it['in_round1_chain_list']}"]
+                if "as_written" in t1:
+                    aw, s3 = t1["as_written"], t1["S3_stage2_label_and_task_intents"]
+                    g = t1["all_guards_on_sensitivity"]["t1"]
+                    L += [f"- Candidates: {t1['candidates']}",
+                          f"- **As written:** gate {aw['fidelity']}; T1 {aw['t1']['n_motion']}/"
+                          f"{aw['t1']['n_h']} motion (errors {aw['t1']['n_errors']}); motion set "
+                          f"{aw['t1']['motion']}",
+                          f"- **S3 (stage-2 label + task intents):** gate {s3['fidelity']}; T1 "
+                          f"{s3['t1']['n_motion']}/{s3['t1']['n_h']} motion; motion set "
+                          f"{s3['t1']['motion']}",
+                          f"- All guards on (sensitivity): {g['n_motion']}/{g['n_h']}"]
+                else:
+                    L.append(f"- T1: {t1.get('status')}")
+                t2 = it["t2"]
+                L += [f"- T2 at this snapshot: {t2.get('result', t2.get('status'))}, shortest "
+                      f"{t2.get('shortest')}, start within clearance "
+                      f"{t2.get('start_within_required_clearance')}", ""]
+            elif it.get("snapshot") == "t0":
+                aw, s3 = it["as_written"], it["S3_stage2_label_and_task_intents"]
+                L += ["### t0 (T1 fidelity both ways)", "", f"- Supplies: {it['supplies']}",
+                      f"- **As written:** {aw['fidelity']}; recorded decisions reproduced "
+                      f"{aw['gate_reproduced']}",
+                      f"- **S3:** gate {s3['fidelity']}; reproduced {s3['gate_reproduced']}; T1 "
+                      f"(task intents) {s3['t1']['n_motion']}/{s3['t1']['n_h']} motion",
+                      "- Per-decision gate (as written / S3): "
+                      + "; ".join(f"{x['request_id']} {x['as_written']} / {x['plus_stage2_intents']}"
+                                  for x in it["per_decision_gate"]), ""]
+            else:
+                L += ["### Clock", "", f"- Supplies: {it['supplies']}"]
+                if it["clock"] != "not supplied":
+                    L += [f"- Safety-stop spans: {it.get('safety_stop_spans')}",
+                          f"- Nav2: {it.get('nav2')}", f"- X2 input: {it.get('x2_input')}"]
+                L.append("")
+    return "\n".join(L) + "\n"
+
+
+def cmd_round2_render(out: Path, with_clock: bool) -> None:
+    """Rater addenda (new directory), summary and leak check from `full_round2/`."""
+    key = json.loads((out / "key" / "key.json").read_text())
+    episodes = json.loads((out / "inputs" / "episodes.json").read_text())
+    lits = []
+    for e in episodes:
+        lits += [e["label"], Path(e["bundle"]).name]
+    for lab in key:
+        r1 = json.loads((out / "full" / lab / "evidence.json").read_text())
+        lits += [str(r1.get("seed") or ""), str(r1.get("run_id") or ""),
+                 str(r1.get("session_id") or "")]
+        lits += [d["request_id"] for d in r1["decisions"]]
+        lits += [d["request_id"][:8] for d in r1["decisions"]]
+    lits = [x for x in lits if len(x) >= 4]
+    summary: dict[str, Any] = {"with_clock": with_clock, "episodes": {}}
+    leaks = {}
+    for lab, ids in sorted(key.items()):
+        r2 = json.loads((out / "full_round2" / lab / "round2.json").read_text())
+        did = {v: k for k, v in ids["decision_ids"].items()}
+        add = _sub_ids(_strip_private(round2_rater_addendum(r2, with_clock)), did)
+        d = out / "rater_round2" / ids["events_id"]
+        d.mkdir(parents=True, exist_ok=True)
+        text = json.dumps(add, indent=1, sort_keys=True)
+        md = md_addendum(add, ids["events_id"])
+        (d / "addendum.json").write_text(text)
+        (d / "addendum.md").write_text(md)
+        leaks[ids["events_id"]] = leak_hits(text + md, lits)
+        st: dict[str, int] = defaultdict(int)
+        for u in r2["units"].values():
+            for s in u["t1_new_snapshots"].values():
+                fid = (s["t1"].get("as_written") or {}).get("fidelity", s["t1"].get("status"))
+                s3 = (s["t1"].get("S3_stage2_label_and_task_intents") or {}).get("fidelity")
+                where = "on_timeline" if s["on_timeline"] else "before_timeline"
+                st[f"{where}|as_written={fid}|S3={s3}"] += 1
+        summary["episodes"][lab] = {
+            "events_id": ids["events_id"], "arm": r2["arm"], "new_t1_by_gate": dict(st),
+            "t0_fidelity_units": [fu for fu, u in r2["units"].items()
+                                  if u.get("t0_fidelity_both_ways")],
+            "regression": r2["regression"], "clock_offset": r2["clock"]["offset"],
+            "clock_validation": r2["clock"].get("validation"),
+            "clock_applied_counts": {k: v for k, v in (r2.get("clock_applied") or {}).items()
+                                     if k != "units"} or None,
+        }
+    (out / "rater_round2" / "leak_check.json").write_text(json.dumps(leaks, indent=1, sort_keys=True))
+    (out / "full_round2" / "summary.json").write_text(json.dumps(summary, indent=1, sort_keys=True))
+    print(f"addenda {len(leaks)}; leak hits {sum(len(v) for v in leaks.values())}")
+
+
+# --------------------------------------------------------------------------
 # entry point
 # --------------------------------------------------------------------------
 
@@ -1966,9 +2509,22 @@ def main() -> None:
     e.add_argument("--out", required=True)
     r = sub.add_parser("render")
     r.add_argument("--out", required=True)
+    r2 = sub.add_parser("round2")
+    r2.add_argument("--bundle", required=True)
+    r2.add_argument("--label", required=True)
+    r2.add_argument("--params-from", default=None)
+    r2.add_argument("--out", required=True)
+    r3 = sub.add_parser("round2-render")
+    r3.add_argument("--out", required=True)
+    r3.add_argument("--with-clock", action="store_true",
+                    help="include the scene-log clock mapping (default off: criterion not met)")
     args = ap.parse_args()
     if args.cmd == "episode":
         cmd_episode(args)
+    elif args.cmd == "round2":
+        cmd_round2(args)
+    elif args.cmd == "round2-render":
+        cmd_round2_render(Path(args.out), args.with_clock)
     else:
         cmd_render(Path(args.out))
 

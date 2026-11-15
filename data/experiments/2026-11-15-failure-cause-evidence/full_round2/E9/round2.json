@@ -1,0 +1,102 @@
+{
+ "label": "E9",
+ "arm": "A",
+ "provenance": {
+  "scorer_tree": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7q @ 89d9bf3",
+  "scorer_files_equal_3c71503": true,
+  "t1_tree": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7n @ a412949",
+  "t1_command_grounder_md5": "951c23b7f2e0168dab10022abccff77a",
+  "contact_tree": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7m @ b5eaee5",
+  "tool_md5": "675f561006afd7d3127ef8490048e394",
+  "functions": {
+   "units": "benchmarks.s1_scoring.bundle_io.read_bundle; benchmarks.s1_scoring.conflicts.conflict_episodes(ConflictParams())",
+   "matching": "conflicts.classify_analysis + conflicts.match_analysis",
+   "t1": "reasoning.rag.command_grounder.ground_reasoner_result (v7n a412949)",
+   "withheld": "swarm_orchestrator.reasoning_pipeline.yield_refusal_fan_out, empty_reroute_fallback (v7n a412949)",
+   "contacts": "isaac.vgu_sim.contact_geometry.compute_contact_frame / scene_static_boxes (v7m b5eaee5); recompute_gt_contacts.recompute_bundle"
+  }
+ },
+ "units": {
+  "FU1": {
+   "robots": [
+    "robot_4",
+    "robot_5"
+   ],
+   "t0_rel": 17.273,
+   "chain_start_rel": null,
+   "t1_new_snapshots": {},
+   "t0_fidelity_both_ways": null
+  },
+  "FU2": {
+   "robots": [
+    "robot_1",
+    "robot_2",
+    "robot_3"
+   ],
+   "t0_rel": 23.473,
+   "chain_start_rel": null,
+   "t1_new_snapshots": {},
+   "t0_fidelity_both_ways": null
+  }
+ },
+ "regression": {
+  "fidelity_rows_equal_round1": true,
+  "t1_row": {
+   "unit": "FU1",
+   "key": "399ef79a766d41faa236c791b879eda4",
+   "equal": true,
+   "t2_equal": true
+  }
+ },
+ "clock": {
+  "offset": {
+   "offset_s": 1791480728.632876,
+   "n": 22,
+   "spread_s": 0.0083
+  },
+  "n_scene_anchors": 2489,
+  "scene_anchor_wall_span": [
+   1791712582.3,
+   1791715699.5
+  ],
+  "m4_fit": {
+   "a": 0.17216482055368235,
+   "b": -308469841.2854058,
+   "n": 6,
+   "max_resid_s": 0.008,
+   "wall_span": [
+    1791712972.7,
+    1791712981.4
+   ],
+   "rtf": 0.1722
+  },
+  "n_m4_anchors": 6,
+  "validation": {
+   "vs_m4_fit": {
+    "n": 6,
+    "max_abs_s": 0.063,
+    "median_abs_s": 0.058,
+    "signed_median_s": -0.058
+   },
+   "vs_m4_anchor": {
+    "n": 6,
+    "max_abs_s": 0.065,
+    "median_abs_s": 0.057,
+    "signed_median_s": -0.057
+   },
+   "m4_anchors_outside_scene_span": 0,
+   "single_line_vs_m4_fit": {
+    "n": 6,
+    "max_abs_s": 1.425,
+    "median_abs_s": 1.394,
+    "signed_median_s": -1.394
+   },
+   "single_line_vs_m4_anchor": {
+    "n": 6,
+    "max_abs_s": 1.422,
+    "median_abs_s": 1.402,
+    "signed_median_s": -1.402
+   }
+  }
+ }
+}

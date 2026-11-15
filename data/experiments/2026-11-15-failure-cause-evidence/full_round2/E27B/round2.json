@@ -1,0 +1,219 @@
+{
+ "label": "E27B",
+ "arm": "B",
+ "provenance": {
+  "scorer_tree": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7q @ 89d9bf3",
+  "scorer_files_equal_3c71503": true,
+  "t1_tree": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7n @ a412949",
+  "t1_command_grounder_md5": "951c23b7f2e0168dab10022abccff77a",
+  "contact_tree": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7m @ b5eaee5",
+  "tool_md5": "675f561006afd7d3127ef8490048e394",
+  "functions": {
+   "units": "benchmarks.s1_scoring.bundle_io.read_bundle; benchmarks.s1_scoring.conflicts.conflict_episodes(ConflictParams())",
+   "matching": "conflicts.classify_analysis + conflicts.match_analysis",
+   "t1": "reasoning.rag.command_grounder.ground_reasoner_result (v7n a412949)",
+   "withheld": "swarm_orchestrator.reasoning_pipeline.yield_refusal_fan_out, empty_reroute_fallback (v7n a412949)",
+   "contacts": "isaac.vgu_sim.contact_geometry.compute_contact_frame / scene_static_boxes (v7m b5eaee5); recompute_gt_contacts.recompute_bundle"
+  }
+ },
+ "units": {
+  "FU1": {
+   "robots": [
+    "robot_3",
+    "robot_4",
+    "robot_5"
+   ],
+   "t0_rel": 17.173,
+   "chain_start_rel": null,
+   "t1_new_snapshots": {},
+   "t0_fidelity_both_ways": null
+  },
+  "FU2": {
+   "robots": [
+    "robot_1",
+    "robot_2"
+   ],
+   "t0_rel": 54.673,
+   "chain_start_rel": null,
+   "t1_new_snapshots": {},
+   "t0_fidelity_both_ways": null
+  }
+ },
+ "regression": {
+  "fidelity_rows_equal_round1": true,
+  "t1_row": {
+   "unit": "FU1",
+   "key": "t0",
+   "equal": true,
+   "t2_equal": true
+  }
+ },
+ "clock": {
+  "offset": {
+   "offset_s": 1792590794.663333,
+   "n": 25,
+   "spread_s": 0.1008
+  },
+  "n_scene_anchors": 2465,
+  "scene_anchor_wall_span": [
+   1792595393.4,
+   1792598474.3
+  ],
+  "m4_fit": null,
+  "n_m4_anchors": 0
+ },
+ "clock_applied": {
+  "units": {
+   "FU1": {
+    "safety_stop_spans": {
+     "robot_4|min_distance_violation": [
+      {
+       "from_rel": 17.043,
+       "to_rel": 570.533,
+       "lines": 138812,
+       "from_clamped_to_first_scene_row": false,
+       "to_clamped_to_last_scene_row": true
+      }
+     ],
+     "robot_3|min_distance_violation": [
+      {
+       "from_rel": 17.058,
+       "to_rel": 570.533,
+       "lines": 138812,
+       "from_clamped_to_first_scene_row": false,
+       "to_clamped_to_last_scene_row": true
+      }
+     ],
+     "robot_5|min_distance_violation": [
+      {
+       "from_rel": 49.436,
+       "to_rel": 570.533,
+       "lines": 130325,
+       "from_clamped_to_first_scene_row": false,
+       "to_clamped_to_last_scene_row": true
+      }
+     ]
+    },
+    "nav2": [],
+    "exempt_changes": [],
+    "x2_input": [
+     {
+      "robot": "robot_3",
+      "from_rel": 17.77,
+      "to_rel": 571.07,
+      "duration_s": 553.3,
+      "to_censor": true,
+      "safety_stop_cover_fraction": 0.999
+     },
+     {
+      "robot": "robot_4",
+      "from_rel": 17.87,
+      "to_rel": 571.07,
+      "duration_s": 553.2,
+      "to_censor": true,
+      "safety_stop_cover_fraction": 0.999
+     },
+     {
+      "robot": "robot_5",
+      "from_rel": 49.67,
+      "to_rel": 571.07,
+      "duration_s": 521.4,
+      "to_censor": true,
+      "safety_stop_cover_fraction": 0.999
+     }
+    ],
+    "x2_input_round1": [
+     {
+      "robot": "robot_3",
+      "from_rel": 17.77,
+      "to_rel": 571.07,
+      "duration_s": 553.3,
+      "to_censor": true,
+      "safety_stop_cover_fraction": 0.0
+     },
+     {
+      "robot": "robot_4",
+      "from_rel": 17.87,
+      "to_rel": 571.07,
+      "duration_s": 553.2,
+      "to_censor": true,
+      "safety_stop_cover_fraction": 0.0
+     },
+     {
+      "robot": "robot_5",
+      "from_rel": 49.67,
+      "to_rel": 571.07,
+      "duration_s": 521.4,
+      "to_censor": true,
+      "safety_stop_cover_fraction": 0.0
+     }
+    ]
+   },
+   "FU2": {
+    "safety_stop_spans": {
+     "robot_1|min_distance_violation": [
+      {
+       "from_rel": 54.446,
+       "to_rel": 570.533,
+       "lines": 129090,
+       "from_clamped_to_first_scene_row": false,
+       "to_clamped_to_last_scene_row": true
+      }
+     ],
+     "robot_2|min_distance_violation": [
+      {
+       "from_rel": 54.456,
+       "to_rel": 570.533,
+       "lines": 129090,
+       "from_clamped_to_first_scene_row": false,
+       "to_clamped_to_last_scene_row": true
+      }
+     ]
+    },
+    "nav2": [],
+    "exempt_changes": [],
+    "x2_input": [
+     {
+      "robot": "robot_1",
+      "from_rel": 54.67,
+      "to_rel": 571.07,
+      "duration_s": 516.4,
+      "to_censor": true,
+      "safety_stop_cover_fraction": 0.999
+     },
+     {
+      "robot": "robot_2",
+      "from_rel": 54.77,
+      "to_rel": 571.07,
+      "duration_s": 516.3,
+      "to_censor": true,
+      "safety_stop_cover_fraction": 0.999
+     }
+    ],
+    "x2_input_round1": [
+     {
+      "robot": "robot_1",
+      "from_rel": 54.67,
+      "to_rel": 571.07,
+      "duration_s": 516.4,
+      "to_censor": true,
+      "safety_stop_cover_fraction": 0.0
+     },
+     {
+      "robot": "robot_2",
+      "from_rel": 54.77,
+      "to_rel": 571.07,
+      "duration_s": 516.3,
+      "to_censor": true,
+      "safety_stop_cover_fraction": 0.0
+     }
+    ]
+   }
+  },
+  "n_safety_stop_spans": 5,
+  "n_spans_unmapped": 0,
+  "n_spans_clamped": 5,
+  "n_nav2": 0,
+  "n_nav2_unmapped": 0
+ }
+}

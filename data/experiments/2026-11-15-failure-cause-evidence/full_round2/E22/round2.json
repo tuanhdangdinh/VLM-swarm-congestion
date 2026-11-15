@@ -1,0 +1,200 @@
+{
+ "label": "E22",
+ "arm": "A",
+ "provenance": {
+  "scorer_tree": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7q @ 89d9bf3",
+  "scorer_files_equal_3c71503": true,
+  "t1_tree": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7n @ a412949",
+  "t1_command_grounder_md5": "951c23b7f2e0168dab10022abccff77a",
+  "contact_tree": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7m @ b5eaee5",
+  "tool_md5": "675f561006afd7d3127ef8490048e394",
+  "functions": {
+   "units": "benchmarks.s1_scoring.bundle_io.read_bundle; benchmarks.s1_scoring.conflicts.conflict_episodes(ConflictParams())",
+   "matching": "conflicts.classify_analysis + conflicts.match_analysis",
+   "t1": "reasoning.rag.command_grounder.ground_reasoner_result (v7n a412949)",
+   "withheld": "swarm_orchestrator.reasoning_pipeline.yield_refusal_fan_out, empty_reroute_fallback (v7n a412949)",
+   "contacts": "isaac.vgu_sim.contact_geometry.compute_contact_frame / scene_static_boxes (v7m b5eaee5); recompute_gt_contacts.recompute_bundle"
+  }
+ },
+ "units": {
+  "FU1": {
+   "robots": [
+    "robot_1",
+    "robot_2",
+    "robot_3",
+    "robot_4",
+    "robot_5"
+   ],
+   "t0_rel": 12.17,
+   "chain_start_rel": null,
+   "t1_new_snapshots": {},
+   "t0_fidelity_both_ways": {
+    "as_written": {
+     "fidelity": "U:T1_fidelity (episode gate, as round 1)",
+     "gate_reproduced": "2/3"
+    },
+    "S3_stage2_label_and_task_intents": {
+     "fidelity": "episode_gate_pass",
+     "gate_reproduced": "3/3",
+     "t1": {
+      "n_motion": 71,
+      "n_h": 237,
+      "n_errors": 0,
+      "nonempty": true,
+      "motion": [
+       "Y:robot_2>robot_3",
+       "Y:robot_2>robot_5",
+       "Y:robot_3>robot_2",
+       "Y:robot_5>robot_2",
+       "Y:robot_2>robot_1>robot_5",
+       "Y:robot_2>robot_3>robot_4",
+       "Y:robot_2>robot_3>robot_5",
+       "Y:robot_2>robot_4>robot_3",
+       "Y:robot_2>robot_4>robot_5",
+       "Y:robot_2>robot_5>robot_1",
+       "Y:robot_2>robot_5>robot_3",
+       "Y:robot_2>robot_5>robot_4",
+       "Y:robot_2>robot_1>robot_3>robot_5",
+       "Y:robot_2>robot_1>robot_4>robot_5",
+       "Y:robot_2>robot_1>robot_5>robot_3",
+       "Y:robot_2>robot_1>robot_5>robot_4",
+       "Y:robot_2>robot_3>robot_1>robot_5",
+       "Y:robot_2>robot_3>robot_4>robot_5",
+       "Y:robot_2>robot_3>robot_5>robot_1",
+       "Y:robot_2>robot_3>robot_5>robot_4",
+       "Y:robot_2>robot_4>robot_1>robot_5",
+       "Y:robot_2>robot_4>robot_3>robot_5",
+       "Y:robot_2>robot_4>robot_5>robot_1",
+       "Y:robot_2>robot_4>robot_5>robot_3",
+       "Y:robot_2>robot_5>robot_1>robot_3",
+       "Y:robot_2>robot_5>robot_1>robot_4",
+       "Y:robot_2>robot_5>robot_3>robot_1",
+       "Y:robot_2>robot_5>robot_3>robot_4",
+       "Y:robot_2>robot_5>robot_4>robot_1",
+       "Y:robot_2>robot_5>robot_4>robot_3",
+       "Y:robot_3>robot_2>robot_4",
+       "Y:robot_3>robot_4>robot_2",
+       "Y:robot_5>robot_1>robot_2",
+       "Y:robot_5>robot_2>robot_1",
+       "Y:robot_5>robot_2>robot_3",
+       "Y:robot_5>robot_2>robot_4",
+       "Y:robot_5>robot_3>robot_2",
+       "Y:robot_5>robot_4>robot_2",
+       "Y:robot_5>robot_1>robot_2>robot_3",
+       "Y:robot_5>robot_1>robot_2>robot_4",
+       "Y:robot_5>robot_1>robot_3>robot_2",
+       "Y:robot_5>robot_1>robot_4>robot_2",
+       "Y:robot_5>robot_2>robot_1>robot_3",
+       "Y:robot_5>robot_2>robot_1>robot_4",
+       "Y:robot_5>robot_2>robot_3>robot_1",
+       "Y:robot_5>robot_2>robot_3>robot_4",
+       "Y:robot_5>robot_2>robot_4>robot_1",
+       "Y:robot_5>robot_2>robot_4>robot_3",
+       "Y:robot_5>robot_3>robot_1>robot_2",
+       "Y:robot_5>robot_3>robot_2>robot_1",
+       "Y:robot_5>robot_3>robot_2>robot_4",
+       "Y:robot_5>robot_3>robot_4>robot_2",
+       "Y:robot_5>robot_4>robot_1>robot_2",
+       "Y:robot_5>robot_4>robot_2>robot_1",
+       "Y:robot_5>robot_4>robot_2>robot_3",
+       "Y:robot_5>robot_4>robot_3>robot_2",
+       "R:robot_1",
+       "R:robot_2",
+       "R:robot_3",
+       "R:robot_4",
+       "R:robot_5",
+       "R:robot_1+robot_2",
+       "R:robot_1+robot_3",
+       "R:robot_1+robot_4",
+       "R:robot_1+robot_5",
+       "R:robot_2+robot_3",
+       "R:robot_2+robot_5",
+       "R:robot_3+robot_4",
+       "R:robot_3+robot_5",
+       "R:robot_4+robot_5",
+       "R:robot_1+robot_2+robot_3+robot_4+robot_5"
+      ]
+     },
+     "note": "post-freeze sensitivity S3; never the primary"
+    },
+    "per_decision_gate": [
+     {
+      "request_id": "07da775dfad2459f8a92b673a2111d3d",
+      "as_written": "differs",
+      "plus_stage2_intents": "reproduced"
+     },
+     {
+      "request_id": "42fac00973ed4baf8332059fa0bd0d25",
+      "as_written": "reproduced",
+      "plus_stage2_intents": "reproduced"
+     },
+     {
+      "request_id": "64fc01e623924cc59031ea42e7d39cc3",
+      "as_written": "reproduced",
+      "plus_stage2_intents": "reproduced"
+     }
+    ]
+   }
+  }
+ },
+ "regression": {
+  "fidelity_rows_equal_round1": true,
+  "t1_row": {
+   "unit": "FU1",
+   "key": "07da775dfad2459f8a92b673a2111d3d",
+   "equal": true,
+   "t2_equal": true
+  }
+ },
+ "clock": {
+  "offset": {
+   "offset_s": 1791480728.6340728,
+   "n": 19,
+   "spread_s": 0.0108
+  },
+  "n_scene_anchors": 2503,
+  "scene_anchor_wall_span": [
+   1791761906.0,
+   1791765049.3
+  ],
+  "m4_fit": {
+   "a": 0.17992191202816574,
+   "b": -322377199.84207577,
+   "n": 29,
+   "max_resid_s": 0.701,
+   "wall_span": [
+    1791762001.7,
+    1791762493.4
+   ],
+   "rtf": 0.1799
+  },
+  "n_m4_anchors": 29,
+  "validation": {
+   "vs_m4_fit": {
+    "n": 29,
+    "max_abs_s": 0.652,
+    "median_abs_s": 0.108,
+    "signed_median_s": -0.093
+   },
+   "vs_m4_anchor": {
+    "n": 29,
+    "max_abs_s": 0.074,
+    "median_abs_s": 0.053,
+    "signed_median_s": -0.053
+   },
+   "m4_anchors_outside_scene_span": 0,
+   "single_line_vs_m4_fit": {
+    "n": 29,
+    "max_abs_s": 0.757,
+    "median_abs_s": 0.294,
+    "signed_median_s": 0.277
+   },
+   "single_line_vs_m4_anchor": {
+    "n": 29,
+    "max_abs_s": 0.922,
+    "median_abs_s": 0.357,
+    "signed_median_s": 0.328
+   }
+  }
+ }
+}

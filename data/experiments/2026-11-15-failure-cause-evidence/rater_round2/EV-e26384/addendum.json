@@ -1,0 +1,58 @@
+{
+ "note": "New evidence only; the round-1 sheet is unchanged. Unit and decision ids are those of the round-1 sheet.",
+ "round": 2,
+ "units": {
+  "FU1": [
+   {
+    "S3_stage2_label_and_task_intents": {
+     "fidelity": "episode_gate_pass",
+     "gate_reproduced": "4/4",
+     "note": "post-freeze sensitivity S3; never the primary",
+     "t1": {
+      "motion": [
+       "R:robot_1",
+       "R:robot_5",
+       "R:robot_1+robot_2",
+       "R:robot_1+robot_3",
+       "R:robot_2+robot_5",
+       "R:robot_3+robot_5",
+       "R:robot_1+robot_2+robot_3+robot_5"
+      ],
+      "n_errors": 0,
+      "n_h": 88,
+      "n_motion": 7,
+      "nonempty": true
+     }
+    },
+    "as_written": {
+     "fidelity": "U:T1_fidelity (episode gate, as round 1)",
+     "gate_reproduced": "3/4"
+    },
+    "per_decision_gate": [
+     {
+      "as_written": "reproduced",
+      "plus_stage2_intents": "reproduced",
+      "request_id": "D1"
+     },
+     {
+      "as_written": "reproduced",
+      "plus_stage2_intents": "reproduced",
+      "request_id": "D2"
+     },
+     {
+      "as_written": "reproduced",
+      "plus_stage2_intents": "reproduced",
+      "request_id": "D3"
+     },
+     {
+      "as_written": "differs",
+      "plus_stage2_intents": "reproduced",
+      "request_id": "D4"
+     }
+    ],
+    "snapshot": "t0",
+    "supplies": "T1 fidelity at onset reported both ways. The as-written status is unchanged and governs the primary; the S3 result (stored stage-2 label and rebuilt task intents) is a post-freeze sensitivity input (round-1 missing evidence: U:T1_fidelity)."
+   }
+  ]
+ }
+}

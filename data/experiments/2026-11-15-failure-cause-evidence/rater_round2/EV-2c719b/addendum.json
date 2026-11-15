@@ -1,0 +1,243 @@
+{
+ "note": "New evidence only; the round-1 sheet is unchanged. Unit and decision ids are those of the round-1 sheet.",
+ "round": 2,
+ "units": {
+  "FU1": [],
+  "FU2": [
+   {
+    "decision": "D1",
+    "in_round1_chain_list": true,
+    "on_unit_timeline": true,
+    "published": true,
+    "supplies": "T1 at this decision's own snapshot. Round 1 had no T1 row here (T1 ran only at the onset snapshot and at analyses matched to the unit); rubric 7.5 step 4 judges an analysis 'against T1 at that snapshot' and V2/V3 need T1 non-empty (round-1 missing evidence: U:T1_not_run).",
+    "t1": {
+     "S3_stage2_label_and_task_intents": {
+      "fidelity": "pass",
+      "note": "post-freeze sensitivity S3; never the primary",
+      "t1": {
+       "motion": [
+        "Y:robot_2>robot_4",
+        "Y:robot_4>robot_2",
+        "Y:robot_2>robot_1>robot_4",
+        "Y:robot_2>robot_4>robot_1",
+        "Y:robot_4>robot_1>robot_2",
+        "Y:robot_4>robot_2>robot_1",
+        "R:robot_2",
+        "R:robot_4",
+        "R:robot_2+robot_4"
+       ],
+       "n_errors": 0,
+       "n_h": 88,
+       "n_motion": 9,
+       "n_motion_counting_empty_reroute": 11,
+       "nonempty": true
+      }
+     },
+     "all_guards_on_sensitivity": {
+      "t1": {
+       "motion": [
+        "R:robot_2",
+        "R:robot_4",
+        "R:robot_2+robot_4"
+       ],
+       "n_errors": 0,
+       "n_h": 88,
+       "n_motion": 3,
+       "n_motion_counting_empty_reroute": 5,
+       "nonempty": true
+      }
+     },
+     "as_written": {
+      "fidelity": "pass",
+      "t1": {
+       "motion": [
+        "Y:robot_2>robot_4",
+        "Y:robot_4>robot_2",
+        "Y:robot_2>robot_1>robot_4",
+        "Y:robot_2>robot_4>robot_1",
+        "Y:robot_4>robot_1>robot_2",
+        "Y:robot_4>robot_2>robot_1",
+        "R:robot_2",
+        "R:robot_4",
+        "R:robot_2+robot_4"
+       ],
+       "n_errors": 0,
+       "n_h": 88,
+       "n_motion": 9,
+       "n_motion_counting_empty_reroute": 11,
+       "nonempty": true
+      }
+     },
+     "candidates": [
+      "robot_2",
+      "robot_4",
+      "robot_1",
+      "robot_3"
+     ],
+     "snapshot_rel": 13.233
+    },
+    "t2": {
+     "required_gap_m": 0.14,
+     "result": true,
+     "shortest": {
+      "distance_m": 0.16,
+      "heading_deg": 180,
+      "robot": "robot_2"
+     },
+     "start_within_required_clearance": {
+      "robot_2": false,
+      "robot_4": false
+     }
+    },
+    "t_rel": 13.233,
+    "withheld": false
+   },
+   {
+    "decision": "D3",
+    "in_round1_chain_list": false,
+    "on_unit_timeline": true,
+    "published": false,
+    "supplies": "T1 at this decision's own snapshot. Round 1 had no T1 row here (T1 ran only at the onset snapshot and at analyses matched to the unit); rubric 7.5 step 4 judges an analysis 'against T1 at that snapshot' and V2/V3 need T1 non-empty (round-1 missing evidence: U:T1_not_run).",
+    "t1": {
+     "S3_stage2_label_and_task_intents": {
+      "fidelity": "pass",
+      "note": "post-freeze sensitivity S3; never the primary",
+      "t1": {
+       "motion": [
+        "R:robot_2",
+        "R:robot_4"
+       ],
+       "n_errors": 0,
+       "n_h": 88,
+       "n_motion": 2,
+       "n_motion_counting_empty_reroute": 4,
+       "nonempty": true
+      }
+     },
+     "all_guards_on_sensitivity": {
+      "t1": {
+       "motion": [
+        "R:robot_2",
+        "R:robot_4"
+       ],
+       "n_errors": 0,
+       "n_h": 88,
+       "n_motion": 2,
+       "n_motion_counting_empty_reroute": 4,
+       "nonempty": true
+      }
+     },
+     "as_written": {
+      "fidelity": "pass",
+      "t1": {
+       "motion": [
+        "R:robot_2",
+        "R:robot_4"
+       ],
+       "n_errors": 0,
+       "n_h": 88,
+       "n_motion": 2,
+       "n_motion_counting_empty_reroute": 4,
+       "nonempty": true
+      }
+     },
+     "candidates": [
+      "robot_2",
+      "robot_4",
+      "robot_1",
+      "robot_3"
+     ],
+     "snapshot_rel": 39.467
+    },
+    "t2": {
+     "required_gap_m": 0.14,
+     "result": true,
+     "shortest": {
+      "distance_m": 0.01,
+      "heading_deg": 0,
+      "robot": "robot_2"
+     },
+     "start_within_required_clearance": {
+      "robot_2": false,
+      "robot_4": true
+     }
+    },
+    "t_rel": 39.467,
+    "withheld": true
+   },
+   {
+    "decision": "D7",
+    "in_round1_chain_list": false,
+    "on_unit_timeline": true,
+    "published": false,
+    "supplies": "T1 at this decision's own snapshot. Round 1 had no T1 row here (T1 ran only at the onset snapshot and at analyses matched to the unit); rubric 7.5 step 4 judges an analysis 'against T1 at that snapshot' and V2/V3 need T1 non-empty (round-1 missing evidence: U:T1_not_run).",
+    "t1": {
+     "S3_stage2_label_and_task_intents": {
+      "fidelity": "pass",
+      "note": "post-freeze sensitivity S3; never the primary",
+      "t1": {
+       "motion": [
+        "R:robot_2",
+        "R:robot_4"
+       ],
+       "n_errors": 0,
+       "n_h": 88,
+       "n_motion": 2,
+       "n_motion_counting_empty_reroute": 4,
+       "nonempty": true
+      }
+     },
+     "all_guards_on_sensitivity": {
+      "t1": {
+       "motion": [
+        "R:robot_2",
+        "R:robot_4"
+       ],
+       "n_errors": 0,
+       "n_h": 88,
+       "n_motion": 2,
+       "n_motion_counting_empty_reroute": 4,
+       "nonempty": true
+      }
+     },
+     "as_written": {
+      "fidelity": "pass",
+      "t1": {
+       "motion": [
+        "R:robot_2",
+        "R:robot_4"
+       ],
+       "n_errors": 0,
+       "n_h": 88,
+       "n_motion": 2,
+       "n_motion_counting_empty_reroute": 4,
+       "nonempty": true
+      }
+     },
+     "candidates": [
+      "robot_2",
+      "robot_4",
+      "robot_1",
+      "robot_3"
+     ],
+     "snapshot_rel": 91.6
+    },
+    "t2": {
+     "required_gap_m": 0.14,
+     "result": true,
+     "shortest": {
+      "distance_m": 0.02,
+      "heading_deg": 90,
+      "robot": "robot_2"
+     },
+     "start_within_required_clearance": {
+      "robot_2": false,
+      "robot_4": true
+     }
+    },
+    "t_rel": 91.6,
+    "withheld": true
+   }
+  ]
+ }
+}

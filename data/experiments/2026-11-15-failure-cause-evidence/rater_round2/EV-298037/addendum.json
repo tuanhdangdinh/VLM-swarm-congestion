@@ -1,0 +1,396 @@
+{
+ "note": "New evidence only; the round-1 sheet is unchanged. Unit and decision ids are those of the round-1 sheet.",
+ "round": 2,
+ "units": {
+  "FU1": [
+   {
+    "S3_stage2_label_and_task_intents": {
+     "fidelity": "episode_gate_pass",
+     "gate_reproduced": "5/5",
+     "note": "post-freeze sensitivity S3; never the primary",
+     "t1": {
+      "motion": [
+       "Y:robot_2>robot_3",
+       "Y:robot_2>robot_5",
+       "Y:robot_3>robot_2",
+       "Y:robot_5>robot_2",
+       "Y:robot_2>robot_1>robot_3",
+       "Y:robot_2>robot_1>robot_5",
+       "Y:robot_2>robot_3>robot_1",
+       "Y:robot_2>robot_3>robot_4",
+       "Y:robot_2>robot_3>robot_5",
+       "Y:robot_2>robot_4>robot_3",
+       "Y:robot_2>robot_4>robot_5",
+       "Y:robot_2>robot_5>robot_1",
+       "Y:robot_2>robot_5>robot_3",
+       "Y:robot_2>robot_5>robot_4",
+       "Y:robot_2>robot_1>robot_3>robot_4",
+       "Y:robot_2>robot_1>robot_3>robot_5",
+       "Y:robot_2>robot_1>robot_4>robot_3",
+       "Y:robot_2>robot_1>robot_4>robot_5",
+       "Y:robot_2>robot_1>robot_5>robot_3",
+       "Y:robot_2>robot_1>robot_5>robot_4",
+       "Y:robot_2>robot_3>robot_1>robot_4",
+       "Y:robot_2>robot_3>robot_1>robot_5",
+       "Y:robot_2>robot_3>robot_4>robot_1",
+       "Y:robot_2>robot_3>robot_4>robot_5",
+       "Y:robot_2>robot_3>robot_5>robot_1",
+       "Y:robot_2>robot_3>robot_5>robot_4",
+       "Y:robot_2>robot_4>robot_1>robot_3",
+       "Y:robot_2>robot_4>robot_1>robot_5",
+       "Y:robot_2>robot_4>robot_3>robot_1",
+       "Y:robot_2>robot_4>robot_3>robot_5",
+       "Y:robot_2>robot_4>robot_5>robot_1",
+       "Y:robot_2>robot_4>robot_5>robot_3",
+       "Y:robot_2>robot_5>robot_1>robot_3",
+       "Y:robot_2>robot_5>robot_1>robot_4",
+       "Y:robot_2>robot_5>robot_3>robot_1",
+       "Y:robot_2>robot_5>robot_3>robot_4",
+       "Y:robot_2>robot_5>robot_4>robot_1",
+       "Y:robot_2>robot_5>robot_4>robot_3",
+       "Y:robot_3>robot_1>robot_2",
+       "Y:robot_3>robot_2>robot_1",
+       "Y:robot_3>robot_2>robot_4",
+       "Y:robot_3>robot_2>robot_5",
+       "Y:robot_3>robot_4>robot_2",
+       "Y:robot_3>robot_5>robot_2",
+       "Y:robot_3>robot_1>robot_2>robot_4",
+       "Y:robot_3>robot_1>robot_2>robot_5",
+       "Y:robot_3>robot_1>robot_4>robot_2",
+       "Y:robot_3>robot_1>robot_5>robot_2",
+       "Y:robot_3>robot_2>robot_1>robot_4",
+       "Y:robot_3>robot_2>robot_1>robot_5",
+       "Y:robot_3>robot_2>robot_4>robot_1",
+       "Y:robot_3>robot_2>robot_4>robot_5",
+       "Y:robot_3>robot_2>robot_5>robot_1",
+       "Y:robot_3>robot_2>robot_5>robot_4",
+       "Y:robot_3>robot_4>robot_1>robot_2",
+       "Y:robot_3>robot_4>robot_2>robot_1",
+       "Y:robot_3>robot_4>robot_2>robot_5",
+       "Y:robot_3>robot_4>robot_5>robot_2",
+       "Y:robot_3>robot_5>robot_1>robot_2",
+       "Y:robot_3>robot_5>robot_2>robot_1",
+       "Y:robot_3>robot_5>robot_2>robot_4",
+       "Y:robot_3>robot_5>robot_4>robot_2",
+       "Y:robot_5>robot_1>robot_2",
+       "Y:robot_5>robot_2>robot_1",
+       "Y:robot_5>robot_2>robot_3",
+       "Y:robot_5>robot_2>robot_4",
+       "Y:robot_5>robot_3>robot_2",
+       "Y:robot_5>robot_4>robot_2",
+       "Y:robot_5>robot_1>robot_2>robot_3",
+       "Y:robot_5>robot_1>robot_2>robot_4",
+       "Y:robot_5>robot_1>robot_3>robot_2",
+       "Y:robot_5>robot_1>robot_4>robot_2",
+       "Y:robot_5>robot_2>robot_1>robot_3",
+       "Y:robot_5>robot_2>robot_1>robot_4",
+       "Y:robot_5>robot_2>robot_3>robot_1",
+       "Y:robot_5>robot_2>robot_3>robot_4",
+       "Y:robot_5>robot_2>robot_4>robot_1",
+       "Y:robot_5>robot_2>robot_4>robot_3",
+       "Y:robot_5>robot_3>robot_1>robot_2",
+       "Y:robot_5>robot_3>robot_2>robot_1",
+       "Y:robot_5>robot_3>robot_2>robot_4",
+       "Y:robot_5>robot_3>robot_4>robot_2",
+       "Y:robot_5>robot_4>robot_1>robot_2",
+       "Y:robot_5>robot_4>robot_2>robot_1",
+       "Y:robot_5>robot_4>robot_2>robot_3",
+       "Y:robot_5>robot_4>robot_3>robot_2",
+       "R:robot_2",
+       "R:robot_3",
+       "R:robot_5",
+       "R:robot_1+robot_2",
+       "R:robot_1+robot_3",
+       "R:robot_2+robot_3",
+       "R:robot_2+robot_4",
+       "R:robot_2+robot_5",
+       "R:robot_3+robot_4",
+       "R:robot_3+robot_5"
+      ],
+      "n_errors": 0,
+      "n_h": 237,
+      "n_motion": 96,
+      "nonempty": true
+     }
+    },
+    "as_written": {
+     "fidelity": "U:T1_fidelity (episode gate, as round 1)",
+     "gate_reproduced": "4/5"
+    },
+    "per_decision_gate": [
+     {
+      "as_written": "reproduced",
+      "plus_stage2_intents": "reproduced",
+      "request_id": "D1"
+     },
+     {
+      "as_written": "differs",
+      "plus_stage2_intents": "reproduced",
+      "request_id": "D2"
+     },
+     {
+      "as_written": "reproduced",
+      "plus_stage2_intents": "reproduced",
+      "request_id": "D3"
+     },
+     {
+      "as_written": "reproduced",
+      "plus_stage2_intents": "reproduced",
+      "request_id": "D4"
+     },
+     {
+      "as_written": "reproduced",
+      "plus_stage2_intents": "reproduced",
+      "request_id": "D5"
+     }
+    ],
+    "snapshot": "t0",
+    "supplies": "T1 fidelity at onset reported both ways. The as-written status is unchanged and governs the primary; the S3 result (stored stage-2 label and rebuilt task intents) is a post-freeze sensitivity input (round-1 missing evidence: U:T1_fidelity)."
+   }
+  ],
+  "FU2": [
+   {
+    "decision": "D1",
+    "in_round1_chain_list": false,
+    "on_unit_timeline": true,
+    "published": false,
+    "supplies": "T1 at this decision's own snapshot. Round 1 had no T1 row here (T1 ran only at the onset snapshot and at analyses matched to the unit); rubric 7.5 step 4 judges an analysis 'against T1 at that snapshot' and V2/V3 need T1 non-empty (round-1 missing evidence: U:T1_not_run).",
+    "t1": {
+     "S3_stage2_label_and_task_intents": {
+      "fidelity": "pass",
+      "note": "post-freeze sensitivity S3; never the primary",
+      "t1": {
+       "motion": [
+        "R:robot_1",
+        "R:robot_4",
+        "R:robot_1+robot_3",
+        "R:robot_1+robot_4",
+        "R:robot_3+robot_4"
+       ],
+       "n_errors": 0,
+       "n_h": 88,
+       "n_motion": 5,
+       "n_motion_counting_empty_reroute": 7,
+       "nonempty": true
+      }
+     },
+     "all_guards_on_sensitivity": {
+      "t1": {
+       "motion": [
+        "R:robot_1",
+        "R:robot_4",
+        "R:robot_1+robot_3",
+        "R:robot_1+robot_4",
+        "R:robot_3+robot_4"
+       ],
+       "n_errors": 0,
+       "n_h": 88,
+       "n_motion": 5,
+       "n_motion_counting_empty_reroute": 7,
+       "nonempty": true
+      }
+     },
+     "as_written": {
+      "fidelity": "pass",
+      "t1": {
+       "motion": [
+        "R:robot_1",
+        "R:robot_4",
+        "R:robot_1+robot_3",
+        "R:robot_1+robot_4",
+        "R:robot_3+robot_4"
+       ],
+       "n_errors": 0,
+       "n_h": 88,
+       "n_motion": 5,
+       "n_motion_counting_empty_reroute": 7,
+       "nonempty": true
+      }
+     },
+     "candidates": [
+      "robot_1",
+      "robot_4",
+      "robot_5",
+      "robot_3"
+     ],
+     "snapshot_rel": 18.267
+    },
+    "t2": {
+     "required_gap_m": 0.14,
+     "result": true,
+     "shortest": {
+      "distance_m": 0.19,
+      "heading_deg": 45,
+      "robot": "robot_1"
+     },
+     "start_within_required_clearance": {
+      "robot_1": false,
+      "robot_4": false
+     }
+    },
+    "t_rel": 18.267,
+    "withheld": true
+   },
+   {
+    "decision": "D2",
+    "in_round1_chain_list": true,
+    "on_unit_timeline": true,
+    "published": true,
+    "supplies": "T1 at this decision's own snapshot. Round 1 had no T1 row here (T1 ran only at the onset snapshot and at analyses matched to the unit); rubric 7.5 step 4 judges an analysis 'against T1 at that snapshot' and V2/V3 need T1 non-empty (round-1 missing evidence: U:T1_not_run).",
+    "t1": {
+     "S3_stage2_label_and_task_intents": {
+      "fidelity": "pass",
+      "note": "post-freeze sensitivity S3; never the primary",
+      "t1": {
+       "motion": [
+        "Y:robot_1>robot_4",
+        "Y:robot_4>robot_1",
+        "Y:robot_1>robot_3>robot_4",
+        "Y:robot_1>robot_4>robot_3",
+        "Y:robot_4>robot_1>robot_3",
+        "Y:robot_4>robot_3>robot_1",
+        "R:robot_1",
+        "R:robot_4",
+        "R:robot_1+robot_3",
+        "R:robot_1+robot_4",
+        "R:robot_1+robot_5",
+        "R:robot_3+robot_4",
+        "R:robot_4+robot_5",
+        "R:robot_1+robot_3+robot_4+robot_5"
+       ],
+       "n_errors": 0,
+       "n_h": 88,
+       "n_motion": 14,
+       "n_motion_counting_empty_reroute": 16,
+       "nonempty": true
+      }
+     },
+     "all_guards_on_sensitivity": {
+      "t1": {
+       "motion": [
+        "Y:robot_1>robot_4",
+        "Y:robot_4>robot_1",
+        "Y:robot_1>robot_3>robot_4",
+        "Y:robot_1>robot_4>robot_3",
+        "Y:robot_4>robot_1>robot_3",
+        "Y:robot_4>robot_3>robot_1",
+        "R:robot_1",
+        "R:robot_4",
+        "R:robot_1+robot_3",
+        "R:robot_1+robot_4",
+        "R:robot_1+robot_5",
+        "R:robot_3+robot_4",
+        "R:robot_4+robot_5",
+        "R:robot_1+robot_3+robot_4+robot_5"
+       ],
+       "n_errors": 0,
+       "n_h": 88,
+       "n_motion": 14,
+       "n_motion_counting_empty_reroute": 16,
+       "nonempty": true
+      }
+     },
+     "as_written": {
+      "fidelity": "U:T1_fidelity",
+      "t1": {
+       "motion": [
+        "Y:robot_1>robot_4",
+        "Y:robot_4>robot_1",
+        "Y:robot_1>robot_3>robot_4",
+        "Y:robot_1>robot_4>robot_3",
+        "Y:robot_4>robot_1>robot_3",
+        "Y:robot_4>robot_3>robot_1",
+        "R:robot_1",
+        "R:robot_4",
+        "R:robot_1+robot_3",
+        "R:robot_1+robot_4",
+        "R:robot_1+robot_5",
+        "R:robot_3+robot_4",
+        "R:robot_4+robot_5",
+        "R:robot_1+robot_3+robot_4+robot_5"
+       ],
+       "n_errors": 0,
+       "n_h": 88,
+       "n_motion": 14,
+       "n_motion_counting_empty_reroute": 16,
+       "nonempty": true
+      }
+     },
+     "candidates": [
+      "robot_1",
+      "robot_4",
+      "robot_3",
+      "robot_5"
+     ],
+     "snapshot_rel": 22.4
+    },
+    "t2": {
+     "required_gap_m": 0.14,
+     "result": false,
+     "shortest": null,
+     "start_within_required_clearance": {
+      "robot_1": true,
+      "robot_4": true
+     }
+    },
+    "t_rel": 22.4,
+    "withheld": false
+   },
+   {
+    "S3_stage2_label_and_task_intents": {
+     "fidelity": "episode_gate_pass",
+     "gate_reproduced": "5/5",
+     "note": "post-freeze sensitivity S3; never the primary",
+     "t1": {
+      "motion": [
+       "R:robot_1",
+       "R:robot_4",
+       "R:robot_1+robot_2",
+       "R:robot_1+robot_5",
+       "R:robot_2+robot_4",
+       "R:robot_4+robot_5",
+       "R:robot_1+robot_2+robot_4+robot_5"
+      ],
+      "n_errors": 0,
+      "n_h": 88,
+      "n_motion": 7,
+      "nonempty": true
+     }
+    },
+    "as_written": {
+     "fidelity": "U:T1_fidelity (episode gate, as round 1)",
+     "gate_reproduced": "4/5"
+    },
+    "per_decision_gate": [
+     {
+      "as_written": "reproduced",
+      "plus_stage2_intents": "reproduced",
+      "request_id": "D1"
+     },
+     {
+      "as_written": "differs",
+      "plus_stage2_intents": "reproduced",
+      "request_id": "D2"
+     },
+     {
+      "as_written": "reproduced",
+      "plus_stage2_intents": "reproduced",
+      "request_id": "D3"
+     },
+     {
+      "as_written": "reproduced",
+      "plus_stage2_intents": "reproduced",
+      "request_id": "D4"
+     },
+     {
+      "as_written": "reproduced",
+      "plus_stage2_intents": "reproduced",
+      "request_id": "D5"
+     }
+    ],
+    "snapshot": "t0",
+    "supplies": "T1 fidelity at onset reported both ways. The as-written status is unchanged and governs the primary; the S3 result (stored stage-2 label and rebuilt task intents) is a post-freeze sensitivity input (round-1 missing evidence: U:T1_fidelity)."
+   }
+  ]
+ }
+}
