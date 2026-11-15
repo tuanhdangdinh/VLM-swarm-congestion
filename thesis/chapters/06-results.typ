@@ -3,7 +3,7 @@
 
 = Results <sec:res>
 
-This chapter reports what the studies of Chapter 5 found. Each result carries the evidence grade given in @tab:ch5-studies (exploratory pilot, registered pilot, decision-level offline, or illustrative demonstration), and nothing is pooled across studies or between the two intersection runs #ev("6.16"). The coordination layer (Layer 2) is the slow loop that detects a stall, asks the VLM, and passes the decision to the grounder (M3), which turns it into commands for the execution and safety monitor (M4). Safety evidence throughout is the ground-truth (GT) robot-pair centre distance, because the simulator's contact lists were hard-coded empty in the evaluated runtime #ev("6.20") (@sec:res-safety).
+This chapter reports what the studies of Chapter 5 found. Each result carries the evidence grade given in @tab:ch5-studies (registered as confirmatory and reported as pilot, exploratory pilot, decision-level offline, post hoc classification, or illustrative demonstration), and nothing is pooled across studies or between the two intersection runs #ev("6.16"). The coordination layer (Layer 2) is the slow loop that detects a stall, asks the VLM, and passes the decision to the grounder (M3), which turns it into commands for the execution and safety monitor (M4). Safety evidence throughout is the ground-truth (GT) robot-pair centre distance, because the simulator's contact lists were hard-coded empty in the evaluated runtime #ev("6.20") (@sec:res-safety).
 
 == Intersection Run 1: Coordination Layer On vs Off <sec:res-ib10-ab>
 
@@ -229,7 +229,7 @@ In the two-robot head-on corridor with obstacle, only one robot has room to back
     align: left,
     stroke: 0.4pt + luma(160),
     fill: (_, y) => if y == 0 { luma(235) },
-    table.header([*Model*], [*Side*], [*Runs*], [*Model correct*], [*Always `robot_1`*], [*Manifest rule*]),
+    table.header([*Model*], [*Side*], [*Runs*], [*Model correct*], [*Always `robot_1`*], [*First-come-first-served rule*]),
     [gpt-4o], [west], [23], [5/23], [0/23], [23/23],
     [gpt-4o], [east], [12], [10/12], [12/12], [0/12],
     [ER-2], [west], [30], [12/30], [0/30], [30/30],
@@ -271,7 +271,7 @@ The plan-audit label (provenance) records how an audited plan relates to the pro
     align: left,
     stroke: 0.4pt + luma(160),
     fill: (_, y) => if y == 0 { luma(235) },
-    table.header([*Level*], [*Intersection, ER-2 (24)*], [*Earlier gpt-4o pilot (13)*], [*Two head-on pairs, ER-2 (4)*], [*All (41)*]),
+    table.header([*Level*], [*Intersection, ER-2 (24)*], [*October gpt-4o pilot (13)*], [*Two head-on pairs, ER-2 (4)*], [*All (41)*]),
     [1. Valid response], [24], [13], [4], [41],
     [2. Plan accepted unchanged], [2 (0 of 20 `junction_clear`)], [11], [1], [14],
     [2. Accepted and dispatched as written], [2], [6], [0], [8],
@@ -285,7 +285,7 @@ The plan changed the dispatched commands in none of the 39 gated analyses: in th
 
 == Demonstration Campaign <sec:res-demo>
 
-The demonstration campaign (14–15 November 2026) ran live ER-2 takes in four scenes to show the pipeline end to end on video (format in @fig:ch6-demo-panel, Appendix B) #ev("6.01"), with a later prompt and, at the intersection, the plan-order switch, so it is not the evaluated runtime #ev("6.39"). It is illustrative: 1 to 5 takes per scene, the intersection take shown was selected for its label, and nothing is a rate (@tab:res-demo, @tab:res-threeway) #ev("6.45").
+The demonstration campaign (14–15 November 2026, UTC) ran live ER-2 takes in four scenes to show the pipeline end to end on video (format in @fig:ch6-demo-panel, Appendix B) #ev("6.01"), with a later prompt and, at the intersection, the plan-order switch, so it is not the evaluated runtime #ev("6.39"). It is illustrative: 1 to 5 takes per scene, the intersection take shown was selected for its label, and nothing is a rate (@tab:res-demo, @tab:res-threeway) #ev("6.45").
 
 #figure(
   table(
@@ -318,7 +318,7 @@ The demonstration campaign (14–15 November 2026) ran live ER-2 takes in four s
   caption: flex-caption([Demonstration campaign: valid, accepted and executed.], [Demonstration campaign, per analysis (second-stage calls not counted): valid response; plan accepted unchanged (`vlm_verbatim`) as recorded and as recomputed offline (commands sent match the verified legs; recorded labels unchanged #ev("6.51")); plan that changed the executed commands relative to the grounder's default for the same snapshot. Illustrative demonstration.#fig-source("6.44")]),
 ) <tab:res-threeway>
 
-Valid is not usable: in intersection takes 1 and 3 the plans parsed but were nulled for invalid structure #ev("6.39"). The recorded count over-states agreement, because for `reverse` and `reroute` the grounder acts on the model's involved-robots list and never reads the plan #ev("6.02") #ev("6.51"). Counting a plan only when the commands sent match its verified legs, minus two registered artefacts (retreat-shield waits on robots planned `continue`; back-out orders within tolerance), 6 becomes 5: one convoy decision planned waits for two queued robots that were never commanded (motion differences only: 6; no exclusions: 3). In the campaign and October decisions recomputed (convoy takes 4 and 5 excluded), 10 of 33 dispatched `reverse` legs went to robots whose plan said something else #ev("6.51"). *Caveat:* illustrative takes; the corrected counts are an offline recomputation #ev("6.44").
+Valid is not usable: in intersection takes 1 and 3 the plans parsed but were nulled for invalid structure #ev("6.39"). The recorded count over-states agreement, because for `reverse` and `reroute` the grounder acts on the model's involved-robots list and never reads the plan #ev("6.02") #ev("6.51"). Counting a plan only when the commands sent match its verified legs, minus two registered artefacts (retreat-shield waits on robots planned `continue`; back-out orders within tolerance), 6 becomes 5: one convoy decision planned waits for two queued robots that were never commanded (motion differences only: 6; no exclusions: 3). In the campaign and October decisions recomputed (convoy takes 4 and 5 excluded), 10 of 33 dispatched `reverse` legs went to robots whose plan said something else #ev("6.51"). *Caveat:* illustrative takes; the corrected counts are an offline, decision-level recomputation, and the 10 of 33 spans two series and is not a rate #ev("6.44").
 
 === Intersection, Take 5 <sec:res-demo-ib>
 
@@ -392,9 +392,7 @@ The pair values come from the studies' own reports #ev("6.05") #ev("6.06") #ev("
 
 *Obstacles.* The five-robot contact (@sec:res-demo-five) #ev("6.42") exposed a gap: the grounder checked neither escort segments nor `reverse` legs against static obstacles (only the yielder's retreat room and candidates use the declared boxes), and the execution and safety monitor (M4) ignores obstacles #ev("6.43"). The validation take came within 5.5 mm of a declared box under a `reverse` #ev("6.17"), and October `reverse` legs pinned robots against box faces #ev("6.18"). The offline recompute (10 Hz footprint proximity) stays pending validation, because no robot was pinned in the validation take #ev("6.12") #ev("6.17").
 
-*Validation state of the later safety changes,* all off by default. The safety-exemption fix, which narrows the exemption a coordination command gives its own robots in M4's proximity check (@tab:res-sx in Appendix B) #ev("6.50"), passed 64 unit tests and a replay over 68 bundles (identical with the key off, 6 exemptions lost with it on) #ev("6.07")\; it was on in intersection run 2, where it never fired #ev("6.06"), and in the demonstration takes, where its firings were not counted #ev("5.51"), so it is not validated live.
-
-The escort obstacle guard refuses offline the five-robot escort and one earlier escort and no other campaign escort, sees declared obstacles only, has no M4 backstop #ev("6.13"), and ran live once, armed, without firing, because no escort was grounded #ev("6.17"). The reverse obstacle guard (offline replay of 17 reverse commands) #ev("6.13") and the stall abort (offline replay of 221 primitives) #ev("6.18") have unit tests and no live run; the queued-robot hold ran in convoy takes 4 and 5 only #ev("6.19"). *Caveat:* no comprehensive obstacle-safety claim follows.
+*Later safety changes* (all off by default; status in @sec:impl-later, key changes in @tab:res-sx, Appendix B #ev("6.50")): the safety-exemption fix was on in intersection run 2, where it never fired #ev("6.06"), and in the demonstration takes, where its firings were not counted #ev("5.51"), so it is not validated live #ev("6.07")\; the escort guard ran live once, armed, without firing #ev("6.17")\; the reverse guard and the stall abort have not run live #ev("6.13") #ev("6.18")\; the queued-robot hold ran in convoy takes 4 and 5 only #ev("6.19"). *Caveat:* no comprehensive obstacle-safety claim follows.
 
 == Offline Decision Benchmark and Live Per-Group Shadow Run <sec:res-bench>
 
@@ -410,4 +408,4 @@ The live per-group shadow run asked the per-cluster question beside the ordinary
 
 == Physical Demonstration <sec:res-physical>
 
-On 12 November 2026 the detect-to-dispatch chain ran on physical TurtleBot3 robots under an overhead camera, with `gemini-3.1-flash-lite` #ev("1.07") #ev("4.28"). In all four staged arrangements the model chose `reverse` #ev("6.48"): two head-on pairs (deadlock, 4/4 commands completed); a triangle of three with a fourth outside (deadlock, 3/3); four robots facing a shared centre (crowding, 4/4); a tighter dual-lane variant (deadlock, 3 completed, robot 3 failed). Two unparsable replies are excluded #ev("4.31"). With no navigation goals, "completed" means the reverse finished #ev("4.29"). *Caveat:* one run per arrangement, code not in this repository's history (@sec:impl-physical); not an evaluation.
+On 12 November 2026 the detect-to-dispatch chain ran on physical TurtleBot3 robots under an overhead camera, with `gemini-3.1-flash-lite` (setup in @sec:impl-physical) #ev("1.07") #ev("4.28"). In all four staged arrangements the model chose `reverse` #ev("6.48"). With two head-on pairs (A, deadlock) it named all four robots and all four recorded `COMPLETED` (pair distances about 0.575 m and 0.614 m) #ev("4.30")\; in the triangle of three with a fourth robot outside (C, deadlock) it named only the three triangle robots, all `COMPLETED`; with four robots facing a shared centre (D, labelled crowding) all four `COMPLETED`; in the tighter dual-lane variant (E, deadlock) it named four robots, of which three `COMPLETED` and `robot_3` recorded `FAILED` #ev("4.38"). Two unparsable replies are excluded #ev("4.31"). With no navigation goals, `COMPLETED` means the reverse finished, not that a conflict was resolved in the sense of the simulation experiments #ev("4.29"). *Caveat:* one run per arrangement, code not in this repository's history; not an evaluation.
