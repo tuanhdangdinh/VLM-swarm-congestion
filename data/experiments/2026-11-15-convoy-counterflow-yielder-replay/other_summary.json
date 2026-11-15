@@ -1,0 +1,45 @@
+{
+ "decisions": 19,
+ "replayed": 15,
+ "fix_identical_to_hold": 15,
+ "fix_identical_to_off": 15,
+ "recorded_reproduced": 12,
+ "per_bundle": {
+  "hoD_t01_a1": {
+   "n": 2,
+   "fix_eq_hold": 2,
+   "repro": 1
+  },
+  "ibD_t01_a2": {
+   "n": 1,
+   "fix_eq_hold": 1,
+   "repro": 1
+  },
+  "ibD_t02_a1": {
+   "n": 1,
+   "fix_eq_hold": 1,
+   "repro": 1
+  },
+  "ibD_t03_a1": {
+   "n": 1,
+   "fix_eq_hold": 1,
+   "repro": 1
+  },
+  "ibD_t04_a1": {
+   "n": 1,
+   "fix_eq_hold": 1,
+   "repro": 1
+  },
+  "ibD_t05_a1": {
+   "n": 1,
+   "fix_eq_hold": 1,
+   "repro": 1
+  },
+  "m5D_t01_a1": {
+   "n": 8,
+   "fix_eq_hold": 8,
+   "repro": 6
+  }
+ },
+ "changed": []
+}

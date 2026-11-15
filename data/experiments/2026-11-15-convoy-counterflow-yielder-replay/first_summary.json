@@ -1,0 +1,315 @@
+{
+ "recorded:live_cvD": {
+  "recorded:live_cvD|model=robot_1": {
+   "edits_fix": {
+    "substitute,substitute,swap": 1
+   },
+   "equals_hold_feasible": 1,
+   "fix_yielder": {
+    "robot_2": 1
+   },
+   "hold_equals_committed_on": 1,
+   "match_fix": 1,
+   "n": 1,
+   "prov_fix": {
+    "repaired": 1
+   },
+   "refused_fix": 0,
+   "reproduces_recorded": 1,
+   "resolving": {
+    "fix": 1,
+    "hold": 0,
+    "off": 0
+   },
+   "swapped_fix": 1
+  },
+  "recorded:live_cvD|model=robot_2": {
+   "edits_fix": {
+    "substitute,substitute": 2
+   },
+   "equals_hold_feasible": 0,
+   "fix_yielder": {
+    "robot_2": 2
+   },
+   "hold_equals_committed_on": 2,
+   "match_fix": 2,
+   "n": 2,
+   "prov_fix": {
+    "repaired": 2
+   },
+   "refused_fix": 0,
+   "reproduces_recorded": 2,
+   "resolving": {
+    "fix": 2,
+    "hold": 2,
+    "off": 0
+   },
+   "swapped_fix": 0
+  }
+ },
+ "recorded:live_cvH": {
+  "recorded:live_cvH|model=robot_1": {
+   "edits_fix": {
+    "substitute,substitute,swap": 2
+   },
+   "equals_hold_feasible": 2,
+   "fix_yielder": {
+    "robot_2": 2
+   },
+   "hold_equals_committed_on": 0,
+   "match_fix": 2,
+   "n": 2,
+   "prov_fix": {
+    "repaired": 2
+   },
+   "refused_fix": 0,
+   "reproduces_recorded": 2,
+   "resolving": {
+    "fix": 2,
+    "hold": 0,
+    "off": 0
+   },
+   "swapped_fix": 2
+  }
+ },
+ "recorded:smoke_armC": {
+  "recorded:smoke_armC|model=robot_2": {
+   "edits_fix": {
+    "none": 1
+   },
+   "equals_hold_feasible": 0,
+   "fix_yielder": {
+    "robot_2": 1
+   },
+   "hold_equals_committed_on": 1,
+   "match_fix": 1,
+   "n": 1,
+   "prov_fix": {
+    "m3_default": 1
+   },
+   "refused_fix": 0,
+   "reproduces_recorded": 1,
+   "resolving": {
+    "fix": 1,
+    "hold": 1,
+    "off": 1
+   },
+   "swapped_fix": 0
+  }
+ },
+ "stored|C|live_cvD": {
+  "stored|C|live_cvD|model=robot_1": {
+   "edits_fix": {
+    "substitute,substitute,swap": 6
+   },
+   "equals_hold_feasible": 6,
+   "fix_yielder": {
+    "robot_2": 6
+   },
+   "hold_equals_committed_on": 6,
+   "match_fix": 6,
+   "n": 6,
+   "prov_fix": {
+    "repaired": 6
+   },
+   "refused_fix": 0,
+   "reproduces_recorded": 0,
+   "resolving": {
+    "fix": 6,
+    "hold": 0,
+    "off": 0
+   },
+   "swapped_fix": 6
+  },
+  "stored|C|live_cvD|model=robot_2": {
+   "edits_fix": {
+    "substitute,substitute": 12
+   },
+   "equals_hold_feasible": 0,
+   "fix_yielder": {
+    "robot_2": 12
+   },
+   "hold_equals_committed_on": 12,
+   "match_fix": 12,
+   "n": 12,
+   "prov_fix": {
+    "repaired": 12
+   },
+   "refused_fix": 0,
+   "reproduces_recorded": 0,
+   "resolving": {
+    "fix": 12,
+    "hold": 12,
+    "off": 0
+   },
+   "swapped_fix": 0
+  }
+ },
+ "stored|C|smoke_armC": {
+  "stored|C|smoke_armC|model=robot_1": {
+   "edits_fix": {
+    "substitute,substitute,swap": 3
+   },
+   "equals_hold_feasible": 3,
+   "fix_yielder": {
+    "robot_2": 3
+   },
+   "hold_equals_committed_on": 3,
+   "match_fix": 3,
+   "n": 3,
+   "prov_fix": {
+    "repaired": 3
+   },
+   "refused_fix": 0,
+   "reproduces_recorded": 0,
+   "resolving": {
+    "fix": 3,
+    "hold": 0,
+    "off": 0
+   },
+   "swapped_fix": 3
+  },
+  "stored|C|smoke_armC|model=robot_2": {
+   "edits_fix": {
+    "substitute,substitute": 1
+   },
+   "equals_hold_feasible": 0,
+   "fix_yielder": {
+    "robot_2": 1
+   },
+   "hold_equals_committed_on": 1,
+   "match_fix": 1,
+   "n": 1,
+   "prov_fix": {
+    "repaired": 1
+   },
+   "refused_fix": 0,
+   "reproduces_recorded": 0,
+   "resolving": {
+    "fix": 1,
+    "hold": 1,
+    "off": 0
+   },
+   "swapped_fix": 0
+  }
+ },
+ "stored|H|live_cvD": {
+  "stored|H|live_cvD|model=reverse": {
+   "edits_fix": {
+    "substitute": 1
+   },
+   "equals_hold_feasible": 0,
+   "fix_yielder": {
+    "None": 1
+   },
+   "hold_equals_committed_on": 1,
+   "match_fix": 0,
+   "n": 1,
+   "prov_fix": {
+    "repaired": 1
+   },
+   "refused_fix": 0,
+   "reproduces_recorded": 0,
+   "resolving": {
+    "fix": 0,
+    "hold": 0,
+    "off": 0
+   },
+   "swapped_fix": 0
+  },
+  "stored|H|live_cvD|model=robot_1": {
+   "edits_fix": {
+    "substitute,substitute,swap": 7
+   },
+   "equals_hold_feasible": 7,
+   "fix_yielder": {
+    "robot_2": 7
+   },
+   "hold_equals_committed_on": 7,
+   "match_fix": 7,
+   "n": 7,
+   "prov_fix": {
+    "repaired": 7
+   },
+   "refused_fix": 0,
+   "reproduces_recorded": 0,
+   "resolving": {
+    "fix": 7,
+    "hold": 0,
+    "off": 0
+   },
+   "swapped_fix": 7
+  },
+  "stored|H|live_cvD|model=robot_2": {
+   "edits_fix": {
+    "substitute,substitute": 10
+   },
+   "equals_hold_feasible": 0,
+   "fix_yielder": {
+    "robot_2": 10
+   },
+   "hold_equals_committed_on": 10,
+   "match_fix": 10,
+   "n": 10,
+   "prov_fix": {
+    "repaired": 10
+   },
+   "refused_fix": 0,
+   "reproduces_recorded": 0,
+   "resolving": {
+    "fix": 10,
+    "hold": 10,
+    "off": 0
+   },
+   "swapped_fix": 0
+  }
+ },
+ "stored|H|smoke_armC": {
+  "stored|H|smoke_armC|model=robot_1": {
+   "edits_fix": {
+    "substitute,substitute,swap": 3
+   },
+   "equals_hold_feasible": 3,
+   "fix_yielder": {
+    "robot_2": 3
+   },
+   "hold_equals_committed_on": 3,
+   "match_fix": 3,
+   "n": 3,
+   "prov_fix": {
+    "repaired": 3
+   },
+   "refused_fix": 0,
+   "reproduces_recorded": 0,
+   "resolving": {
+    "fix": 3,
+    "hold": 0,
+    "off": 0
+   },
+   "swapped_fix": 3
+  },
+  "stored|H|smoke_armC|model=robot_2": {
+   "edits_fix": {
+    "substitute,substitute": 1
+   },
+   "equals_hold_feasible": 0,
+   "fix_yielder": {
+    "robot_2": 1
+   },
+   "hold_equals_committed_on": 1,
+   "match_fix": 1,
+   "n": 1,
+   "prov_fix": {
+    "repaired": 1
+   },
+   "refused_fix": 0,
+   "reproduces_recorded": 0,
+   "resolving": {
+    "fix": 1,
+    "hold": 1,
+    "off": 0
+   },
+   "swapped_fix": 0
+  }
+ }
+}
