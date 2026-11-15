@@ -121,7 +121,7 @@ All 44 calls were billed and completed; each was answered on its first attempt w
 | `involved_robots` = robot_1 and robot_2 only | 18 | 18 | 4 | 4 |
 | Strategy | yield 18 | yield 17, reverse 1 | yield 4 | yield 4 |
 | Grounded yielder robot_2 / robot_1 / none | 12 / 6 / 0 | 10 / 7 / 1 | 1 / 3 / 0 | 1 / 3 / 0 |
-| Plan gives robot_3 and robot_4 both `wait` | 2 | 14 | 0 | 2 |
+| Plan gives robot_3 and robot_4 both `wait` (exploratory, not pre-registered) | 2 | 14 | 0 | 2 |
 | Non-null `crossing_order` (always the pair only) | 13 of 22 overall | 18 of 22 overall | — | — |
 | Provenance | `vlm_verbatim` 22 of 22 overall | 21 verbatim, 1 `repaired` of 22 overall | — | — |
 | Grounding refusals | 0 | 0 | 0 | 0 |
@@ -137,14 +137,15 @@ The H answers gave both queued robots `wait` in 2, 6 and 6 of 6 on takes 1–3. 
 
 **The control reproduces the live behaviour.** C answered with the pair only in 22 of 22, as the three live takes did (3 of 3).
 
-**What the sentence changed, and why it does not matter here.**
+**What the sentence changed, and why it does not matter here.** These counts are exploratory, not a pre-registered measure. They were tabulated inline from the `plan`, `reasoning`, `crossing_order` and `grounded` fields of `analysis.jsonl`, not by the committed harness.
 
 - Under H the plans mark the held robots `wait` (16 of 22 overall). Only 1 of 22 reasonings mentions them as "pending robots" ("after which the pending robots can proceed").
 - `involved_robots` and `crossing_order` never include them.
 - Legacy grounding builds the command from the decision's named robots, the yielder and one passer. Plan verification accepts the `wait` legs (`vlm_verbatim`), but no `temporary_wait` for robot_3 or robot_4 reaches the command. This is verified offline for all 44 answers, with the same path that reproduced the four recorded first commands.
-- Released at about 120 s, robot_3 and robot_4 would again drive their own Nav2 goals through the gate, which is the latch of the three live takes (inferred from section 5.2 of the campaign report).
+- Released at about 120 s, robot_3 and robot_4 would again drive their own Nav2 goals through the gate, which is the latch of the three live takes.
+- There is recorded evidence for this. Live take 2's first answer already gave both queued robots `wait` (campaign report section 5.3). It grounded to the pair only, and the scene latched (section 5.2 there). So the typical treatment answer has been seen not to resolve. It was one take with robot_1 yielding, so for the robot_2 case this remains an inference.
 
-**Grounding can sequence all four once the decision names them (verified offline, free).** The same snapshots were grounded with hand-written decisions that name all four robots, with and without a plan. All of them produced a full sequence: yield, linked waits for the other three, and all three in the crossing order. This held with robot_2 and with robot_1 as the yielder. So the gap is that the model names the pair only, not the grounder refusing the four-robot answer.
+**Grounding can sequence all four once the decision names them (verified offline, free; an ad hoc check with no committed script).** The same snapshots were grounded with hand-written decisions that name all four robots, with and without a plan. All of them produced a full sequence: yield, linked waits for the other three, and all three in the crossing order. This held with robot_2 and with robot_1 as the yielder. So the gap is that the model names the pair only, not the grounder refusing the four-robot answer.
 
 ---
 
@@ -180,7 +181,8 @@ The H answers gave both queued robots `wait` in 2, 6 and 6 of 6 on takes 1–3. 
 
 **Overlay.**
 
-- Add `prompt_held_robot_state: true` through the runtime delta's `overlay_fragment.yaml`, for convoy only.
+- Convoy runs from `runtime_delta_inert/`. Its fragment is empty, and its expectations hold the four B3 keys at their defaults (see `runtime_delta/README.md`). The shared `runtime_delta/` carries B3 and is for `ib` only.
+- A retake needs a new delta directory (for example `runtime_delta_cvheld/`) whose `overlay_fragment.yaml` holds the single line `prompt_held_robot_state: true`. The `cv` profile's `DELTA_SUBDIR` would point at it; `eff_ov_dmc.sh` appends the fragment to the base overlay, and refuses a key the base already sets.
 - The convoy base overlay `cvl_l2on.yaml` (`7e3ab552`) already has `plan_channel_enabled: true`: the arm check's 7th field reads `True`.
 - Keep `plan_dispatch_order_source` at `chi` and the B3 keys off.
 
@@ -194,10 +196,11 @@ The H answers gave both queued robots `wait` in 2, 6 and 6 of 6 on takes 1–3. 
 | `ros2_ws/src/swarm_orchestrator/swarm_orchestrator/orchestrator_node.py` | pkg:swarm_orchestrator | `37a6bbadf91cb8c9def21d6f625c8bfe` | `71ae007388a7ddea754387479e3bf752` |
 | `ros2_ws/src/swarm_orchestrator/swarm_orchestrator/reasoning_pipeline.py` | pkg:swarm_orchestrator | `49fff7ab8fb460b9a94ea198cf5b523a` | `e65f594c0fdf1d891b54b810e4024b60` |
 
+- The "current" column equals `git show 2f83faf~1:<path> | md5` for all five files (verified). So the new delta is the current one plus this change only.
 - The new delta has a new `DELTA_ID`. `scripts/replay_live_decisions.py` changed too, but it is not runtime.
-- With the key off, these files render every prompt byte-identically (tests). The intersection B3 condition is unaffected if the intersection kit shares the delta, but its `DELTA_ID` would change.
+- With the key off, these files render every prompt byte-identically (tests). Moving `runtime_delta/` and `runtime_delta_inert/` to the new md5s would change their IDs too, without changing their prompts.
 
-**Arm check.** Add `arm_expect.tsv` rows for the convoy episode:
+**Arm check.** The new directory's `arm_expect.tsv` keeps the inert rows and adds one:
 
 - `c.prompt_held_robot_state	True`
 - `c.plan_dispatch_order_source	chi`
@@ -214,7 +217,7 @@ The registered `want_arm` stays `True True True 0.5 config/grounding/cvl_convoy_
 - On the **first** decision artifact by scene stamp, check:
   - `prompt_conditions.held_robot_ids == ["robot_3", "robot_4"]`;
   - `prompt.user_prompt` contains the note sentence verbatim;
-  - it contains `start_pending=true` exactly twice, once at the end of each of robot_3's and robot_4's state lines.
+  - it contains `, start_pending=true` (with the leading comma and space) exactly twice, at the end of robot_3's and robot_4's state lines. The bare token appears a third time, because the note itself starts with it.
 - `prompt_contains` cannot be used as is: it checks every artifact, and after the 120 s release no robot is held, so the note is truthfully absent from later prompts. This needs a new first-artifact check kind, or the gate fails.
 - Every artifact must carry a `prompt_conditions.held_robot_ids` list, possibly empty, which proves the key reached M5 for each request.
 
@@ -233,3 +236,11 @@ The registered `want_arm` stays `True True True 0.5 config/grounding/cvl_convoy_
 | Legacy grounding sequences all four when the decision names them, for either yielder | verified offline on the same snapshots |
 | A retake would latch again as in takes 1–3 | inferred (same first-decision structure as the live takes) |
 | A per-take chance under 17 % | inferred (rule of three on 0 of 18) |
+
+**Known limit of the note (from code; not tested live).**
+
+- The clause "once released, it starts driving toward its goal_x, goal_y" is exact when no coordination command owns the robot. That is the case at every first trigger here.
+- When a command owns a held robot, M4's base mission does not drive it at release; it waits until the command ends. In the smoke, robot_3 was released 82 wall-s after the dispatch while on a linked wait, and it moved only when admitted.
+- The wording was not changed, because that would void this check.
+
+**Scope of the null.** It covers this one facts-only sentence, with the existing guidance unchanged. The guidance-sentence variant of fix (a) (campaign report section 5.5: "robots queued behind a standoff ... belong in `involved_robots`") prescribes roles, so the facts-only rule excludes it. It remains untested.
