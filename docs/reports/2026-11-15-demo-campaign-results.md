@@ -12,6 +12,7 @@
 - Rev 6 (2026-11-15): added section 8.7, an offline follow-up showing that robot_3's escort in the five-robot take drove into rack island `obstacle_2`, with stills and an escort-segment check over the campaign and the October five-robot bundles. Scoped every contact statement: ground truth's two contact fields are hard-coded empty, so they show nothing. Added section 5.8, the outcome of the convoy held-robot prompt check. Updated the final summary, sections 8.2–8.6 and the open owner decisions.
 - Rev 7 (2026-11-15): re-rendered the five-robot video and the combined video with the escort-into-island caption line and a new middle five-robot excerpt (sim about 106-182 s); the first renders are kept with a `_v1` suffix. Updated the final summary's video table and sections 8.5, 8.7 and 9.
 - Rev 8 (2026-11-15): section 8.7.6 updated for the errata now carried by the older reports (current line numbers, old numbers kept in brackets, commits cited); section 8.7.2's exception-row span corrected to 266.5–268.0 s; added section 10 (the escort obstacle guard and ground-truth contact logging follow-up builds, by reference); updated the open owner decisions.
+- Rev 9 (2026-11-15): added section 11, an offline verification of the 2026-09-30 ER2LIVE head-on run. The model named robot_2 and retreat B; the feasibility gate kept the choice, and it was executed. Also the audit's wider counts. Its video was not rendered (disk floor), so section 9 and the video table are unchanged.
 
 ---
 
@@ -871,3 +872,55 @@ Two fixes for the defects in section 8.7 were built afterwards on separate branc
 - Escort guard: live check, and the owner's E18 margin rule.
 - Contact logging: Isaac Sim validation run.
 - Older-report wording: corrected by the errata listed in section 8.7.6.
+
+## 11. Earlier Recorded Run With an Uncorrected VLM Decision (ER2LIVE, 2026-09-30; Added 2026-11-15, Rev 9)
+
+**Status.** Illustrative, not controlled evidence, and not part of this campaign. n = 1. The run was selected *because* it qualifies, after a read-only audit searched the recorded bundles for such a case, so it says nothing about how often this happens. The verification below was done offline on the bundle (read-only). The planned panel video and its addition to the combined video were **not rendered**: the Mac had 5.06 GiB free against the 5.5 GiB floor set to protect a live VM take (see 11.5).
+
+**Run.** Bundle `data/logs/vm_runs/live_demo/ER2LIVE_20260930_152222/` (main checkout). `CONDITION.txt`: scenario `head_on_asymmetric_w0p2_eopen_bshort_o0`, backend `gemini`, `tree=3959d7f` (2026-09-30), `record=1`, `purpose=live_vlm_demo_video`. The same scene as section 6.
+
+### 11.1 Verification (Verified From the Bundle Unless Marked)
+
+| # | Check | Result |
+|---|---|---|
+| 1 | Model output, request `67d5cb88` (scene stamp 29.83 s) | `raw_text` and parsed `.decision`: `deadlock`, strategy `yield`, `yield_robot` robot_2, `crossing_order` robot_1 then robot_2, `blocker_kind` robot. `gemini-robotics-er-2-preview`, 1 attempt, `parse_status=valid`, 0 refusals, 4.9 s latency. Prompt v2 with no plan channel (`plan` key absent), presentation order `id_asc` (robot_1 listed first; the model named the second-listed robot). **Pass** |
+| 2 | Gate mode, no swap | `grounding_yield_feasibility: "swap"` (gate on). `yield_regrounded_reason`, `yield_robot_grounded_from` and `yield_refusal_reason` null; `grounding_degradations` empty; no `yield re-grounded` line in m5.log. The gate logs room figures only on a shortfall, so **this run logged no feasibility numbers**. The scenario's generator header (at `3959d7f`) gives west room 0.70 m < 1.079 m required (robot_1 cannot park), east open (robot_2 can). The `regrounded_from: robot_1` in the artifact belongs to the classical *shadow* (`shadow_classical.classical_retreat`, whose FCFS rule picked robot_1), not the executed path. **Pass** |
+| 3 | Stage 2 | Candidates A (1.789, −0.36) and B (1.789, +0.36): mirror images, identical backup 1.633 m, lateral clearance 1.901 m, sweep clearance 0.268 m. Listing order **B, A**; default A; the model answered B ("free of obstacles"); grounded label B. GT: robot_2 parked at x 1.80, y 0.34–0.37 (sim 60–90 s), i.e. B was dispatched and reached. **Pass**, but the pick was the first-listed of two equivalent options, so it shows that the choice was executed, not that it was better |
+| 4 | Commands, other analyses, resolution path | Two commands under `67d5cb88-yield`: `yield` to robot_2 and `temporary_wait` to robot_1 (m4 `command received`). M4 phases (GT): robot_2 backs from sim 33.4 s, reaches x 1.78 at 51.3 s, steps aside by 60.0 s; M4 escort of robot_1 starts (m4 `escort robot_1: ACTIVE`), robot_1 moves from 65.0 s, passes robot_2's x at 86.0 s; `escort complete: moved 2.557 m`; both commands `COMPLETED`; robot_1 at goal (M5 `arrived at base goal`, 0.10 m). Then M4 `resume base mission` for both. Robot_2's resumed Nav2 goal stalled at about (1.22, 0.15) from sim about 97 to 119.8 s; three further analyses (`fbaa01a8`, `26dcc7a3`, `a5d170d6`) each answered `congestion_detected=false`, `no dispatch`; robot_2 moved again right after Nav2's own `Failed to make progress` abort and local-costmap clear (nav2_r2 wall …082.94, mapped to sim about 120 s via the camera-localizer `scene_stamp` lines; GT motion resumes 119.8 s) and arrived. No fallback, default substitution or re-dispatch. **The standoff was resolved by the model's yield as executed** (robot_2 out of the corridor, robot_1 escorted through). Robot_2's own final leg was base-mission resume plus a Nav2 recovery, not a model decision. **Pass** |
+| 5 | Arrivals, closest pair, contacts | GT `distance_to_goal < 0.3 m`: robot_1 at sim 91.6 s, robot_2 at 135.9 s (M5 `arrived at base goal` lines at wall …015.43 and …138.25, 0.10 and 0.08 m). GT closest centre distance 0.2643 m at sim 25.5 s, during the approach before the call (M4's 0.45 m latch stopped the pair); 0.370 m at 86.1 s while robot_1 passed the parked robot_2. Offline recompute (v7m `scripts/recompute_gt_contacts.py`, called through `recompute_bundle` with the scenario YAML taken from `3959d7f`, because the bundle has no `scenario.yaml`; output in scratch): robot-robot verdict `clear`, minimum footprint gap 0.186 m at 25.5 s; robot-static `clear`, minimum 0.098 m (robot_1 to `blocker_west`, at spawn) and 0.127 m (robot_2 to the north aisle-barrier block at 120.7 s). **Pass** |
+| 6 | Code and config | `tree=3959d7f`. `orchestrator_used.yaml` and `rag_used.yaml` match today's head-on take (`hoD_t01_a1` `orchestrator.overlaid.yaml`, `rag.overlaid.yaml`) line for line after comments are stripped: obstacle text on (`prompt_static_obstacles: true`), pairwise geometry on, feasibility gate `swap`, stage-2 selection on, order `random`, classical shadow on. The yaml's `reasoning_backend_id: openai` is the restored file; `launcher.log` shows the swap `openai -> gemini` for the run and back on exit. The code differs from today's kit: M4 here has no `hard_contact_floor_m`, `scoped_clearing_exemption` or `crossing_chain` gate (its startup line ends at `exempt_actions=reverse,yield`), and the pass is driven by the older escort phase |
+| 7 | Oracle | Scenario `oracle.correct_yielder: robot_2`, `feasible_yielders: [robot_2]` (at `3959d7f`). The model's yielder matches it |
+
+### 11.2 What Was the Model's and What Was the System's
+
+- **Model:** congestion type, strategy `yield`, yielder robot_2, and the stage-2 side (B).
+- **System:** the trigger (robot_1 stalled ≥ 12 s after M4's 0.45 m latch stopped both), the 1.633 m backup and both retreat candidates (M3 derived grounding), robot_1's `temporary_wait`, the escort that drove robot_1 2.557 m to its goal, the base-mission resume, and Nav2's recovery for robot_2's last leg.
+- **Contrast with section 6 (same scene, today).** There the model named robot_1 and the gate swapped it to robot_2. Here the model named robot_2 and the gate had nothing to correct. Both are single takes; no rate follows.
+
+### 11.3 Caveats
+
+- n = 1, an earlier code version (`3959d7f`), selected because it qualifies.
+- The stage-2 pick was between mirror-equivalent positions and matched the listing's first slot.
+- Robot_2's arrival needed about 22 sim-s of Nav2 stall and recovery after the yield completed.
+- No feasibility numbers were logged for this request (11.1, row 2).
+
+### 11.4 Wider Counts (Quoted From a Read-Only Audit, Not Re-Checked Here)
+
+A read-only audit of the recorded log bundles (which did not view video frames) reported:
+
+- about 110 decisions in 71 recorded log bundles that were dispatched with no yielder swap, repair, substitution or default (ER-2 79; strategies: reverse 41, yield 40);
+- 66 further candidates it could not verify (no m5 log);
+- only three sources with camera recordings: ER2LIVE, the 2026-10-06 single-robot reroute demo (`data/logs/vm_runs/reroute_demo_live/v3_live_er2_reroute/`, request `28ffca8b`), and this campaign's takes.
+
+In this campaign the two dispatched five-robot decisions were the two `vlm_verbatim` ones, with no yielder swap. The system added shield waits, and decision 1's retreat was the default (section 8; stated in the task brief as confirmed, not re-checked in this section).
+
+### 11.5 Video: Not Rendered
+
+- **Blocker.** Free disk was 5.06 GiB (`df -k`, checked three times) against the 5.5 GiB floor. No panel, combined v3 or `_v2` rename was made, and section 9 and the final summary's video table are unchanged.
+- **Readiness (checked offline):**
+  - The renderer's fixed filter matches this bundle's m5/m4 lines.
+  - The `jq` request, model-call and decision lines return values. There is no `plan`, so no grounding line is printed, and the yielder and the B pick show only through the dispatch lines and captions.
+  - Camera: `annotated_000.mp4` and `annotated_001.mp4` (`/perception/annotated_frame`, 3745 frames, 1280x960, burned-in `t=…s f=…` clock; e.g. frame 501 reads t = 53.10 s). `live_er2_demo_…mp4` is a 3745-frame H.264 copy of the same stream.
+- **Two gaps to close before rendering:**
+  1. The renderer loads only `m5_scene.jsonl`; this bundle has `scene_8e616116….jsonl`. It needs a documented, tested loader fallback, not a mirrored bundle.
+  2. The campaign's clock decoder (`ho/kit/overlay_framemap.py`) decoded 0 of 3745 frames here. The September overlay is drawn larger: the glyphs span x 14–252 px against 12–203 px expected. A one-frame Hershey scale fit reached only IoU 0.32. Without a per-frame map, the recorder's first stamp (7.567 s) and frame count would assume a uniform rate, which best-effort capture does not give. So the 0.5 sim-s alignment is not yet shown.
