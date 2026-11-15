@@ -667,7 +667,7 @@ Written offline, before the VM start. Owner approval (2026-11-15): build the gro
 
 The kit is `demo_campaign/cvh/kit`, assembled by the unchanged `common/assemble_dmc.sh cvh <v7o>`. It has its own VM home `~/dmc_cvh`, its own Mac directory, labels `cvH_t04_aK` and `cvH_t05_aK`, and tag `demo_campaign_cvh`. It books under the ledger key `cv`.
 
-It is byte-identical to the `cv` kit in the scene, seed 42, the 260 sim-s horizon, the base overlay `cvl_l2on.yaml` (`7e3ab552`), the legacy grounding file (`63f50f91`), the scenario yaml (`9684b5fc`), live ER-2, the safety-exemption fix and the 0.20 m floor, the per-take budget (3 000 s) and the $0.20 per-take guard. `diff -r cv/kit cvh/kit` lists only the files below.
+It is byte-identical to the `cv` kit in the scene, seed 42, the 260 sim-s horizon, the base overlay `cvl_l2on.yaml` (`7e3ab552`), the legacy grounding file (`63f50f91`), the scenario yaml (`9684b5fc`), live ER-2, the safety-exemption fix and the 0.20 m floor, the per-take budget (3 000 s) and the $0.20 per-take guard. `diff -r cv/kit cvh/kit` lists only the files below plus `README.md`, `test_restore_dmc.sh` (fork: fake Isaac interpreter, whole-tree md5 check), the Mac-only `mac_extra_dry.sh`, `mac_extra_gen_keyon.py` and `mac_extra_fixture.txt` (replacing `mac_extra_nofixture.txt`), the two `src/` test-step files and the kit md5 lists.
 
 | Difference | Content |
 |---|---|
@@ -735,7 +735,7 @@ The shares in `common/caps_dmc.tsv` are this planning session's own split of the
   - `common/caps_dmc.tsv` edited: four values, one added `wall_sec_m5v` row and the header comment; md5 now `d7941db7`.
   - The `m5` kit was reassembled. A scratch reassembly before the edit was byte-identical. Its `kit_md5_dmc.txt` is unchanged (`89112a40`) and `kit_md5_all_dmc.txt` is now `d57688e5`.
   - Its `test_dry_dmc.sh` stops at step 2 (git preflight). This is pre-existing and unrelated to the caps: v7j HEAD's M5/M2 files have moved past `runtime_delta_inert` since the held-robot prompt work. The same preflight also refuses any `m5` invocation.
-  - The `ib`, `ho`, `cv`, `m5v` and `ib_sonnet` kits keep their old copies; every one of them refuses on its own valid-take or wall limit.
+  - The `ib`, `ho`, `cv`, `m5v` and `ib_sonnet` kits keep their old copies. Each kit's own `ledger_dmc.py admit` on a ledger copy (before the retake): `ib`, `ib_sonnet`, `cv`, `m5` and `m5v` refuse (valid-take or wall limit). `ho`'s stale copy (5 400 s) still admits (`cap_sec=4098`), but `ho`'s git preflight, like `ib`'s and `cv`'s, refuses on the current v7j HEAD (verified), so no stale kit can start the VM. (Corrected 2026-11-15 after the retake; the first wording said every one refuses on its own limit.)
 - **Admission on a ledger copy.** `cv` gives `ADMIT cap_sec=7771 spend_left=0.4 aborts_left=3 next_take=4 valid=3`, and `ib`, `ho`, `m5` and `m5v` refuse.
 - **Spend.** The ledger total is $2.7677 of $10. The brief's ≈ $3.2 includes offline checks that were not booked. This retake's own guard is $0.40: `usd_cv` 0.6791 = `cv`'s booked $0.2791 + $0.40, read by this kit's ledger only, on top of the unchanged $0.20 per-take guard.
 
