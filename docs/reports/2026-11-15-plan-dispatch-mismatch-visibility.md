@@ -183,10 +183,10 @@ Correcting the tracker's leg status would change model input, so it was not done
 
 ## 5. Tests and Identity Checks
 
-**New tests: 46** (all verified passing):
+**New tests: 48** (all verified passing):
 
 - `tests/unit/test_plan_dispatch_mismatch.py` (26, parametrised cases counted). The pure function on every kind; the recorded `95066420`, `b07a700f`, `df2ed72f`, `03bba450`, `759bdb94` and `6a05a618`; the withheld and registry-drop cases; yielder, passer and order; the junction epsilon and yielder gap; `leg_effects`; `reverse_dispatch`; tag registration.
-- `tests/unit/test_m5_node_plan_dispatch_visibility.py` (20, parametrised cases counted). Real `OrchestratorNode._handle_outcome` with the real `PlanTracker`, replaying the m5V chain `b07a700f` → statuses → `95066420`, and cv `6a05a618`. It covers:
+- `tests/unit/test_m5_node_plan_dispatch_visibility.py` (22, parametrised cases counted; two of them run the real `InProcessPipeline` and check that it sets `plan_verified_legs` with the plan channel on, and leaves it None with the channel off). Real `OrchestratorNode._handle_outcome` with the real `PlanTracker`, replaying the m5V chain `b07a700f` → statuses → `95066420`, and cv `6a05a618`. It covers:
   - the default, the validator and the startup suffix;
   - the companion provenance, tags and WARN line;
   - `not_sent` and `overridden` leg records and the `plan leg status` line;
@@ -211,7 +211,7 @@ Correcting the tracker's leg status would change model input, so it was not done
 - The failure is `test_write_decision_artifact_preserves_m2_result_on_grounding_failure`.
 - It fails identically at `8933863`: a free-text `strategy` fails `CongestionDecision` validation. It predates this branch.
 
-**Full unit suite.** See the hand-back. It was gated on the Mac's swap headroom.
+**Full unit suite.** Not run: the run was gated on at least 2 GB of free swap, and free swap stayed at about 1.4 GB. The before/after comparison is pending.
 
 ---
 
@@ -233,7 +233,9 @@ Correcting the tracker's leg status would change model input, so it was not done
   - a non-held block's legs;
   - on a hold, the non-done legs plus, for verbatim decisions, the done robots' own proposed legs;
   - for a held non-verbatim decision with a recorded match, the projected dispatch.
-- **Fidelity gate.** For every comparable decision without a phase sequence, `per_robot_equal` must equal the recorded `dispatch_matches_plan`: **0 failures** over all rows (verified).
+- **Fidelity gate.** For every comparable decision without a phase sequence, `per_robot_equal` must equal the recorded `dispatch_matches_plan`. It is a real check only where the legs are exact: `plan_block` (263 checked rows) and `held_verbatim` (6). **0 failures there** (verified).
+  - The 48 `held_from_recorded_match` rows pass by construction, and the 5 `held_approx` rows (held, non-verbatim, recorded mismatch) only need to be unequal. Their per-kind items are approximate for the done robots.
+  - Every verbatim row (47 `plan_block`, 6 `held_verbatim`) uses exact legs, so the verbatim counts and the 6 → 5 result do not depend on the approximation.
 - 2 `step7b_prefix_rescue` artifacts predate the recorded `dispatched_command` and are not comparable.
 
 ### 6.1 Per Series (Verified)
@@ -302,6 +304,7 @@ Part A's scope is the 12 pinned campaign bundles plus v3 (`cvh` excluded). It co
 | **This definition (key-on `verbatim_dispatched`)** | 1 | 2 | 2 | **5** |
 | Motion-only | 1 | 3 | 2 | 6 |
 
+- Readings side by side: **5 under this definition**, 6 motion-only, 3 raw. The difference between 5 and 6 rests on one decision, cv `759bdb94`.
 - Under this definition the figure becomes **5**. Convoy take 2's `759bdb94` drops out: its plan held the two queued robots, and dispatch never commanded them.
 - The five-robot "2 of 8, both executed as named" stands (shield artefacts only).
 - The intersection take-5 plan is unaffected.
@@ -342,4 +345,8 @@ A kit that also carries another branch's `command_grounder.py` (for example the 
 - No live or VM validation. The key stays default-off until a kit run validates it.
 - No prompt, grounding, verifier or dispatch change, by the owner's decision. The plan is still not read for `reverse` and `reroute` (the Part A grounding fix stays unbuilt).
 - The prompt still shows tracker leg statuses that can be wrong (section 4.1).
+- The verbatim counters in `scripts/s1b_live_batch_stats.py` and `plan_metrics.tabulate_provenance_by_strategy_correctness` still count the recorded `vlm_verbatim` with the key on. Only `score_dispatch_agreement` and the block's `verbatim_dispatched` give the corrected reading, and no corrected tabulation was added beside the registered one.
+- Later `junction_clear` phases and the fallback command are dispatched outside `_handle_outcome` (`_dispatch_junction_phase`), so they are not compared live. The decision-time record covers the whole precomputed sequence.
+- With `dispatch_enabled: false`, the block is written but no WARN or reverse lines are logged, because nothing was sent.
+- Summary items put `yielder`, `passer` or `order` in the WARN line's `robot=` field.
 - Withheld decisions count as mismatches in `matches` (nothing was dispatched). A reader who wants only dispatched commands can filter on `withheld`.

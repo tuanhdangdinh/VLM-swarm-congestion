@@ -430,3 +430,53 @@ def test_withheld_decision_logs_one_summary_warning(node_env, tmp_path):  # noqa
     legs = {leg["robot_id"]: leg for leg in record.mismatch_block["leg_status"]}
     assert legs["robot_1"]["effective_status"] == "not_sent"
     assert legs["robot_1"]["reason"] == "withheld:refusal_no_action"
+
+
+def _pipeline_outcome(plan_tracker):
+    from swarm_orchestrator.reasoning_pipeline import InProcessPipeline
+
+    from reasoning.rag.command_grounder import ground_reasoner_result
+    from reasoning.rag.maneuver_geometry import GroundingParams
+    from tests.unit.test_m5_reasoning_pipeline import _FakeReasoner, _head_on_request
+
+    decision = CongestionDecision(
+        congestion_detected=True,
+        type="deadlock",
+        involved_robots=["robot_1", "robot_2"],
+        root_cause="head-on",
+        strategy="yield",
+        justification="x",
+        yield_robot="robot_1",
+        proposed_plan=[
+            ProposedPlanLeg(robot_id="robot_1", action="yield"),
+            ProposedPlanLeg(robot_id="robot_2", action="cross"),
+        ],
+    )
+    diag = ReasonerDiagnostics(
+        request_id="r1", backend_id="mock", attempts=1, parse_status="valid"
+    )
+    result = ReasonerResult(request_id="r1", decision=decision, raw_text="{}", diagnostics=diag)
+    pipe = InProcessPipeline(
+        reasoner=_FakeReasoner(result),
+        ground_fn=ground_reasoner_result,
+        grounding_params=GroundingParams(mode="derived", backup_band_m=(0.01, 0.02)),
+        plan_tracker=plan_tracker,
+    )
+    return pipe.run(_head_on_request())
+
+
+def test_in_process_pipeline_carries_the_verified_legs_it_compared():
+    from swarm_orchestrator.plan_tracker import PlanTracker
+
+    outcome = _pipeline_outcome(PlanTracker())
+
+    assert outcome.plan is not None
+    assert outcome.plan_verified_legs == (
+        ProposedPlanLeg(robot_id="robot_1", action="yield"),
+        ProposedPlanLeg(robot_id="robot_2", action="cross"),
+    )
+    assert outcome.plan.dispatch_matches_plan is False
+
+
+def test_in_process_pipeline_sets_no_verified_legs_without_the_plan_channel():
+    assert _pipeline_outcome(None).plan_verified_legs is None
