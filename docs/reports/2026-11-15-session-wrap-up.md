@@ -161,7 +161,7 @@ Read-only snapshot at 2026-11-15T13:49Z, every tip re-checked at about 15:45Z fo
 | `feat/demo-panel-renderer` | v7g | `51d9b1a` 2026-11-15 docs: note queued-robot hold line in presentation renderer (`d43028d` at Rev 2) | `feat/convoy-live-resolution` | yes at 15:52Z (one modified file earlier, while the render job ran) | demo video renderer | 6 |
 | `feat/v4-per-cluster-parity` | v6d | `2582f45` 2026-11-15 docs: apply reader-facing names to register and change list (before this pass's register commit; `f39bc8c` at Rev 2) | `feat/v4-per-cluster` | yes | evidence register, thesis change list | 7 |
 | `feat/v4-refusal-feedback` | v7b | `384e948` 2026-11-14 docs: record finished-plan hiding for refusal feedback | `feat/v4-per-cluster` | yes | refusal feedback | 7 |
-| `docs/thesis` | thesis | `e1bbce6` 2026-11-15 docs: add physical testbed setup and Appendix D configs (`7e589d8` at Rev 2; moved five times during this pass, section 10) | v4 line | **no** at 15:49Z: `thesis/chapters/08-conclusion.typ` modified (the report-writer session, working) | thesis; the report-writer session's own work (read-only here) | 7 (optional) |
+| `docs/thesis` | thesis | `68c9629` 2026-11-15 docs: tighten abstract, chapter 1 and chapter 8 (`7e589d8` at Rev 2; moved six times during this pass, section 10) | v4 line | **no** at about 16:10Z: `thesis/chapters/06-results.typ` and `10-appendix-traces.typ` modified, two untracked convoy-rerun stills (the report-writer session, working) | thesis; the report-writer session's own work (read-only here) | 7 (optional) |
 
 **Final tips of the two finished jobs** (re-read at 15:45Z; neither has a remote-tracking ref, so both are unpushed):
 
@@ -311,13 +311,13 @@ Worktree `/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7t`, branch `fix/convoy-
 
 ## 10. Thesis Report Session
 
-The report-writer session works on branch `docs/thesis`, worktree `/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-thesis`. Everything here was read with read-only git commands; nothing in that tree was edited. The session was still committing during this pass: its tip moved `fbc5d00` → `87a6d7d` → `f59ffe8` → `e8ee52e` → `a38d5fc` → `e1bbce6` between 15:20Z and 15:47Z. Facts below are pinned to **`e1bbce6`** (2026-11-15 22:46:26 +0700, "docs: add physical testbed setup and Appendix D configs"), clean at 15:47Z; at 15:49Z `thesis/chapters/08-conclusion.typ` was modified again (uncommitted, not read).
+The report-writer session works on branch `docs/thesis`, worktree `/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-thesis`. Everything here was read with read-only git commands; nothing in that tree was edited. The session was still committing during this pass: its tip moved `fbc5d00` → `87a6d7d` → `f59ffe8` → `e8ee52e` → `a38d5fc` → `e1bbce6` → `68c9629` between 15:20Z and 16:05Z. Facts below are pinned to **`68c9629`** (2026-11-15 23:05:28 +0700, "docs: tighten abstract, chapter 1 and chapter 8"); the working tree had further uncommitted changes (Chapter 6, appendix B traces, two new stills), not read.
 
 ### 10.1 State
 
-- **Tip** `e1bbce6`; 70 commits on 2026-11-15 (since 00:00 local time, up to `e1bbce6`).
+- **Tip** `68c9629`; 71 commits on 2026-11-15 (since 00:00 local time, up to `68c9629`).
 - **Nothing is pushed:** `docs/thesis` has no upstream (`git rev-parse @{u}` fails) and no remote branch contains the tip.
-- **Word count.** Raw `wc -w` of the chapter sources at `e1bbce6`, Typst markup included (so an overcount): chapters 00–08 31,605; chapters 01–08 30,742. The independent review measured about 30,060 for chapters 00–08 at `231baac` by its own method. Both are at or slightly above the top of the 25,000–30,000-word target; a markup-free count was not made.
+- **Word count.** Raw `wc -w` of the chapter sources at `68c9629`, Typst markup included (so an overcount): chapters 00–08 31,318; chapters 01–08 30,492 (at `e1bbce6`: 31,605 and 30,742). The independent review measured about 30,060 for chapters 00–08 at `231baac` by its own method. Both are at or slightly above the top of the 25,000–30,000-word target; a markup-free count was not made.
 
 ### 10.2 What Its Commits Did on 2026-11-15 (Grouped)
 
@@ -329,19 +329,19 @@ The report-writer session works on branch `docs/thesis`, worktree `/Users/tuanhd
 - **Corrected plan counts:** plan-dispatch corrected counts (`2531c04`); denominators fixed (`a38d5fc`).
 - **Appendices:** appendix B (`12fdc38`, `846f7c7`); appendix C with the recorded VLM prompts (`9b71aa3`, `36655f8`); appendix D for the physical testbed (stub `3495526`, content `e1bbce6`).
 - **Naming pass and length cut:** reader-facing names and "coordination layer" applied chapter by chapter, and every chapter tightened toward the 25,000–30,000-word target (`a2e42e0` to `9d6a5c5`, 21:19–21:35 +0700), then fixes to restored scope and evidence links (`b8439b3` to `7316233`).
-- **After the cut:** review follow-ups and the restored abstract hardware clause (`231baac`); convoy rerun take added, hardware and pilot-plan claims fixed (`8945bb8`, `fbc5d00`); scope narrowed to RQ1–RQ3, review fixes, scripted safety tests added (`87a6d7d`); campaign take count (`f59ffe8`); RQ4/RQ5 worded "not tested" with the exploratory runs noted (`e8ee52e`); denominators, safety wording and abstract length (`a38d5fc`); physical testbed setup and appendix D configurations (`e1bbce6`).
+- **After the cut:** review follow-ups and the restored abstract hardware clause (`231baac`); convoy rerun take added, hardware and pilot-plan claims fixed (`8945bb8`, `fbc5d00`); scope narrowed to RQ1–RQ3, review fixes, scripted safety tests added (`87a6d7d`); campaign take count (`f59ffe8`); RQ4/RQ5 worded "not tested" with the exploratory runs noted (`e8ee52e`); denominators, safety wording and abstract length (`a38d5fc`); physical testbed setup and appendix D configurations (`e1bbce6`); abstract, Chapter 1 and Chapter 8 tightened (`68c9629`).
 
 ### 10.3 Owner Decisions That Reached This Side
 
-| Decision | Date | Where recorded | State at `e1bbce6` |
+| Decision | Date | Where recorded | State at `68c9629` |
 |---|---|---|---|
 | (a) Reader-facing names, Layer 2 = "coordination layer" | 2026-11-15 | Naming glossary Rev 3 (v7j `docs/guides/naming_glossary.md`, `7a045d9`); this index Rev 2; evidence register Rev 9 | Applied in the chapters (naming commits above) |
-| (b) Report length 25,000–30,000 words | 2026-11-15 | Not found in any committed document in v7j, v6d or the thesis tree; the independent review cites it as "the 25–30 k target". To confirm with the report-writer session where it is recorded | About 30.7–31.6 k raw words (10.1) |
+| (b) Report length 25,000–30,000 words | 2026-11-15 | Not found in any committed document in v7j, v6d or the thesis tree; the independent review cites it as "the 25–30 k target". To confirm with the report-writer session where it is recorded | About 30.5–31.3 k raw words (10.1) |
 | (c) Research-question scope: RQ4 and RQ5 moved to Future Work, RQ1–RQ3 answered in Chapter 8 | 2026-11-15 (owner's words in the planning session's brief; quoted in 10.3.1) | Owner's instruction relayed by the planning session; the thesis records it in its Introduction's "Scope change" paragraph | **Applied** (`87a6d7d`, wording refined in `e8ee52e`), see 10.3.1 |
 | (c′) Ruling on (c): the two questions **were** in the first registered design with planned tests, so the thesis must not say "not preregistered"; say "not tested" and mention the exploratory runs as not reported as evidence | 2026-11-15 | Planning session (ruling after it checked tag `prereg-v1`, `569d95c`); thesis Evidence Index rows 1.03, 1.16, 5.01 | **Applied** (`e8ee52e`); "not preregistered" does not occur in the thesis chapters |
 | (d) Independent review of the thesis | 2026-11-15 | Copied to v7j `docs/reports/2026-11-15-thesis-independent-review.md` (this pass), reviewing `88d8cfe` working tree to `231baac` | MUST FIX items all addressed, see 10.4 |
 
-#### 10.3.1 Research-Question Scope at `e1bbce6`
+#### 10.3.1 Research-Question Scope at `68c9629`
 
 The owner's instruction (2026-11-15): "RQ4 and RQ5 were not preregistered. I prefer to narrow the thesis to the research questions actually investigated. Please move RQ4 and RQ5 to Future Work rather than retaining them as unanswered core research questions. Keep RQ1–RQ3 as the main research questions, and ensure they are explicitly answered in Chapter 8 with the appropriate evidence and limitations. Make the scope adjustment transparent, without implying that RQ4 and RQ5 were tested or that the change was preregistered. Align the Abstract, Introduction, Research Questions, Methodology, Discussion, and Conclusion with the revised scope. Do not change the experimental results or weaken the negative findings."
 
@@ -357,17 +357,17 @@ What the tree shows:
 - **Abstract:** asks whether the VLM classifies the jam, chooses strategies that clear it, and names an effective yielder and order (the three questions).
 - **Evidence Index:** scripted safety tests = row 6.86; convoy rerun = rows 6.84 (take) and 6.85 (non-arrival and correction); row 6.16 cites the evidence register at `2582f45`; row 1.16 cites the pre-tag exploratory runs.
 
-### 10.4 Independent Review: MUST FIX Items at `e1bbce6`
+### 10.4 Independent Review: MUST FIX Items at `68c9629`
 
-The review (copied this pass; reviewed `88d8cfe` working tree to `231baac`) listed three MUST FIX items. Facts at `e1bbce6`:
+The review (copied this pass; reviewed `88d8cfe` working tree to `231baac`) listed three MUST FIX items. Facts at `68c9629`:
 
-1. **Abstract hardware sentence** (scenario E had a FAILED robot): addressed. The abstract now reads "the model chose a bounded back-out each time and all but one robot recorded it complete (one run each, no goals, illustrative)" (the "all but one" wording since `8945bb8`).
+1. **Abstract hardware sentence** (scenario E had a FAILED robot): addressed. The abstract now reads "the model always chose a bounded back-out, completed by all but one robot (one run each, no goals, illustrative)" ("all but one" since `8945bb8`).
 2. **Chapter 8 answers the questions by number:** addressed for RQ1–RQ3 (10.3.1); RQ4/RQ5 are no longer research questions.
-3. **The two `#todo[VERIFY]` boxes in Chapter 5 and the VERIFY text in row 5.12:** addressed. No `[VERIFY]` and no `#todo` remain in the chapters or evidence files at `e1bbce6` (the Appendix D `#todo` stub of `f59ffe8` was replaced by content in `e1bbce6`); row 5.12 now gives the reason (the v1/v2 track stopped when its host VM was deleted on 2026-11-12).
+3. **The two `#todo[VERIFY]` boxes in Chapter 5 and the VERIFY text in row 5.12:** addressed. No `[VERIFY]` and no `#todo` remain in the chapters or evidence files at `68c9629` (the Appendix D `#todo` stub of `f59ffe8` was replaced by content in `e1bbce6`); row 5.12 now gives the reason (the v1/v2 track stopped when its host VM was deleted on 2026-11-12).
 
 Not checked here: the review's SHOULD FIX and NICE items. Its section 4.3 ("scripted safety tests: still registered only") is stale since `74dd45c`; the thesis cites the results as row 6.86. Its "convoy rerun not integrated" point is also superseded (rows 6.84, 6.85).
 
 ### 10.5 Hardware Material and Items to Confirm
 
-- **Physical testbed.** The report-writer session is merging physical-testbed (Zenoh) material from the owner's team into Chapter 4, Chapter 6 and appendix D, cited as team notes that are not in the repository; this session has no source for it and has not checked it. In the tree at `e1bbce6`: appendix D says its configurations are "taken from the team's testbed notes, which are not in the repository"; Chapter 4 says "the code that ran is not in the repository's history" and that the hardware runs "are never pooled with the simulation results". The Chapter 6 part was not checked.
+- **Physical testbed.** The report-writer session is merging physical-testbed (Zenoh) material from the owner's team into Chapter 4, Chapter 6 and appendix D, cited as team notes that are not in the repository; this session has no source for it and has not checked it. In the tree at `68c9629` (unchanged since `e1bbce6`): appendix D says its configurations are "taken from the team's testbed notes, which are not in the repository"; Chapter 4 says "the code that ran is not in the repository's history" and that the hardware runs "are never pooled with the simulation results". The Chapter 6 part was not checked.
 - **To confirm with the report-writer session:** where the 25,000–30,000-word decision is recorded; whether the further cut is planned (raw counts are above 30,000); whether the former RQ4 check (blocker-kind answers in the tagged overnight-findings report, "Funded battery 1") was verified by that session against the tagged tree; and its own hand-back of decisions, which was requested and not seen here.
