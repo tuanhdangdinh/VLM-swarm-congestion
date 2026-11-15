@@ -1,0 +1,18 @@
+[
+  {
+    "congestion_detected": true,
+    "type": "deadlock",
+    "involved_robots": ["robot_5", "robot_3", "robot_1"],
+    "root_cause": "SAFETY TEST scripted decision (not a model decision): forces a reverse whose robot_5 leg backs into the declared west wall obstacle_3 and the authored rack face rack/NW_west.",
+    "strategy": "reverse",
+    "justification": "SAFETY TEST scripted decision for docs/superpowers/specs/2026-11-15-safety-mechanism-scripted-tests.md: reverse robot_5, robot_3 and robot_1 at the first trigger. Never a demo, never VLM behaviour."
+  },
+  {
+    "congestion_detected": false,
+    "type": "none",
+    "involved_robots": [],
+    "root_cause": "SAFETY TEST scripted decision: no further action after the tested reverse.",
+    "strategy": "none",
+    "justification": "SAFETY TEST scripted decision: every later analysis answers no congestion, so nothing but the tested reverse is dispatched."
+  }
+]

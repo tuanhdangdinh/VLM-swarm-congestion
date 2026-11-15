@@ -1,0 +1,45 @@
+# S1b-ONLY M3 grounding parameters WITH the prereg-v3 A26 retreat shield, the
+# B3 fresh-latch fast-fail AND the A28(ii)/A29(i) escort/park candidate filter
+# (mini-batch E24-E26, prereg-v3 A30). PILOT-ONLY.
+#
+# A copy of config/grounding/s1b_dynamic_shield.yaml (md5 ee5fe68f..., pinned,
+# never edited) with exactly ONE added key; every other key is byte-identical
+# in value, and tests/unit/test_a30_escort_overlay.py pins that:
+#   escort_park_clearance: true   -- drop every retreat candidate whose escort
+#                                    leg, as M4 drives it, passes within
+#                                    min_distance_m (0.45 m) of its park point,
+#                                    before stage 2; survivors re-letter A..;
+#                                    no survivor -> yield=infeasible:
+#                                    escort_hits_park -> reroute fallback
+#                                    (command_grounder.
+#                                    prepare_filtered_retreat_selection, one
+#                                    selection for every reader, A29(i)).
+# The A28(ii)/A30 "escort leg of the shield config" has no switch of its own:
+# s1b_dynamic_shield.yaml carries no escort on/off key (its escort keys
+# escort_clearance_m, escort_band_m and escort_turn_cap were live in batches 3
+# and 4, which escorted passers), and A28(ii) kept it "OFF" by ruling only.
+# Turning it back on therefore adds no key beyond escort_park_clearance; the
+# shield's own keys stay as in the pinned file.
+# Selected per run by an orchestrator overlay's grounding_params_path; the
+# shipped config/rag.yaml, config/orchestrator.yaml and both pinned S1b
+# grounding files are untouched.
+grounding:
+  reverse_obstacle_guard: true
+  mode: derived
+  min_distance_m: 0.45
+  backup_clearance_m: 1.7
+  escort_clearance_m: 0.5
+  backup_band_m: [0.5, 2.0]
+  escort_band_m: [1.0, 3.5]
+  lateral_m: 0.35
+  sweep_step_m: 0.1
+  aisle_y_band_m: [-1.66, 1.66]
+  aisle_x_band_m: [-2.36, 2.36]
+  dynamic_scene_arms: true
+  dynamic_handoff_radius_m: 0.5
+  retreat_box_margin_m: 0.05
+  escort_turn_cap: true
+  retreat_shield: true
+  retreat_shield_margin_m: 0.05
+  retreat_fast_fail: true
+  escort_park_clearance: true
