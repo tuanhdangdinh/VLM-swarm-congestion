@@ -19,6 +19,7 @@ from pydantic import (
 )
 
 from reasoning.rag.command_grounder import (
+    QUEUED_CROSSERS_ADDED_KEY,
     CommandGroundingError,
     DispatchOrderSource,
     DispatchOrderSourceMode,
@@ -933,6 +934,25 @@ def summarize_yield_grounding(command: dict[str, Any] | None) -> YieldGroundingP
     )
 
 
+def queued_crossers_added(command: dict[str, Any] | None) -> list[str] | None:
+    """The robots M3's queued corridor-crosser hold added to a grounded yield.
+
+    Args:
+        command: The grounded coordination command, or None.
+
+    Returns:
+        The yield action's `queued_crossers_added` list, or None when the
+        command has no yield or the hold added nobody.
+    """
+    if command is None:
+        return None
+    for action in command.get("actions", []):
+        if action.get("action") == "yield":
+            added = (action.get("parameters") or {}).get(QUEUED_CROSSERS_ADDED_KEY)
+            return list(added) if added else None
+    return None
+
+
 def yield_refusal_fan_out(command: dict[str, Any] | None) -> str | None:
     """Return the refusal reason when a command is nothing but a refused yield's waits.
 
@@ -1299,6 +1319,11 @@ def write_decision_artifact(
     if probe_index is not None:
         payload["probe"] = True
         payload["probe_index"] = probe_index
+    # Queued corridor-crosser hold: the robots M3 added to the yield, not the
+    # model; absent when none was added, so a key-off artifact is unchanged.
+    queued_added = queued_crossers_added(outcome.grounded_command)
+    if queued_added is not None:
+        payload["grounding_queued_crossers_added"] = queued_added
     # (a0) plan channel (prereg-v2 rev 4): added only when plan tracking is
     # on (`outcome.plan is not None`), same conditional-add pattern as
     # `probe`/`probe_index` above, so a flag-off artifact is byte-identical
@@ -1434,8 +1459,13 @@ class InProcessPipeline:
         goal_reference_of: Callable[[str], tuple[float, float] | None] | None = None,
         dispatch_outcome_observer: Callable[[bool, bool], None] | None = None,
         task_intent_of: Callable[[str], RobotTaskIntent | None] | None = None,
+        hold_queued_crossers: bool = False,
     ) -> None:
         self._reasoner = reasoner
+        # Queued corridor-crosser hold (`grounding_hold_queued_crossers`):
+        # passed to M3's grounder and plan verifier only when on, so every
+        # off-key call is the call made before the key existed.
+        self._hold_queued_crossers = hold_queued_crossers
         # prereg-v3 A22, apparatus only: the echo mock's rotation hook
         # (`EchoMockBackend.note_dispatch_outcome`). None for every live
         # backend, which has no such hook, so `note_dispatch_outcome` is a
@@ -1647,6 +1677,8 @@ class InProcessPipeline:
             task_intents = self._task_intents(request, params)
             if task_intents is not None:
                 priority_kwargs["task_intents"] = task_intents
+            if self._hold_queued_crossers:
+                priority_kwargs["hold_queued_crossers"] = True
             grounded = filter_command_robot_ids(
                 self._ground_fn(
                     result,
@@ -1696,6 +1728,7 @@ class InProcessPipeline:
                         if goal_references is not None
                         else {}
                     ),
+                    **({"hold_queued_crossers": True} if self._hold_queued_crossers else {}),
                 )
                 acceptance = self._plan_tracker.accept_plan(verified)
                 known_robot_ids = [robot.robot_id for robot in request.robot_states]

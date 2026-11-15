@@ -448,6 +448,62 @@ def corridor_direction(geometry: SceneGeometry) -> tuple[float, float]:
     return (math.cos(heading), math.sin(heading))
 
 
+def is_single_corridor(geometry: SceneGeometry) -> bool:
+    """Whether the geometry declares one plain corridor and nothing that splits it.
+
+    Junction arms, a declared junction or junction boxes, and any dynamic-arms
+    view field (`lane_robots`, `lane_heading_rad`, `junction_box`) each mean
+    the scene has more than one passage, or that the corridor was derived per
+    decision; only the plain declared corridor is a single gate.
+
+    Args:
+        geometry: Scene geometry.
+
+    Returns:
+        True for a plain declared corridor.
+    """
+    return (
+        geometry.arms is None
+        and not geometry.junction_declared
+        and geometry.junction_boxes is None
+        and geometry.junction_box is None
+        and geometry.lane_robots is None
+        and geometry.lane_heading_rad is None
+    )
+
+
+def traverses_corridor(
+    position: tuple[float, float],
+    goal: tuple[float, float] | None,
+    geometry: SceneGeometry,
+) -> bool:
+    """Whether a robot queued outside the corridor must drive through it to its goal.
+
+    Read along the corridor axis only (`along_m`): the robot stands beyond
+    one mouth and its goal lies beyond the other. This is the single-corridor
+    assumption every legacy check already makes (`_beyond_corridor_same_side`
+    in `command_grounder`): the declared corridor is the one passage between
+    its two sides. Call it only when `is_single_corridor(geometry)`.
+
+    Args:
+        position: The robot's world `(x, y)` in metres.
+        goal: Its current goal `(x, y)`, or None when unknown.
+        geometry: Scene geometry declaring the corridor.
+
+    Returns:
+        False when the goal is unknown, the robot is inside the corridor, or
+        the goal is on the robot's own side or inside the corridor.
+    """
+    if goal is None:
+        return False
+    half_length = geometry.corridor.half_length_m
+    d_position = along_m(geometry, position) - geometry.corridor.center_m
+    d_goal = along_m(geometry, goal) - geometry.corridor.center_m
+    if abs(d_position) <= half_length:
+        return False
+    return math.copysign(1.0, d_position) * d_goal < -half_length
+
+
 def junction_box_for(
     geometry: SceneGeometry, points: Sequence[tuple[float, float]]
 ) -> JunctionBox | None:
