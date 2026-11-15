@@ -10,6 +10,7 @@
 - Rev 4 (2026-11-15): added section 7, intersection takes 4–5 (ER-2, B3), the adversarial verification of take 5 (the one VLM-driven take), its panel video, and the wall-share amendment.
 - Rev 5 (2026-11-15): campaign closed. Added the final summary (all four scenarios, ledger totals, the three-way VLM count, open owner decisions, archive index), section 8 (five-robot take 1 and its video) and section 9 (the combined video). Fixed stale statements: the Sonnet offline spend is booked (sections 3.4, 3.6), and the ER-2 choice for takes 4–5 is now recorded in registration section 10.8 (running summary, section 7). The running summary below is otherwise kept as written per phase.
 - Rev 6 (2026-11-15): added section 8.7, an offline follow-up showing that robot_3's escort in the five-robot take drove into rack island `obstacle_2`, with stills and an escort-segment check over the campaign and the October five-robot bundles. Scoped every contact statement: ground truth's two contact fields are hard-coded empty, so they show nothing. Added section 5.8, the outcome of the convoy held-robot prompt check. Updated the final summary, sections 8.2–8.6 and the open owner decisions.
+- Rev 7 (2026-11-15): re-rendered the five-robot video and the combined video with the escort-into-island caption line and a new middle five-robot excerpt (sim about 106-182 s); the first renders are kept with a `_v1` suffix. Updated the final summary's video table and sections 8.5, 8.7 and 9.
 
 ---
 
@@ -24,8 +25,8 @@ Every take is an illustrative demo, not controlled experimental evidence. No tak
 | 4-robot intersection (`ib`, ER-2, B3; sections 1, 7) | 5 (1) | take 1 Unresolved failure (3/4 arrived); takes 2, 3, 4 M3-default resolution; take 5 VLM-driven execution (all 4/4) | take 5, **VLM-driven execution** (chosen for its label; disclosed) | `ibD_t05_a1_panel.mp4`, `fdf07a82fcb657b738c44a89bfbe3dae` |
 | Convoy counterflow (`cv`, ER-2, legacy grounding; section 5) | 3 (0) | takes 1–3 Unresolved failure, 0/4 arrived in each | take 1, **Unresolved failure** (selected take) | `cvD_t01_a1_panel.mp4`, `824319447d05aaef6623158d00d2818f`; a `_small` copy, `b78cff5b3db4b25f6b8e218111656a42` |
 | Head-on with obstacle (`ho`, ER-2, prompt v2; section 6) | 1 (0) | take 1 resolved 2/2 | take 1, **M3-default resolution** (grounder-corrected) | `hoD_t01_a1_panel.mp4`, `2aa6534ad508d3440e51822fdcd3f0f0` |
-| Five robots, seed position 21 (`m5`, ER-2; section 8) | 1 (0) | take 1 unresolved, 1/5 arrived | take 1, **Unresolved failure** (limitation demonstration) | `m5D_t01_a1_panel.mp4`, `75bf99e64c7ebea10573f08eb62440c3` |
-| All four, excerpts (section 9) | — | — | — | `demo_campaign_combined.mp4`, md5 in section 9 |
+| Five robots, seed position 21 (`m5`, ER-2; section 8) | 1 (0) | take 1 unresolved, 1/5 arrived | take 1, **Unresolved failure** (limitation demonstration) | `m5D_t01_a1_panel.mp4`, `33e9f5eedd7fb56edd007d8b728ea8c0` (Rev 7; v1 kept as `m5D_t01_a1_panel_v1.mp4`, `75bf99e64c7ebea10573f08eb62440c3`) |
+| All four, excerpts (section 9) | — | — | — | `demo_campaign_combined.mp4`, `1e0fd52025624da723766701ec412131` (Rev 7; v1 kept as `demo_campaign_combined_v1.mp4`, `ace3cc0d765a504441a29d54e74ac3df`) |
 
 ### Ledger Totals (`ledger_dmc.py status`, After the Last Invocation)
 
@@ -666,13 +667,14 @@ Three pairs stayed under M4's `min_distance_m` 0.45 continuously to the end (GT)
 
 ### 8.5 Video
 
-- **File.** v7g `data/demo/campaign/m5D_t01_a1_panel.mp4` (git-ignored), md5 `75bf99e64c7ebea10573f08eb62440c3`, 21.0 MB (no `_small` copy needed). Beside it: transcript, five stills (call, decision, dispatch, mid, end) and `m5D_t01_a1_panel.md5`. Renderer v7g `feat/demo-panel-renderer` (`5198c0b`), unchanged, with the same arguments as the other campaign videos.
+- **File.** v7g `data/demo/campaign/m5D_t01_a1_panel.mp4` (git-ignored), md5 `33e9f5eedd7fb56edd007d8b728ea8c0`, 21.3 MB (Rev 7 re-render; no `_small` copy needed). The first render is kept beside it with a `_v1` suffix (`m5D_t01_a1_panel_v1.mp4`, md5 `75bf99e64c7ebea10573f08eb62440c3`, with its transcript, stills and md5 file). Beside it: transcript, five stills (call, decision, dispatch, mid, end) and `m5D_t01_a1_panel.md5`. Renderer v7g `feat/demo-panel-renderer` (`5198c0b`), unchanged, with the same arguments as the other campaign videos. The Rev 7 render used the v1 arguments plus one caption line (below).
 - **Left pane.** Real camera recording, `/perception/annotated_frame`, all 7 segments, `annotated_framemap.json`.
 - **Captions** (outside the terminal):
   1. "Unresolved failure — take 1 of 1 (limitation demonstration)";
   2. "Model: Gemini Robotics-ER 2 (gemini-robotics-er-2-preview); Layer 2 on; 1 of 5 robots arrived.";
   3. "Two decisions were executed (yield + escort); six later proposals were refused by grounding checks; the scene stayed jammed.";
-  4. "Illustrative demo, not controlled experimental evidence. Seed position 21 (exploratory extension seed); shows a current limitation." (the section 7 lines).
+  4. (Rev 7) "Decision 2's escort drove robot_3 straight into a rack island (the escort path has no obstacle check); it stayed against the island until the escort timed out." (inserted before the disclosure line);
+  5. "Illustrative demo, not controlled experimental evidence. Seed position 21 (exploratory extension seed); shows a current limitation." (the section 7 lines).
 - **Checks (verified).**
   - ffprobe: H.264, 1920x1080, 24 fps, yuv420p, 4839 frames, 201.63 s. The full take (sim 0–600 s), not cut.
   - Time map: log-to-sim alignment within 0.32 sim-s at 52 anchors.
@@ -683,7 +685,7 @@ Three pairs stayed under M4's `min_distance_m` 0.45 continuously to the end (GT)
   - The fixed filter does not match m5's `yield refused`, `refusal withheld` or `reanalysis suppressed` lines, or m4's `escort … FAILED` line. On screen, the "no feasible yielder" refusals show only as `provenance=m3_default reason=repair distance exceeds bound 4`. The "no declared junction" and "no shared lane" refusals show in full, because they are the plan's rejection reason.
   - The `jq` grounding line prints `dispatch_order=…` for the six withheld decisions too: it reads `dispatched_robot_ids`, which is filled although nothing was sent. The absence of m5 `dispatch` and m4 `command received` lines after those decisions shows the withholding; the caption states it.
   - The left pane is blank before sim 31.47 s (first recorded frame) and in the last frames after 600.23 s, so the end still is blank.
-  - **Rev 6: the captions predate the escort finding (8.7).** They do not say that robot_3's escort drove into a rack island. The video and the combined video (section 9) were not re-rendered. A re-render should add one caption line: "Decision 2's escort drove robot_3 straight into a rack island (the escort path has no obstacle check); it stayed against the island until the escort timed out." Caption 3's "the scene stayed jammed" is then true, but incomplete without that line.
+  - **Rev 7: the captions now carry the escort finding (8.7).** The Rev 7 render adds the 8.7 caption line (item 4 above) and keeps all other lines. All five caption lines fit above the footer with the renderer's usual wrapping. The terminal pane is unchanged: the transcript JSON is byte-identical to v1 (`diff` clean, md5 `40ca685a5b6219c592efa88a5ca8b0f4`), and the filter was not widened. ffprobe: H.264, 1920x1080, 24 fps, 4839 frames, 201.63 s, 21,312,857 bytes. The new line was checked on the call still. The v1 video (kept) lacks the line; its caption 3 ("the scene stayed jammed") is true but incomplete.
 
 ### 8.6 Verified and Inferred
 
@@ -804,8 +806,8 @@ These reports are frozen evidence on other branches or worktrees, or earlier rep
 
 ## 9. Combined Video (Added 2026-11-15)
 
-- **File.** v7g `data/demo/campaign/demo_campaign_combined.mp4` (git-ignored), md5 `ace3cc0d765a504441a29d54e74ac3df`, 25.6 MB. Beside it: the manifest `demo_campaign_combined_manifest.json`, the tool's sidecar `demo_campaign_combined_sources.json` (each source's path, md5, trim and labels) and `demo_campaign_combined.md5`. It was made with `render_demo_panel.py combine` (renderer `5198c0b`, unchanged) at `--crf 25`. The default crf 23 gave 29.3 MB, over the 28 MB limit.
-- **Output (ffprobe, verified).** H.264, 1920x1124 (a 44 px caption bar above the 1080p clips), 24 fps, yuv420p, 5518 frames, 229.92 s.
+- **File.** v7g `data/demo/campaign/demo_campaign_combined.mp4` (git-ignored), md5 `1e0fd52025624da723766701ec412131`, 26.8 MB (26,757,620 bytes; Rev 7 re-render, `--crf 25`, 244.4 s, 5866 frames, 1920x1124). The first combined video is kept with a `_v1` suffix (`demo_campaign_combined_v1.mp4`, md5 `ace3cc0d765a504441a29d54e74ac3df`, 25.6 MB, 229.9 s, with its manifest, sidecar and md5 file). Beside the new one: the manifest `demo_campaign_combined_manifest.json`, the tool's sidecar `demo_campaign_combined_sources.json` (each source's path, md5, trim and labels) and `demo_campaign_combined.md5`. It was made with `render_demo_panel.py combine` (renderer `5198c0b`, unchanged) at `--crf 25`. The default crf 23 gave 29.3 MB, over the 28 MB limit.
+- **Output (ffprobe, verified).** H.264, 1920x1124 (a 44 px caption bar above the 1080p clips), 24 fps, yuv420p, 5866 frames, 244.42 s (Rev 7; v1: 5518 frames, 229.92 s).
 - **Order and trims** (source video seconds; each excerpt follows a 3 s title card, and the caption bar prints the trim):
 
 | # | Source | Title card: outcome, take | Excerpt | What it contains |
@@ -815,6 +817,7 @@ These reports are frozen evidence on other branches or worktrees, or earlier rep
 | 3 | same | Unresolved failure, take 1 of 3 (later excerpt) | 255–271.9 s | the last proposal (`m3_default`, a wait) and the jam at sim 250–260 s, up to the last camera frame |
 | 4 | `hoD_t01_a1_panel.mp4` (76.0 s) | M3-default resolution, take 1 of 1 | 26.5–69 s | decision 2 call, `yield` robot_1 in the answer and the dispatched yield to robot_2, gate, both arrivals |
 | 5 | `m5D_t01_a1_panel.mp4` (201.6 s) | Unresolved failure, take 1 of 1 | 7.5–37 s | first call, `vlm_verbatim` yield, dispatch, `gate_admit`, `gate_cleared` |
+| 5b (Rev 7) | same | Unresolved failure, take 1 of 1 (middle excerpt); card title "escort into a rack island" | 62–73.5 s (sim about 106–182 s) | decision 2: `vlm_verbatim` yield for robot_2, dispatch, `gate_admit` (escort 1.604 m, sim 138.7 s), and robot_3 stopped at the island's east face at sim about 147 s |
 | 6 | same | Unresolved failure, take 1 of 1 (later excerpt) | 183–199.5 s | the last analysis (`plan absent`), then 30x sim time to sim 597 s with both clusters in place |
 
 - **Title-card notes** (one line each, consistent with sections 5–8):
@@ -823,10 +826,11 @@ These reports are frozen evidence on other branches or worktrees, or earlier rep
   - convoy, later: "All 11 later proposals ran as 8 s waits; 0 of 4 robots arrived by the end (sim 260 s); takes 2-3 were also 0 of 4";
   - head-on: "Grounder corrected the model's yielder: robot_1 had 0.70 m retreat room (< 1.08 m), so robot_2 yielded; 2 of 2 arrived";
   - five robots: "Limitation demonstration: first decision (robot_1 yields, robot_4 escorted) executed and completed";
+  - five robots, middle excerpt (Rev 7): "Limitation demonstration. Decision 2's escort drove robot_3 into a rack island (no obstacle check on the escort path).";
   - five robots, later: "Six later proposals were refused by grounding checks; no analysis after sim 275.5 s; 1 of 5 arrived by sim 600 s".
   Each card also carries the tool's fixed line "Illustrative demonstration, not controlled experimental evidence.". The per-scenario disclosure captions of the source videos stay visible under each scene pane.
 - **Checks (verified).**
   - Before combining, ffprobe frame counts matched each source's duration: 2499 / 104.125 s, 6559 / 273.29 s, 1825 / 76.04 s and 4839 / 201.63 s. No excerpt ends past a source's last frame.
   - Stills viewed: all six title cards, and one frame from inside each excerpt. Each frame's caption bar names the scenario, outcome, take and trim. The text is legible at crf 25 (checked on a full-resolution frame of excerpt 4).
-- **Rev 6.** The five-robot title cards and captions predate section 8.7 and do not mention the escort into the island. Per the table above, excerpt 5 covers decision 1 (`gate_admit`, `gate_cleared`), and excerpt 6 runs from the last analysis to sim 597 s, a period when robot_3 was already against island `obstacle_2` (not re-checked frame by frame in the combined video). It was not re-rendered; a re-render should add the 8.5 caption line to the "five robots, later" card.
+- **Rev 7.** The five-robot cards now cover the escort finding through a third five-robot excerpt (5b), placed between excerpts 5 and 6. The new card note is on this middle excerpt (decision 2 and the escort into the island); the "five robots, later" card keeps its original note, so no disclosure was dropped. Order and all other trims are as in v1. The video time for sim about 147 s was taken from the render's timeline (video 62–73.5 s runs at 8x sim time, sim about 106 to 182 s). Verified on stills of the combined video: the 5b title card, and a frame at sim 146.3 s showing robot_3 at the island's east face (the new caption line is on the five-robot panel; the caption bar prints "excerpt 62-73.5 s of 201.6 s"). ffprobe of the combined video as above; total 4 min 4 s, under 28 MB. The terminal pane of the five-robot video is unchanged (transcript diff clean, see 8.5).
 - **Why two excerpts for each unresolved take.** One contiguous excerpt could not show both the first executed decision and the late, still-jammed scene within about 4 minutes. The cut is never hidden: each part has its own title card, and the caption bar prints its trim.
