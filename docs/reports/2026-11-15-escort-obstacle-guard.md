@@ -5,6 +5,7 @@
 **Revision history:**
 
 - Initial draft: the grounding-side escort obstacle guard (owner-approved), its unit tests, and an offline replay over the demo campaign and the October five-robot bundles.
+- Rev 2 (2026-11-15): section 8, the same check extended to the `reverse` strategy behind a second key `grounding.reverse_obstacle_guard` (validation take `m5V_t01_a1`, decision `95066420`), with a manoeuvre-coverage table, tests, an offline replay over 17 dispatched reverses and a false-positive assessment.
 
 ---
 
@@ -305,3 +306,273 @@ The globs were `batch2`–`batch6`, `churn_wave`, `s1b_pilot2` and `s1_resume/v3
 | A shorten branch would be unreachable because escort equals `clear_m` in derived grounding | verified by code reading (`_ground_derived`, `filter_escort_park_candidates`, `_cap_escorts_at_turn`) |
 | The guard would have prevented the live pin | inferred (the decision would have been withheld; what the scene did next is not shown) |
 | The suggested M4 no-progress abort would bound similar failures on undeclared obstacles | inferred, not built |
+
+---
+
+## 8. Reverse Extension (Rev 2, 2026-11-15)
+
+### 8.1 Finding That Prompted It
+
+In validation take `m5V_t01_a1` (bundle on v7j, read-only; report `docs/reports/2026-11-15-validation-guard-contacts-results.md` on v7n), the closest robot–static approach was 5.5 mm: robot_4 at `obstacle_1`'s south-west corner, sim 81.6 s, while reversing under `95066420-reverse`, a `vlm_verbatim` VLM `reverse`. The take ran with `escort_obstacle_guard: true`, which covers escorts only.
+
+### 8.2 Facts (Step 1)
+
+**How a `reverse` strategy is grounded** (verified by code reading; `command_grounder.py`):
+
+- Derived mode reaches the legacy template (`_ground_derived` → `_ground_legacy`). Every involved robot (`resolve_robot_order`, i.e. `involved_robots` after the grounding view) gets one `reverse` action.
+- The distance is the fixed `_FALLBACK_BACKUP_M` = 1.3 m, clamped per robot only by `_clamp_reverse_distance_to_tracked_band`, which applies only to robots with a declared arm and `tracked_extent_m`.
+- The direction is not in the command. M4 backs up along the robot's own heading.
+- Existing geometry checks:
+  - the corridor same-side refusal on the first two involved robots (`_beyond_corridor_same_side`);
+  - the tracked-band clamp.
+- There is no retreat-room check, no robot-sweep check and no static-obstacle check. `static_obstacles` are passed to `_ground_legacy`, but the reverse branch never reads them.
+- **Existing refusal path.** A refused reverse becomes a `temporary_wait` (8 s) to every involved robot, with `requested_strategy: reverse` and the refusal `reason`. `_legacy_template_degradations` tags it `reverse=infeasible:<reason>` (cause `infeasible_geometry`).
+  - M5 dispatches those waits. `yield_refusal_fan_out` matches only `"yield refused:"` and `empty_reroute_fallback` only reroutes, so `refusal_no_action` does not withhold a refused reverse.
+  - Verified on the live artifacts `m5V` `929335f4` and `2acc6130`: same-side refusals, 8 s waits to r2–r5, `dispatch_withheld` None.
+  - This differs from the escort refusal, which M5 withholds (section 2.2).
+
+**M4's backup** (verified by code reading plus Nav2 config):
+
+- `Nav2Adapter.backup` publishes a negative `Twist` straight to `/<robot>/cmd_vel`.
+- `collision_monitor` reads `cmd_vel_nav` and writes `cmd_vel` (`ros2_ws/src/swarm_simulation/config/nav2_params.yaml`), so the backup bypasses the monitor and its lidar polygons. The safety monitor checks robot pairs only.
+- Under `backup_line_hold` (set for every `reverse` when `dynamic_scene_arms` is on, `grounding_view.apply_backup_line_hold`), the backup holds the line through its start pose along its start heading. `line_turn_rad` applies only to `yield`. Without the key it servos toward the odom y = 0 spawn line.
+- It ends only on:
+  - odometry distance (`COMPLETED`);
+  - an OS-monotonic deadline `max(15 × L / 0.1, 30)` s, which is 195 s for 1.3 m (`FAILED backup timed out`);
+  - or, with `fresh_latch_fast_fail`, a fresh robot–robot latch.
+- There is no stall or no-progress abort, and nothing sees a static box.
+
+**Manoeuvre coverage: straight raw-cmd_vel motion the grounder can dispatch, and whether a declared-box sweep exists**
+
+| Manoeuvre | Built by | Declared-box sweep before this change | After |
+|---|---|---|---|
+| `reverse` strategy, every involved robot | `_ground_legacy` (reached from derived) | **none** | swept under the new key `reverse_obstacle_guard` (derived only) |
+| Derived yield: backup leg | `generate_retreat_candidates` | yes, only under a dynamic-arms view (`rear_room_band == "footprint"`), **sampled at 0.1 m**, not clipped exactly | unchanged |
+| Derived yield: pull-off (sidestep) leg | same | same as the backup (sampled, footprint band only) | unchanged |
+| Derived yield on a declared (non-dynamic) geometry: backup and pull-off | same | **none** (the boxes are added only under the footprint band; the yield gate's rear-room check is not a box sweep of the leg) | unchanged; finding |
+| Legacy-mode yield: backup and pull-off | `_ground_legacy` | **none** (gate rear room only) | unchanged; out of scope (legacy) |
+| Derived yield: escort | `escort_obstacles` | yes, `escort_obstacle_guard` (exact clip) | unchanged |
+| `junction_clear` recede phases (a `reverse` action per receder) | `_ground_junction_clear_phases` | **none** | unchanged; finding (IB10 declares no boxes, so it is moot there today) |
+| `junction_clear` cross phase and fallback yield | `_ground_derived` | as a derived yield | unchanged |
+| `junction_clear` release phase: hand-built `yield` with backup and pull-off | `_ground_junction_clear_phases` | **none** (not through the candidate sweep) | unchanged; finding |
+| reroute, waits | Nav2 / no motion | Nav2 costmap and collision monitor apply | n/a |
+
+The guard was not extended to any other row. Recommendation: before any scene with declared boxes runs `junction_clear` or a declared-geometry yield, sweep the recede and release legs with `reverse_obstacle_hits`, and the declared-geometry yield's backup and pull-off with `segment_entry_m`. Each needs its own key, test and replay, like this one.
+
+**`95066420-reverse` by the guard's arithmetic** (verified, unit tests):
+
+- Box: `obstacle_1`, bare x −1.30…−0.75, y −0.70…0.90. Grown by 0.09 + 0.05 = 0.14 m, it is x −1.44…−0.61, y −0.84…1.04.
+- **robot_4.** Snapshot (−1.5559, −0.3519), θ 1.9601 rad, so it backs up along −1.1815 rad (cos 0.3803, sin −0.9249) for 1.3 m.
+  - x reaches −1.44 after 0.1159 / 0.3803 = **0.305 m**, at y −0.634, inside the grown y range: **blocked**.
+  - Minimum centreline-to-bare-box distance: 0.105 m, i.e. 0.015 m of body clearance under a 0.09 m half-width.
+  - GT: COMPLETED after 1.283 m; minimum URDF-footprint gap **5.5 mm** at 81.6 s.
+- **robot_5.** Snapshot (−1.6496, 0.0076), θ −1.8218, so it backs up along 1.3198 rad.
+  - x reaches −1.44 after **0.844 m**, at y 0.825: **blocked**.
+  - Minimum centreline-to-bare-box distance: 0.117 m.
+  - GT: COMPLETED after 1.274 m; minimum gap **19.1 mm** (`obstacle_1`'s north-west corner, 87.4 s).
+- **The guard refuses the command:** `reverse=infeasible:reverse_hits_obstacle:robot_4:obstacle_1:0.305` and `…:robot_5:obstacle_1:0.844`.
+- Side note (finding, not changed): the VLM's own plan for this decision gave robot_5 `continue`. Dispatch reversed both involved robots anyway, because the reverse template reverses every involved robot. The 19 mm approach was robot_5's.
+
+### 8.3 Design
+
+- **Shared geometry, no new geometry code.**
+  - `escort_obstacles.reverse_obstacle_hits(legs, snapshot, static_obstacles, margin_m)`. Each leg starts at the snapshot pose, heads `theta + pi`, and runs the dispatched distance.
+  - It uses the escort guard's `segment_entry_m` through a factored `_first_entry` that `escort_obstacle_hits` now also uses (behaviour unchanged).
+  - It uses the same growth (`escort_obstacle_margin_m`: half-width + `retreat_box_margin_m`), so the owner's start-inside rule applies unchanged.
+  - Reason string: `reverse_hits_obstacle:<robot>:<obstacle>:<clear m>`.
+- **One predicate for every reader.** `command_grounder._reverse_obstacle_refusal(robot_ids, snapshot, geometry, params, static_obstacles)` rebuilds each robot's dispatched leg (`_FALLBACK_BACKUP_M` after the tracked-band clamp). Three readers call it:
+  - dispatch (`_ground_derived`, only when the legacy template actually produced `reverse` actions);
+  - the default plan (`_derive_default_plan`);
+  - the plan audit (`_plan_problems`).
+- **What a refusal looks like.** It follows the same-side precedent:
+  - any blocked leg refuses the whole reverse;
+  - every involved robot gets the 8 s `temporary_wait` (`requested_strategy: reverse`, `reason` = the first hit's reason);
+  - the command carries one `reverse=infeasible:reverse_hits_obstacle:...` tag per blocked leg, before the view tags;
+  - M5 dispatches the waits, as it does every refused reverse.
+
+  A partial reverse of the clear robots was not built: no precedent exists, and the same-side refusal and the default plan's any-pair rule both hold everyone.
+- **Second key, `grounding.reverse_obstacle_guard`, not a widened `escort_obstacle_guard`.**
+  - `m5V_t01_a1` ran with `escort_obstacle_guard: true` and dispatched `95066420`. Under a widened key, the same kit yaml and the same recorded params would now refuse that decision. The artifact could no longer say which version ran, and the validated configuration would not reproduce.
+  - With two keys, `escort_obstacle_guard` keeps exactly its 72c08c8 meaning, which a unit test pins.
+  - The new key has default false and is dropped from every params dump when off.
+  - M5's startup line appends ` reverse_obstacle_guard=True` after the escort field, only when on.
+  - Fragment: `config/grounding/reverse_obstacle_guard.fragment.yaml`.
+  - Derived mode with a scene geometry and declared boxes only; legacy mode ignores the key (unit test).
+
+### 8.4 Tests
+
+- **New file:** `tests/unit/test_reverse_obstacle_guard.py`, 25 functions, 29 cases. Fixture: `tests/unit/data/escort_obstacle_guard/reverse_cases.json`, extracted read-only from m5V `95066420` and `b07a700f` and October E12 `d374802a`.
+  - Geometry reuse:
+    - the leg starts at the snapshot pose and runs at θ + π;
+    - `clear_m` equals `segment_entry_m` on the grown box;
+    - reason format;
+    - no boxes gives no hits;
+    - a robot missing from the snapshot is skipped.
+  - `95066420` arithmetic: 0.305 m for robot_4 and 0.844 m for robot_5.
+  - Key on:
+    - `95066420` becomes the 8 s wait fan-out with the exact parameters and tags;
+    - M5 does not withhold it (`yield_refusal_fan_out` and `empty_reroute_fallback` are None);
+    - the tag's cause is `infeasible_geometry`;
+    - the clear `b07a700f` is identical with the key on and off.
+  - Multi-robot: in E12 `d374802a`, robot_2 is blocked by the declared north wall `obstacle_5` at 1.267 m and robot_4 is clear. Both robots wait, and there is one tag.
+  - Key off:
+    - all three cases reproduce the live actions and degradations (M5's `plan_id` aside);
+    - `False` equals absent;
+    - the dump omits the key;
+    - `escort_obstacle_guard` alone leaves `95066420` a reverse;
+    - legacy mode ignores the key.
+  - Plan verifier:
+    - with no plan, the default plan waits robot_4 and `plan_matches_dispatch` holds;
+    - a reverse/reverse plan is repaired to wait/wait and matches dispatch;
+    - with the key off, the same plan stays `vlm_verbatim` and matches;
+    - a clear plan's verdict is the same with the key on and off.
+  - Fragment pinned.
+- **Two node tests in `tests/unit/test_m5_node_grounding.py`:** the startup-line field alone, and after the escort field.
+- **Test-first.** The new file ran red first (an import error for `reverse_hits_obstacle_reason`).
+- **Related files.** After the change, the new file, `test_m5_node_grounding`, the escort, A26/A28/A29/A30, dynamic and derived grounder, retreat, stage-2 and `test_plan_verifier` tests all pass: 1576 passed, 129 skipped.
+- **Full suite:** see 8.7.
+- **Existing gap, not fixed: plan/dispatch mismatch for reverse.** The verifier's same-side audit flags only the first two involved robots, and a plan `continue` leg on an involved robot is never flagged. Dispatch, meanwhile, holds or reverses every involved robot. So `dispatch_matches_plan` was already False live for `95066420`, `929335f4` and `2acc6130`. The new check flags every involved robot's `reverse` leg, but it cannot change a plan's `continue` legs either.
+
+### 8.5 Offline Replay
+
+`scripts/reverse_obstacle_replay.py` (new). For each artifact whose strategy is `reverse` and whose dispatched command has a `reverse` action, it reports:
+
+- the live-leg check;
+- an off/on re-grounding on this tree;
+- M4's last status for the command (`m4.log`);
+- from GT: the distance moved from M4's handover until the leg's distance is reached, the robot turns back, or 150 s pass.
+
+With `--contact-root` pointing at v7m (`b5eaee5`, the GT contact-recompute branch, `isaac/vgu_sim/contact_geometry.py`), it also gives the minimum URDF-footprint gap over that window to every box the scene builders author. The v7m recompute summaries are whole-run and do not window by leg, so they were not used for the per-leg figures.
+
+**Scope searched** (`find -name decisions`, `_backup_*` excluded):
+
+- the 36 campaign bundles;
+- every bundle under v3 `data/logs/vm_runs/` and under the main checkout's `data/logs/vm_runs/`;
+- 375 bundles in all.
+
+**What was found:**
+
+- **17 dispatched derived `reverse` commands with declared boxes:**
+  - hoD `4de32642`;
+  - m5V `95066420` and `b07a700f`;
+  - 14 October S1b commands in `batch2`, `batch3`, `churn_wave`, `live_batch` and `resume`. Four of these (`live_batch` E7, E8, E10 and `resume` E11) lie outside the escort replay's globs.
+- **Not replayable:**
+  - s6 `s6_live_er2_pilot` `46b0f4dd` declares no boxes, so the guard sees nothing there.
+  - 41 `reverse` decisions in 38 September head-on bundles (main checkout `20260925_*`, `bshort*`, `gshort`, `m4fix`, `simtime_shadow_val`) predate derived grounding. They have no `grounding_mode` or `dispatched_command`, so they are out of scope. Their count matches the audit's "reverse 41" (campaign report §11.4), but the audit's bundle list was not available to confirm they are the same decisions.
+  - The head-on scenes declare `obstacle_1` (`blocker_west`, 0.3 m square at x −1.85) but not the aisle barrier. The guard cannot see the barrier.
+  - `junction_clear` recede reverses (ibD ×5) are a different manoeuvre: not covered and not replayed.
+- **Off reproduces live for all 17** (actions and degradations).
+
+**Results per command:**
+
+| Command | Robots (blocked legs: obstacle @ clear m) | Guard on | M4 / GT per robot (moved; min footprint gap) | Physical verdict |
+|---|---|---|---|---|
+| hoD `4de32642` | r1, r2 (none) | unchanged | r1 COMPLETED 1.286, 0.172 (`blocker_west`); r2 COMPLETED 1.293, 0.183 (barrier) | correct admit |
+| m5V `95066420` | r4 (`obstacle_1`@0.305), r5 (`obstacle_1`@0.844) | refused | r4 COMPLETED 1.283, **0.0055**; r5 COMPLETED 1.274, **0.0191** | justified (sub-margin graze ×2) |
+| m5V `b07a700f` | r1, r2, r3 (none) | unchanged | COMPLETED ×3; 0.241 / 0.082 / 0.213 | correct admit |
+| E12 `d374802a` | r2 (`obstacle_5`@1.267); r4 clear | refused | r2 COMPLETED 1.260, **−0.0015** (rack/NW_north); r4 COMPLETED, 0.208 | justified (contact) |
+| E13 `652ac9ac` | r5 (`obstacle_1`@0.337) | refused | r5 COMPLETED 1.263, **0.0179** | justified (sub-margin graze) |
+| E13 `ea23b1a7` | r1 (`obstacle_3`@0.539); r3, r4 clear | refused | r1 **FAILED** after 0.550, **0.000** (rack/NW_west); r3, r4 COMPLETED | justified (contact, stall) |
+| E16 `ede6d209` | r3 (`obstacle_3`@1.157); r4 clear | refused | r3 FAILED after 0.618, 0.243; r4 FAILED after 0.304 | untested (the leg's end is on the rack face line x −2.50; never reached) |
+| E17 `150b95a6` | r3 (none) | unchanged | r3 FAILED at 1.297 m moved, 0.084 | admit; failure not a box contact |
+| E17 `9cf93ebe` | r2 (`obstacle_2`@0.584), r3 (`obstacle_1`@0.696), r5 (`obstacle_4`@0.710); r4 clear | refused | r2 **FAILED** after 0.578, **−0.0001**; r3 COMPLETED, 0.061; r5 COMPLETED, 0.312; r4 COMPLETED | justified by r2 (contact); r3 and r5 are robot-level false positives |
+| E18 `8bf906be` | r5 (`obstacle_3`@0.843); r4 clear | refused | r5 **FAILED** after 1.188, **−0.0017** (rack/SW_west); r4 COMPLETED, 0.075 | justified (contact) |
+| E19 `09647748` | r3 (`obstacle_3`@1.201); r4 clear | refused | r3 FAILED after 0.065 (barely moved); r4 COMPLETED | untested (the leg would end 0.044 m centreline from the rack face) |
+| E6 `93100ae3` | r3 (`obstacle_3`@0.727); r1 clear | refused | r3 **FAILED** after 0.743, **0.000** (rack/SW_west); r1 FAILED after 1.135 | justified (contact) |
+| E6 `a3bbc017` | r3 (`obstacle_6`@0.692); r5 clear | refused | r3 **FAILED** after 0.978, **−0.0015** (rack/SW_south); r5 COMPLETED | justified (contact) |
+| E10 `d5541ff0` | r2 (`obstacle_2`@0.487) | refused | r2 **FAILED** after 0.552, **−0.0014** | justified (contact) |
+| E7 `c7aeaac1` | r1 (`obstacle_2`@0.363), r3 (`obstacle_4`@0.935), r4 (`obstacle_3`@0.599); r2 clear | refused | r4 **FAILED** after 0.606, **0.000**; r1 COMPLETED, 0.076; r3 COMPLETED, 0.271 | justified by r4 (contact); r1 and r3 are robot-level false positives |
+| E8 `f06c33b3` | r2 (`obstacle_2`@1.137), r4 (`obstacle_6`@1.236) | refused | r2 COMPLETED, 0.058; r4 FAILED after 0.497 (not near a box) | untested: r2 is a robot-level false positive and r4 never reached its box |
+| E11 `c417cbff` | r1 (`obstacle_2`@0.742); r5 clear | refused | r1 COMPLETED 1.272, **0.077** | **false positive** |
+
+### 8.6 False-Positive Assessment
+
+**Criterion, fixed before the GT column was read.** A refusal is a false positive when every blocked leg was driven to completion and its GT footprint gap stayed at or above the 0.05 m margin. It is justified when some blocked leg's gap fell below the margin (the GT contact threshold is 0.005 m). It is untested when no blocked leg was driven far enough to reach the box.
+
+**Command level** (14 of 17 commands refused):
+
+| Verdict | Count | Commands |
+|---|---|---|
+| justified | 10 | 8 by contact (`d374802a`, `ea23b1a7`, `9cf93ebe`, `8bf906be`, `93100ae3`, `a3bbc017`, `d5541ff0`, `c7aeaac1`); 2 by sub-margin graze (`95066420` 5.5 mm, `652ac9ac` 18 mm) |
+| untested | 3 | `ede6d209`, `09647748`, `f06c33b3` |
+| false positive | 1 | `c417cbff` |
+
+- **Rate:** 1/14 (7 %); at most 4/14 if every untested refusal were also a false positive.
+- **Unchanged:** the 3 admitted commands (hoD `4de32642`, `b07a700f`, `150b95a6`). None touched a box.
+
+**Robot level** (20 blocked legs counted per robot):
+
+- Blocked legs that reached contact or a sub-margin graze: 11.
+- Blocked legs never driven far enough to reach the box (untested): 3 (`ede6d209` r3, `09647748` r3, `f06c33b3` r4).
+- Blocked legs driven to completion with a gap of 0.05 m or more: 6 (`9cf93ebe` r3 0.061 and r5 0.312; `c7aeaac1` r1 0.076 and r3 0.271; `f06c33b3` r2 0.058; `c417cbff` r1 0.077).
+
+**Two causes of the robot-level false positives.** Both are the shared escort/retreat rule, not new to reverse:
+
+- **Square corners.** The grown boxes have square corners: Minkowski growth with a square, not a disc. Near a corner the test is stricter than the Euclidean margin, by up to 0.14 × (√2 − 1) ≈ 0.058 m. `c417cbff` r1, `c7aeaac1` r1 and `f06c33b3` r2 hit the grown box with centreline-to-bare-box distances of 0.140, 0.151 and 0.157 m.
+- **Declared walls over-approximate open arms.** The declared walls `obstacle_3` and `obstacle_4` (x ±2.5…±3.0, y −2.3…2.3) span the open west and east arms, where the real racks leave y −0.6…0.6 free. `9cf93ebe` r5 and `c7aeaac1` r3 backed into the open east arm: GT gaps 0.31 and 0.27 m.
+
+**Effect on scenes that resolve through reverse:**
+
+- In the campaign, hoD decision 1 (`4de32642`) is unchanged, and so is `b07a700f`.
+- In October, 10 of the 14 refused commands had at least one reverse leg FAILED live. The deadline was 195 s; most failures were robots pinned on a rack face.
+- With the key on, each would instead hold its robots 8 s and re-analyse. What the scene does next is not shown offline.
+- The September head-on reverses that the audit's 41 most likely counts are legacy-mode and untouched.
+
+### 8.7 Full Unit Suite
+
+`pytest tests/unit --continue-on-collection-errors` (repo `.venv`), run under the resource rule:
+
+| | failed | passed | skipped | errors |
+|---|---|---|---|---|
+| Before (72c08c8) | 57 | 7003 | 151 | 3 |
+| After (7551f03) | 57 | 7034 | 151 | 3 |
+
+- The failing and erroring ids are identical (diffed): the same 57 failures and the 3 `pxr` collection errors as section 3.
+- The 31 new passes are the 29 cases of `test_reverse_obstacle_guard.py` plus the two node tests.
+
+### 8.8 Limits
+
+- **The leg model is exact only under `backup_line_hold`** (`dynamic_scene_arms` on: every replayed derived reverse had it). Without it, M4 servos toward the odom y = 0 spawn line, so the straight backward leg is an approximation.
+- **Start pose and heading come from the M1 snapshot**, as for escorts. M4 holds its odometry start heading at handover, not the snapshot heading.
+- **Declared boxes only.** The head-on aisle barrier, the IB10 walls, and the open arms behind the declared S1b walls are not modelled as they are.
+- **The refusal dispatches 8 s waits; it does not withhold.** This follows the reverse precedent. Whether the reverse refusal should instead be withheld under `refusal_no_action` (as yields are) is an owner question.
+- **No M4 backstop.** The no-progress abort of section 5 would also bound the 195 s pinned-reverse deadlines seen in October.
+- **Not run live.**
+
+### 8.9 Kit Instructions (Reverse Guard)
+
+- **Overlay key.** Add `  reverse_obstacle_guard: true` to the `grounding:` section of the installed grounding file (fragment `config/grounding/reverse_obstacle_guard.fragment.yaml`).
+  - It is independent of `escort_obstacle_guard`; a kit wanting both adds both lines.
+  - The base `s1b_dynamic_shield_escort.yaml` is unchanged.
+- **Arm check, per episode:**
+  - M5's startup line ends `... reverse_obstacle_guard=True` (after `escort_obstacle_guard=True` when both are on);
+  - each artifact's `grounding_params_source.params.reverse_obstacle_guard` is `true`.
+  - **Meaning of `escort_obstacle_guard` is unchanged:** `m5V_t01_a1` ran exactly that, and its reverse was not swept.
+- **Runtime delta relative to 72c08c8** (md5 at 7551f03):
+
+  | File | md5 |
+  |---|---|
+  | `reasoning/rag/escort_obstacles.py` | `538945facf94de08da8438c416204c8c` |
+  | `reasoning/rag/command_grounder.py` | `d8fb03ce7797888f317ba646a4523375` |
+  | `reasoning/rag/maneuver_geometry.py` | `281358a2795acec623790e618e581d74` |
+  | `ros2_ws/src/swarm_orchestrator/swarm_orchestrator/orchestrator_node.py` (colcon-built: rebuild `swarm_orchestrator`) | `bfb4cefbbb70019e392de97e41a406eb` |
+  | `config/grounding/reverse_obstacle_guard.fragment.yaml` (new) | `d063e86c8d2e1a77dc99228ae0a329de` |
+
+  Unchanged since section 6: `escort_clearance.py` `69e3404af67dff2c143305294957045c`, `shadow_classical.py` `24539c25863d1683bf85bad9a0d68fb8`, `escort_obstacle_guard.fragment.yaml` `9a13e6feb34cc0093c87ef3564bb43d2`.
+
+  As in section 6, `demo/campaign-kits` must merge `orchestrator_node.py`, not copy it.
+- **Fail-loud property.** An older tree rejects the unknown key at startup.
+- **Registration.** Turning it on changes S1b reverse grounding: 14 of 17 recorded reverses would be refused. A scored arm needs a registration amendment.
+
+### 8.10 Verified and Inferred
+
+| Claim | Status |
+|---|---|
+| `reverse` grounding had no static-obstacle check | verified (code) |
+| M4's backup bypasses the collision monitor and has no stall abort | verified (code and `nav2_params.yaml`) |
+| A refused reverse is dispatched as 8 s waits, not withheld | verified (code and live artifacts `929335f4`, `2acc6130`) |
+| `95066420` is refused (0.305 and 0.844 m) | verified (unit test and replay) |
+| Key off is byte-identical; 17 of 17 live reverses reproduce | verified (tests and replay) |
+| 14 of 17 refused; 10 justified, 3 untested, 1 false positive | verified (replay and GT), under the criterion stated in 8.6 |
+| The refusals would have improved those scenes | inferred, not shown |
+| The uncovered manoeuvres in 8.2 can graze declared boxes | inferred from code; no instance checked |
