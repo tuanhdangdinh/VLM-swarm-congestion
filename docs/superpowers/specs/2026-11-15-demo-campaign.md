@@ -9,6 +9,7 @@
 - Rev 3 (2026-11-15): section 10.7, the per-scenario wall shares reallocated (`ib` 3.5 h, `ho` 0.5 h; `cv`, `m5` and every campaign total unchanged).
 - Rev 4 (2026-11-15): section 10.8, closing note: intersection takes 4–5 on ER-2 instead of Sonnet, convoy stopped after 3 takes, the five-robot result.
 - Rev 5 (2026-11-15): section 12, owner-approved convoy takes 4–5 with the M3 queued-robot hold (`cvh` kit), the second wall-share amendment (12.4) and the simulator-only test step; written before the VM start.
+- Rev 6 (2026-11-15): section 13, the convoy rerun `cvy` (the hold plus the M3 counterflow yielder swap) under its own ledger key; written offline before any VM start; not launched.
 
 ---
 
@@ -757,3 +758,106 @@ The shares in `common/caps_dmc.tsv` are this planning session's own split of the
 - **Expected outcome.** A take where the model picks robot_1 as yielder is expected to latch, per the scene's design. That is a valid result and is kept as is.
 - **GPU stockout.** Retry the same VM's start only.
 - **Never.** No weakened checks, no hardcoded plans, no ground-truth edits, no edits to pulled bundles, no `rsync --delete`, no push.
+
+## 13. Convoy Rerun `cvy`: Hold Plus Counterflow Yielder Swap (Amendment, 2026-11-15)
+
+Written offline, before any VM start. The rerun is NOT launched here; another session schedules it. Owner request (2026-11-15): "also inspect why robots in convoy demo did not come to destination, if ok rerun the demo".
+
+### 13.1 Purpose and Scope
+
+- **Why takes 1–5 did not arrive.** Full account: v7t `docs/reports/2026-11-15-convoy-non-arrival-and-yielder-feasibility.md`, section 1.
+  - In takes 1–3 the queued robots were released uncommanded.
+  - In takes 4–5 the hold held them, but the model chose robot_1, the platoon-side robot, as yielder. robot_2's escort then ran into the held robot_3 (non-exempt, 0.418 / 0.419 m), and 1 of 4 robots arrived.
+  - A legacy corridor yield can resolve only when every crosser starts opposite the yielder's park side.
+- **Why the existing gate does not help.** `grounding_yield_feasibility: swap` scores static-obstacle retreat room only. The convoy declares none, so the gate never fires (0/49 first-trigger yields, verified offline).
+- **The fix.** `grounding_yield_counterflow_swap`, default off, on `fix/convoy-yielder-feasibility` (worktree v7t: `a0311b0` code and tests, `a7635b7` replay, `886a90f` report, `968d51f` notes).
+  - In legacy single-corridor mode, a yield whose crossing order has a crosser on the yielder's park side is handed to another robot the decision names whose crossers all start opposite it. If none qualifies, the yield is refused.
+  - It is recorded as the head-on gate records a swap: `yield_robot_grounded_from`, `yield_regrounded_reason` (`yield re-grounded: counterflow: …`), the M5 `yield re-grounded … from= to= reason=` line, and the tag `yield=counterflow_regrounded:<from>:<to>`.
+  - It relaxes no latch, exemption or distance.
+- **Offline replay (v7t report section 5).** With the hold and the key, 49 of 49 recorded and stored first-trigger yields ground into the smoke's resolving sequence: 27 where the model chose robot_2, and 22 swapped from robot_1. All 58 later and other-scene decisions are unchanged.
+- **Scope.** Demo footage of the demo campaign's convoy scene under its own ledger key `cvy`, not `cv`, whose 5 takes are used. It is **not** the registered convoy experiment (v7f `feat/convoy-live-resolution`), whose VLM arm remains unrun.
+- **Who decides what.**
+  - The model chooses the strategy. Its yielder is kept when feasible.
+  - M3 holds robot_3 and robot_4 (the hold), and corrects a platoon-side yielder (this key).
+
+### 13.2 What Is Deployed (Kit `cvy`)
+
+The kit is `demo_campaign/cvy/kit`, assembled by the unchanged `common/assemble_dmc.sh cvy <v7t>` from `cvy/spec/`, which is forked from `cvh/spec/`. It has its own VM home `~/dmc_cvy`, labels `cvY_tNN_aK`, tag `demo_campaign_cvy`, ledger key `cvy` and `REPO_ROOT` v7t.
+
+It is identical to `cvh` in everything else: scene, seed 42, 260 sim-s horizon, base overlay `7e3ab552`, legacy grounding file `63f50f91`, scenario yaml `9684b5fc`, live ER-2, the safety-exemption fix, the 0.20 m floor, the 3 000 s per-take budget, the $0.20 per-take guard, the restore, and the non-fatal simulator-only test step (12.5, inherited unchanged).
+
+| Difference from `cvh` | Content |
+|---|---|
+| Runtime delta `runtime_delta_cvy/` (id `fd85e2f9c8617ff306c36367bc68fee4`, files 7, keys 2) | The same 7 paths at v7t HEAD bytes (table below). |
+| Overlay fragment | `grounding_hold_queued_crossers: true` and `grounding_yield_counterflow_swap: true`. |
+| Arm check | `cvh`'s six rows, plus `c.grounding_yield_counterflow_swap True`. `want_arm` is unchanged. |
+| Condition gate (`cond_dmc.py` fork, `scenario.json`) | The exact two-key startup line (13.3), `first_queued_hold` (as 12.3) and the new `first_counterflow:robot_2:robot_1,robot_3,robot_4`. |
+| Caps copy | Common rows, plus `wall_sec_cvy` 5400 and `usd_cvy` 0.25; `valid_episodes_per_scenario` 2. These bind only the kit holding the file. |
+| `test_dry_dmc.sh` fork | Step 10 reads the valid-take cap from the caps copy and books (sub-cap − 4 800 s) in the happy path. Nothing else changed. |
+| Mac-only | `mac_extra_dry.sh`, `mac_extra_gen_keyon.py`, `mac_extra_fixture.txt` and `mac_extra_classify_cvy.py` (the take label). |
+
+Delta files:
+
+| File | md5 | Kind |
+|---|---|---|
+| `reasoning/rag/command_grounder.py` | `c6ce7120a70619db0d90d2e3204da55d` | live |
+| `reasoning/rag/scene_geometry.py` | `eda27ce7525e2bbb8f5fbe2bf854d296` | live |
+| `reasoning/vlm/models.py` | `52cba14c5f94b50567f1766cbcd4ff17` | live |
+| `reasoning/vlm/prompt_builder.py` | `f2f33b778360c5a0f4a6cd82b10c42b5` | live |
+| `ros2_ws/src/swarm_orchestrator/swarm_orchestrator/models.py` | `738710977c48bf8ade3ccb5e0a021309` | pkg:swarm_orchestrator |
+| `ros2_ws/src/swarm_orchestrator/swarm_orchestrator/orchestrator_node.py` | `add660823aba751c42ad490147c02dd5` | pkg:swarm_orchestrator |
+| `ros2_ws/src/swarm_orchestrator/swarm_orchestrator/reasoning_pipeline.py` | `815e2ec3057fa8ae734caf325a1b6349` | pkg:swarm_orchestrator |
+
+Kit md5s: `kit_md5_dmc.txt` (VM files, 36 entries) `194a09b7`, `kit_md5_all_dmc.txt` (55 entries) `7a745d5f`. The kit is git-ignored; this section is its committed record.
+
+### 13.3 Checks
+
+- **Before every take** (unchanged mechanism): the arm check with the seven delta rows, the pins and the probe.
+- **After every take** (the condition gate; a failure stops the chain and is never retried). It runs every `cv`/`cvh` check, plus:
+  - the startup line `plan order condition plan_dispatch_order_source=chi prompt_plan_grammar_rules=False prompt_candidate_options=False grounding_hold_queued_crossers=True grounding_yield_counterflow_swap=True`;
+  - `first_queued_hold` as in 12.3;
+  - `first_counterflow`, on the **first** decision artifact by `scene.stamp`:
+    - the dispatched yield is robot_2's, with crossing order [robot_1, robot_3, robot_4] and linked waits 0, 1, 2;
+    - no `yield=counterflow_refused` tag;
+    - exactly one branch holds:
+      - `model_chose`: the model's yielder is robot_2 and there are no swap fields or tag;
+      - `swap`: `yield_robot_grounded_from` equals the model's yielder (≠ robot_2), the reason starts `yield re-grounded: counterflow:`, the tag `yield=counterflow_regrounded:<model>:robot_2` is present, and, when the model's plan yields its yielder, a plan `swap` edit with that reason and a final plan yield leg on robot_2;
+      - `alias`: a `convoy` answer with its `strategy=aliased:convoy` tag and no swap fields.
+  - robot_2 here is the scene file's `oracle.correct_yielder`. The gate reads it only to check the apparatus; M3 never reads it.
+- **Gate tested offline on real two-key artifacts.** `mac_extra_dry.sh` generated them with v7t's own M5 pipeline and artifact writer, from the recorded first decisions of takes 1–5 plus two variants (named all four with robot_1; a plan already saying `cross`).
+  - All 7 pass all 24 checks. The branches are `model_chose` for takes 1 and 3, and `swap` for takes 2, 4 and 5 and both variants.
+  - Each of 10 single defects fails exactly the matching check.
+  - The gate's line equals v7t's `plan_order_status_line()` on the effective overlay.
+- **Dry test (verified by running).** `MIN_MAC_FREE_KB=3000000 bash test_dry_dmc.sh /Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7t` ends `TEST_DRY_DMC cvy OK`. It includes the git preflight against v7t, the restore test (9 cases) and the ledger dry paths. `MIN_MAC_FREE_KB` was set for the test only.
+- **Labels** (`mac_extra_classify_cvy.py`, Mac, after the pull):
+  - "Resolved — grounder held the queued robots and corrected the yielder; model chose the strategy" when the swap fired;
+  - "Resolved — grounder held the queued robots; model chose strategy and yielder" when the model chose robot_2;
+  - "Unresolved failure" unless all four robots logged `arrived at base goal`;
+  - later commands dispatched before the last arrival are counted and must be captioned;
+  - never "VLM-driven". If the congestion is not resolved, the video states the failure as it happened.
+
+### 13.4 Caps and Budget
+
+- **Ledger.** Read-only `ledger_dmc.py status`: campaign 25 667 s of 43 200 s and $2.8637 of $10. `cv` stays closed at 8 149 s of 12 600 s with 5 valid takes.
+- **Rerun share.** `cvy` 5 400 s, $0.25, 2 valid takes, inside the campaign totals. A read-only `admit cvy 4800 0.05` with this kit's caps gives `ADMIT cap_sec=5400 spend_left=0.25 aborts_left=3 next_take=1 valid=0`. The ledger md5 was unchanged.
+- **Both approved sessions fit.** With the other approved session of up to 7 200 s: 25 667 + 5 400 + 7 200 = 38 267 s ≤ 43 200 s.
+- **5 400 s allows one take, not two (from the driver's arithmetic; not VM-tested).**
+  - An invocation is admitted only with 4 800 s left (prep 900 + take 3 000 + teardown 900).
+  - The chain admits a take only if it can end 900 s before the cap deadline, so a second take in one invocation would have to start within 1 500 s of the VM start.
+  - The second invocation is refused once the first books more than 600 s; the `cvh` invocations booked 1 602 and 1 718 s.
+  - A second valid take therefore needs the owner to raise `wall_sec_cvy` to at least about 6 600 s (7 200 s suggested; 25 667 + 7 200 + 7 200 = 40 067 s still fits). The sub-cap is left at the owner's 5 400 s here.
+
+### 13.5 Stop Rules and Launch
+
+- **Launch** (by the scheduling session, when the VM is not in use by `sft`): `cd /Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7j/data/logs/vm_runs/demo_campaign/cvy/kit && bash run_dmc.sh --episodes 1`. Every path ends with the VM verified TERMINATED.
+- **After take 1.**
+  - Stop if all four robots arrived (ground truth).
+  - Otherwise a second take needs the raised sub-cap (13.4). It runs only if take 1's failure is not a harness or kit fault that would simply repeat.
+- **Expected outcome (inferred).** The first command is the smoke-shaped sequence whatever yielder the model names. What is uncertain live:
+  - the goal-side margin: the smoke's closest non-exempt pair was 0.495 m against the 0.45 m latch, and earlier replicates were at 0.463 and 0.475 m;
+  - Nav2 progress;
+  - bring-up, which failed historically in 3 of 8 four-stack starts;
+  - a non-yield first answer.
+
+  n = 1 resolution so far (the smoke, not owner-accepted).
+- **Never.** No weakened checks, no hardcoded plans, no ground-truth edits, no edits to pulled bundles, no `rsync --delete`, no push. Nothing in the `sft` kit or its files is touched.
