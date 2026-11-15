@@ -5,6 +5,7 @@
 **Revision history:**
 
 - Initial draft: statements to change in the thesis report, results to add, drop or relabel, new limitations, pending items and figures to make, mapped to the evidence of 2026-11-15.
+- Rev 2 (2026-11-15): added section 10, "Scenario Images: What to Insert and Where" (15 extracted stills with md5s, a placement table, Typst snippets, reading order, outdated figures, missing figures).
 
 ---
 
@@ -381,6 +382,224 @@ Each item is pending as of 2026-11-15.
 - Safety-fix file count: "two-file" (thesis Chapter 5) vs "three safety files" (`IBS` Design). Same change.
 - Contact distance: 0.18 m footprint (`#ev("3.25")`) vs 0.076 m nose to nose (`DC` Final Summary; `GC` 5.4).
 - Convoy fix branch: "no commit of its own yet" (`REG`) vs commit `10b4807` present in `v7o` on 2026-11-15.
+
+---
+
+## 10. Scenario Images: What to Insert and Where
+
+Added in Rev 2. It extends section 3 items 7, 10 and 15 and section 7 rows 8, 9 and 12; it does not replace them.
+
+### 10.1 What Exists
+
+- **Image files.** 15 PNG stills in `/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7g/data/demo/campaign/thesis_figures/` (folder `P` below), with `MANIFEST.md` giving, for each file, the source recording, segment and frame index, sim time, md5 and what it shows. The folder is git-ignored (v7g `.gitignore:50`, `data/demo/`) and exists only on this Mac.
+- **How they were made.** One decoded frame per file, chosen through the recording's per-frame time map. Full frame, unscaled, uncropped, nothing drawn on. Camera stills are 1280 x 960, the panel still 1920 x 1080, and all are under 1.5 MB. The yellow `t=… f=…` text in the corner of each camera still is burned in by the recorder. In every still, the burned-in frame number equals the map index plus 1 and the burned-in time equals the mapped time.
+- **Streams.** Layout frames use the raw stream (`/camera/image_raw`) where it is clean and the robots can be named from their positions (intersection, convoy, head-on). The annotated stream (`/perception/annotated_frame`) is used where the figure must show which robot is which (all result frames, and the five-robot layout). In the annotated stream, M1 colours each box by status: green moving, yellow slow, red stopped, grey stale. Image right is world +x and image up is world +y.
+- **Thesis figure conventions (read from the working tree, not edited).** Figures sit in `#figure(...)` with `caption: flex-caption([short], [long])` and end with `#fig-source("<Evidence Index id>")` (`thesis/lib.typ` lines 32, 56). Labels are `<fig:ch5-…>` in Chapter 5 and `<fig:impl-…>` in Chapter 4; Chapter 6 has no figures yet, so `<fig:ch6-…>` below is a proposal. The only photographs are in `fig:impl-physical` (`04-implementation.typ` lines 151-159): two images in a `grid(columns: (1fr, 1fr))`, stored in `thesis/assets/images/` and referenced as `../assets/images/<file>.png`. They use a `demo-frame` helper that clips an 86 px toolbar from 1182 x 957 screenshots. Do **not** reuse that helper for these 1280 x 960 frames: it would cut them wrongly. No photograph has an explicit width, so the widths below are proposals.
+- **Where to copy files.** Copy each file to `/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-thesis/thesis/assets/images/` under the same name. That folder is tracked (`thesis/.gitignore:3` un-ignores `assets/images/*.png`), so copying adds the files to the thesis branch when the owner commits them.
+- **Source tag.** Every caption needs an Evidence Index row for the demo campaign report (`DC`, section 7 row 13). The snippets use the placeholder `#fig-source("NEW-DC")`. That will not compile until it is replaced by the real row id, because `ev()` links to a label that must exist.
+- **Caption rules.** No caption may claim "collision-free", "no contact" or any success rate. Every result frame says it is an illustrative take and how many takes the scene had. Robot ids are written in backticks, as the thesis does.
+
+### 10.2 Existing Thesis Figures and Scenario Coverage
+
+| Label | File | Kind | Scenario shown |
+|---|---|---|---|
+| `fig:architecture` | `03-system-design.typ` line 30 (`figures/architecture.typ`) | drawn (CeTZ) | none (architecture) |
+| `fig:pipeline` | `03-system-design.typ` line 95 (`figures/pipeline.typ`) | drawn | none (decision pipeline) |
+| `fig:impl-physical` | `04-implementation.typ` line 151 | photographs | physical scenarios A and C |
+| `fig:ch5-s1b` | `05-methodology.typ` line 85 (`figures/scene-s1b.typ`) | drawn | S1b layout, one start assignment |
+| `fig:ch5-ib10` | `05-methodology.typ` line 96 (`figures/scene-ib10.typ`) | drawn | IB10 intersection layout |
+
+- Scenarios that already have an image: IB10 and S1b (drawings only, no camera frame), physical A and C (photographs).
+- No image in the thesis: the convoy counterflow scene, the head-on corridor scene (the thesis does not describe either scene yet; row 39), the five-robot seed position 21 start, the demonstration campaign, ER2LIVE, and physical scenarios D and E.
+
+### 10.3 Placement Table
+
+`P` = `/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7g/data/demo/campaign/thesis_figures/`. Line numbers are those of the thesis working tree on 2026-11-15. "After line N" means the snippet goes on a new line after line N. For headings that do not exist yet, the row names the heading to add and where; the headings come from section 3 and row 39.
+
+| # | File (md5) | Insert at | New or replaces | Proposed caption (long form) | Label | Width |
+|---|---|---|---|---|---|---|
+| 1 | `P/fig_intersection_jam_t30p10.png` (`19c6078f0f88659083d00170e48e2a2b`) | `05-methodology.typ`, "=== IB10: four-robot intersection", after line 99 (the end of `fig:ch5-ib10`), tied to line 92 "IB10 is a staged four-way jam" | New; a companion to the `fig:ch5-ib10` drawing, which it does not replace | Four-robot intersection (`intersection_bottleneck`, the IB10 scene file, seed 42), raw overhead camera frame at simulated time 30.1 s: the four robots jammed at the centre of the cross aisle before any command; `robot_1` left, `robot_2` right, `robot_3` bottom, `robot_4` top, each bound for the opposite arm. Simulation (Isaac Sim), overhead camera. Frame from demonstration take 5 (labelled VLM-driven execution), not from an IB10 experiment episode. | `fig:ch5-ib10-frame` | 75 % |
+| 2 | `P/fig_convoy_standoff_t28p00.png` (`724072c58f3454f2eee2607555bc2ad0`) | `05-methodology.typ`, new subsection "=== Convoy counterflow" added after line 99, before "== Arms" (line 101), as row 39 proposes; after its first paragraph. No thesis sentence describes this scene yet | New | Convoy counterflow scene (`convoy_counterflow_slip`, seed 42), four robots, raw overhead camera frame at simulated time 28.0 s. Left to right: `robot_4` and `robot_3` queued behind `robot_1`, which stands nose to nose with the counter-flow robot `robot_2` in the 0.55 m wide, 1.0 m long gap between the two barrier blocks (yellow). Before any command. Simulation (Isaac Sim), overhead camera. Frame from demonstration take 1 of 3. | `fig:ch5-convoy` | 75 % |
+| 3 | `P/fig_headon_standoff_t26p00.png` (`899b219fdeb63eca9053f11b75739293`) | `05-methodology.typ`, new subsection "=== Head-on corridor with obstacle" after the convoy subsection (same place, row 39); after its first paragraph. No thesis sentence describes this scene yet; the nearest is the feasibility gate at line 54 | New | Head-on corridor with an obstacle (`head_on_asymmetric_w0p2_eopen_bshort_o0`, seed 42), two robots, raw overhead camera frame at simulated time 26.0 s: `robot_1` (left) and `robot_2` (right) nose to nose in the 0.55 m wide, 2.0 m long corridor between the barrier blocks (yellow). The box at the left (`blocker_west`) leaves `robot_1` 0.70 m of retreat room against 1.08 m required, so only `robot_2` can yield. First standoff, before any command. Simulation (Isaac Sim), overhead camera. Frame from demonstration take 1 of 1. | `fig:ch5-headon` | 75 % |
+| 4 | `P/fig_intersection_panel_dispatch_t33p07.png` (`41ab0420c52687d8a22f9969cc9585ad`) | `06-results.typ`, new heading "== Demonstration Campaign" added after line 18 (before "== Physical Demonstration", line 20); first figure of that section | New | Format of the demonstration videos: one frame of the panel video of the four-robot intersection, take 5 (labelled VLM-driven execution, chosen for that label), at simulated time 33.1 s. Left: the annotated overhead camera stream with the renderer's captions. Right: the run's own M5 and M4 log lines replayed in sync, here the decision (`junction_clear`, provenance `vlm_verbatim`) and the dispatch of `robot_3`'s back-out. Simulation (Isaac Sim), overhead camera. Illustrative demo, not controlled evidence; take 5 is 1 of 5 takes. | `fig:ch6-demo-panel` | 100 % |
+| 5 | `P/fig_intersection_robot3_backing_t36p97.png` (`f142516cd8e1ad5c087b553c1379f521`) | same section, new subsection "=== Intersection, take 5", after the paragraph for section 3 item 7 | New | Four-robot intersection, demonstration take 5 (labelled VLM-driven execution), annotated overhead camera frame at simulated time 37.0 s: `robot_3` (green, moving) backs out along its own arm while `robot_1`, `robot_2` and `robot_4` (red, stopped) wait. `robot_4` starts its back-out at 41.9 s. This order is the model's verified plan. The default order (`robot_4` first) differed by 0.010 m in recede cost, so only the timing of the two back-outs changed. Simulation (Isaac Sim), overhead camera; box colours show the perception module's status. Illustrative take, 1 of 5, chosen for its label. | `fig:ch6-ib-backout` | 75 % |
+| 6 | `P/fig_intersection_all_arrived_t154p83.png` (`b20eab1a2e7e8d22342cf959b80fc4d0`) | same subsection, after row 5 | New | Four-robot intersection, demonstration take 5 (labelled VLM-driven execution), annotated overhead camera frame at simulated time 154.8 s: all four robots stopped at their goals on the opposite arms (ground-truth arrivals between 95.1 s and 146.4 s). Simulation (Isaac Sim), overhead camera. Illustrative take, 1 of 5: take 1 was unresolved and takes 2 to 4 were resolved by the default plan. | `fig:ch6-ib-arrived` | 75 % |
+| 7 | `P/fig_convoy_first_yield_t38p00.png` (`8953113fb44c6dfcd208568c7740121b`) | same section, new subsection "=== Convoy counterflow", after the paragraph for section 3 item 9 | New | Convoy counterflow, four robots, demonstration take 1 of 3 (unresolved), annotated overhead camera frame at simulated time 38.0 s: the first yield executes as the model named it. `robot_2` (green) backs out of the gap while `robot_1` waits in it and `robot_3` and `robot_4` stay queued. The decision named only the standoff pair. Simulation (Isaac Sim), overhead camera. Illustrative take, 1 of 3. | `fig:ch6-cv-yield` | 75 % |
+| 8 | `P/fig_convoy_latched_t149p90.png` (`25565e204d9be152b32003d3c222f043`) | same subsection, after row 7 | New | Convoy counterflow, demonstration take 1 of 3 (unresolved), annotated overhead camera frame at simulated time 149.9 s: the final latched cluster. `robot_3` and `robot_4`, which the first decision did not name, followed `robot_1` through the gap. All four stand stopped east of the gap, two pairs closer than the 0.45 m safety distance, and none moved again from about 75 s to the end at 260 s; 0 of 4 arrived. Simulation (Isaac Sim), overhead camera. Illustrative take, 1 of 3; all three takes ended unresolved. | `fig:ch6-cv-latched` | 75 % |
+| 9 | `P/fig_headon_robot2_backing_t70p00.png` (`2157e1599b99637266beeb8c07655a2f`) | same section, new subsection "=== Head-on with obstacle", after the paragraph on the take (`DC` 6) | New | Head-on corridor with obstacle, two robots, demonstration take 1 of 1 (M3-default resolution, grounder-corrected), annotated overhead camera frame at simulated time 70.0 s: `robot_2` (green) backs out east. After a first `reverse` and a second standoff, the model named `robot_1` as the yielder. The feasibility gate replaced it with `robot_2`, because `robot_1` had 0.70 m of retreat room against 1.08 m required. Simulation (Isaac Sim), overhead camera. Illustrative take, n = 1. | `fig:ch6-ho-yield` | 75 % |
+| 10 | `P/fig_headon_robot2_yield_pass_t99p00.png` (`ea1c87fee5065a4b45819e873f200eb3`) | same subsection, after row 9 | New | Head-on corridor with obstacle, demonstration take 1 of 1 (M3-default resolution, grounder-corrected), annotated overhead camera frame at simulated time 99.0 s: `robot_2` is parked at its pull-off point beside the lane (red, stopped) while `robot_1` (green) is escorted past it. Simulation (Isaac Sim), overhead camera. Illustrative take, n = 1. | `fig:ch6-ho-pass` | 75 % |
+| 11 | `P/fig_headon_both_arrived_t147p93.png` (`0f91eab03385148feeaf8dd9bd858a92`) | same subsection, after row 10 | New | Head-on corridor with obstacle, demonstration take 1 of 1 (M3-default resolution, grounder-corrected), annotated overhead camera frame at simulated time 147.9 s: both robots stopped at their goals, `robot_2` at the left beside the obstacle and `robot_1` at the right edge of the frame (ground-truth arrivals at 112.5 s and 136.1 s). Simulation (Isaac Sim), overhead camera. Illustrative take, n = 1. | `fig:ch6-ho-arrived` | 75 % |
+| 12 | `P/fig_fiverobot_standoff_t43p67.png` (`06425619e2fbc53fd9526bed3dc41cd4`) | same section, new subsection "=== Five robots", after the paragraph for section 3 item 10 | New | Five-robot pickup-and-delivery scene (S1b, seed position 21, an exploratory seed outside the registered list), demonstration take 1 of 1 (unresolved; a limitation demonstration), annotated overhead camera frame at simulated time 43.7 s. Two rack islands; `robot_1` and `robot_4` meet head-on at the bottom (yellow, slow), and the other three are moving. Before the first decision. The start assignment differs from @fig:ch5-s1b. Simulation (Isaac Sim), overhead camera. Illustrative take, n = 1. | `fig:ch6-m5-start` | 75 % |
+| 13 | `P/fig_fiverobot_after_decision1_t101p40.png` (`bd9ea395d65f34e99cdef4d7e734c31e`) | same subsection, after row 12 | New | Five robots, seed position 21, demonstration take 1 of 1 (unresolved), annotated overhead camera frame at simulated time 101.4 s, after decision 1. That decision was executed as the model named it: `robot_1` yielded and `robot_4` passed, and both now stand at the left edge. `robot_2` and `robot_3` are stopped beside the east island, the conflict of decision 2. Of eight decisions in this take, two were executed and six were withheld by grounding refusals; 1 of 5 robots arrived. Simulation (Isaac Sim), overhead camera. Illustrative take, n = 1. | `fig:ch6-m5-after1` | 75 % |
+| 14 | `P/fig_fiverobot_robot3_island_t147p30.png` (`c38f9a5f9d587e3a68842aff1bc823dc`) | same subsection, after row 13; reference it from the Chapter 6 safety findings and the Chapter 7 "Limitations" (`07-discussion.typ` line 11) | New. A full-frame alternative to the existing crop `m5D_escort_147p30s_annotated.jpg` (section 3 item 10, section 7 row 9); use one of the two | Five robots, seed position 21, demonstration take 1 of 1 (unresolved), annotated overhead camera frame at simulated time 147.3 s: `robot_3` against the east face of rack island `obstacle_2`. The straight escort segment of decision 2 drove it there; no stage checked that segment against static obstacles. The box is the perception module's last track of `robot_3` before the island's edge hid its marker, so its colour and arrow do not show motion. The contact rests on ground-truth poses (stopped at 146.9 s; within 5 mm of the face in 4526 of 4534 ground-truth rows to the end of the run), not on this image. Simulation (Isaac Sim), overhead camera. Illustrative take, n = 1. | `fig:ch6-m5-escort` | 75 % |
+| 15 | `P/fig_er2live_robot2_aside_robot1_passing_t86p30.png` (`216af8e35139e6270c32c640c0da22b0`) | `06-results.typ`, new heading "== Head-on Yielder Choice" added after line 18 (section 3 items 4 and 8), after the ER2LIVE paragraph | New | Head-on corridor with obstacle, two robots, from an earlier recorded run (2026-09-30, older code, not part of the demonstration campaign), annotated overhead camera frame at simulated time 86.3 s. `robot_2`, the yielder the model named and the feasibility gate kept, has backed out and parked beside the lane, and `robot_1` is escorted past it. 2 of 2 arrived, `robot_2` only after a navigation-stack stall and recovery. Simulation (Isaac Sim), overhead camera. Illustrative, n = 1, chosen because the model's yielder was kept. | `fig:ch6-er2live` | 75 % |
+
+### 10.4 Typst Snippets
+
+Each snippet follows `fig:ch5-ib10` and `fig:impl-physical`: `flex-caption`, a source tag at the end of the long caption, and the label after the closing parenthesis. Replace `NEW-DC` with the Evidence Index id of the `DC` row. Two neighbouring frames can be paired in `grid(columns: (1fr, 1fr), column-gutter: 8pt, image(...), image(...))` like `fig:impl-physical`, with one merged caption.
+
+Row 1:
+
+```text
+#figure(
+  image("../assets/images/fig_intersection_jam_t30p10.png", width: 75%),
+  caption: flex-caption([Overhead camera frame of the four-robot intersection in a jam.], [Four-robot intersection (`intersection_bottleneck`, the IB10 scene file, seed 42), raw overhead camera frame at simulated time 30.1 s: the four robots jammed at the centre of the cross aisle before any command; `robot_1` left, `robot_2` right, `robot_3` bottom, `robot_4` top, each bound for the opposite arm. Simulation (Isaac Sim), overhead camera. Frame from demonstration take 5 (labelled VLM-driven execution), not from an IB10 experiment episode.#fig-source("NEW-DC")]),
+) <fig:ch5-ib10-frame>
+```
+
+Row 2:
+
+```text
+#figure(
+  image("../assets/images/fig_convoy_standoff_t28p00.png", width: 75%),
+  caption: flex-caption([Overhead camera frame of the convoy counterflow scene.], [Convoy counterflow scene (`convoy_counterflow_slip`, seed 42), four robots, raw overhead camera frame at simulated time 28.0 s. Left to right: `robot_4` and `robot_3` queued behind `robot_1`, which stands nose to nose with the counter-flow robot `robot_2` in the 0.55 m wide, 1.0 m long gap between the two barrier blocks (yellow). Before any command. Simulation (Isaac Sim), overhead camera. Frame from demonstration take 1 of 3.#fig-source("NEW-DC")]),
+) <fig:ch5-convoy>
+```
+
+Row 3:
+
+```text
+#figure(
+  image("../assets/images/fig_headon_standoff_t26p00.png", width: 75%),
+  caption: flex-caption([Overhead camera frame of the head-on corridor with an obstacle.], [Head-on corridor with an obstacle (`head_on_asymmetric_w0p2_eopen_bshort_o0`, seed 42), two robots, raw overhead camera frame at simulated time 26.0 s: `robot_1` (left) and `robot_2` (right) nose to nose in the 0.55 m wide, 2.0 m long corridor between the barrier blocks (yellow). The box at the left (`blocker_west`) leaves `robot_1` 0.70 m of retreat room against 1.08 m required, so only `robot_2` can yield. First standoff, before any command. Simulation (Isaac Sim), overhead camera. Frame from demonstration take 1 of 1.#fig-source("NEW-DC")]),
+) <fig:ch5-headon>
+```
+
+Row 4:
+
+```text
+#figure(
+  image("../assets/images/fig_intersection_panel_dispatch_t33p07.png", width: 100%),
+  caption: flex-caption([Format of the demonstration videos.], [Format of the demonstration videos: one frame of the panel video of the four-robot intersection, take 5 (labelled VLM-driven execution, chosen for that label), at simulated time 33.1 s. Left: the annotated overhead camera stream with the renderer's captions. Right: the run's own M5 and M4 log lines replayed in sync, here the decision (`junction_clear`, provenance `vlm_verbatim`) and the dispatch of `robot_3`'s back-out. Simulation (Isaac Sim), overhead camera. Illustrative demo, not controlled evidence; take 5 is 1 of 5 takes.#fig-source("NEW-DC")]),
+) <fig:ch6-demo-panel>
+```
+
+Row 5:
+
+```text
+#figure(
+  image("../assets/images/fig_intersection_robot3_backing_t36p97.png", width: 75%),
+  caption: flex-caption([Intersection take 5: `robot_3` backs out first.], [Four-robot intersection, demonstration take 5 (labelled VLM-driven execution), annotated overhead camera frame at simulated time 37.0 s: `robot_3` (green, moving) backs out along its own arm while `robot_1`, `robot_2` and `robot_4` (red, stopped) wait. `robot_4` starts its back-out at 41.9 s. This order is the model's verified plan. The default order (`robot_4` first) differed by 0.010 m in recede cost, so only the timing of the two back-outs changed. Simulation (Isaac Sim), overhead camera; box colours show the perception module's status. Illustrative take, 1 of 5, chosen for its label.#fig-source("NEW-DC")]),
+) <fig:ch6-ib-backout>
+```
+
+Row 6:
+
+```text
+#figure(
+  image("../assets/images/fig_intersection_all_arrived_t154p83.png", width: 75%),
+  caption: flex-caption([Intersection take 5: all four robots at their goals.], [Four-robot intersection, demonstration take 5 (labelled VLM-driven execution), annotated overhead camera frame at simulated time 154.8 s: all four robots stopped at their goals on the opposite arms (ground-truth arrivals between 95.1 s and 146.4 s). Simulation (Isaac Sim), overhead camera. Illustrative take, 1 of 5: take 1 was unresolved and takes 2 to 4 were resolved by the default plan.#fig-source("NEW-DC")]),
+) <fig:ch6-ib-arrived>
+```
+
+Row 7:
+
+```text
+#figure(
+  image("../assets/images/fig_convoy_first_yield_t38p00.png", width: 75%),
+  caption: flex-caption([Convoy take 1: the first yield.], [Convoy counterflow, four robots, demonstration take 1 of 3 (unresolved), annotated overhead camera frame at simulated time 38.0 s: the first yield executes as the model named it. `robot_2` (green) backs out of the gap while `robot_1` waits in it and `robot_3` and `robot_4` stay queued. The decision named only the standoff pair. Simulation (Isaac Sim), overhead camera. Illustrative take, 1 of 3.#fig-source("NEW-DC")]),
+) <fig:ch6-cv-yield>
+```
+
+Row 8:
+
+```text
+#figure(
+  image("../assets/images/fig_convoy_latched_t149p90.png", width: 75%),
+  caption: flex-caption([Convoy take 1: the latched cluster.], [Convoy counterflow, demonstration take 1 of 3 (unresolved), annotated overhead camera frame at simulated time 149.9 s: the final latched cluster. `robot_3` and `robot_4`, which the first decision did not name, followed `robot_1` through the gap. All four stand stopped east of the gap, two pairs closer than the 0.45 m safety distance, and none moved again from about 75 s to the end at 260 s; 0 of 4 arrived. Simulation (Isaac Sim), overhead camera. Illustrative take, 1 of 3; all three takes ended unresolved.#fig-source("NEW-DC")]),
+) <fig:ch6-cv-latched>
+```
+
+Row 9:
+
+```text
+#figure(
+  image("../assets/images/fig_headon_robot2_backing_t70p00.png", width: 75%),
+  caption: flex-caption([Head-on take: `robot_2` yields after the gate swap.], [Head-on corridor with obstacle, two robots, demonstration take 1 of 1 (M3-default resolution, grounder-corrected), annotated overhead camera frame at simulated time 70.0 s: `robot_2` (green) backs out east. After a first `reverse` and a second standoff, the model named `robot_1` as the yielder. The feasibility gate replaced it with `robot_2`, because `robot_1` had 0.70 m of retreat room against 1.08 m required. Simulation (Isaac Sim), overhead camera. Illustrative take, n = 1.#fig-source("NEW-DC")]),
+) <fig:ch6-ho-yield>
+```
+
+Row 10:
+
+```text
+#figure(
+  image("../assets/images/fig_headon_robot2_yield_pass_t99p00.png", width: 75%),
+  caption: flex-caption([Head-on take: `robot_1` passes the parked `robot_2`.], [Head-on corridor with obstacle, demonstration take 1 of 1 (M3-default resolution, grounder-corrected), annotated overhead camera frame at simulated time 99.0 s: `robot_2` is parked at its pull-off point beside the lane (red, stopped) while `robot_1` (green) is escorted past it. Simulation (Isaac Sim), overhead camera. Illustrative take, n = 1.#fig-source("NEW-DC")]),
+) <fig:ch6-ho-pass>
+```
+
+Row 11:
+
+```text
+#figure(
+  image("../assets/images/fig_headon_both_arrived_t147p93.png", width: 75%),
+  caption: flex-caption([Head-on take: both robots at their goals.], [Head-on corridor with obstacle, demonstration take 1 of 1 (M3-default resolution, grounder-corrected), annotated overhead camera frame at simulated time 147.9 s: both robots stopped at their goals, `robot_2` at the left beside the obstacle and `robot_1` at the right edge of the frame (ground-truth arrivals at 112.5 s and 136.1 s). Simulation (Isaac Sim), overhead camera. Illustrative take, n = 1.#fig-source("NEW-DC")]),
+) <fig:ch6-ho-arrived>
+```
+
+Row 12:
+
+```text
+#figure(
+  image("../assets/images/fig_fiverobot_standoff_t43p67.png", width: 75%),
+  caption: flex-caption([Five-robot take: the first standoff.], [Five-robot pickup-and-delivery scene (S1b, seed position 21, an exploratory seed outside the registered list), demonstration take 1 of 1 (unresolved; a limitation demonstration), annotated overhead camera frame at simulated time 43.7 s. Two rack islands; `robot_1` and `robot_4` meet head-on at the bottom (yellow, slow), and the other three are moving. Before the first decision. The start assignment differs from @fig:ch5-s1b. Simulation (Isaac Sim), overhead camera. Illustrative take, n = 1.#fig-source("NEW-DC")]),
+) <fig:ch6-m5-start>
+```
+
+Row 13:
+
+```text
+#figure(
+  image("../assets/images/fig_fiverobot_after_decision1_t101p40.png", width: 75%),
+  caption: flex-caption([Five-robot take: after the first decision.], [Five robots, seed position 21, demonstration take 1 of 1 (unresolved), annotated overhead camera frame at simulated time 101.4 s, after decision 1. That decision was executed as the model named it: `robot_1` yielded and `robot_4` passed, and both now stand at the left edge. `robot_2` and `robot_3` are stopped beside the east island, the conflict of decision 2. Of eight decisions in this take, two were executed and six were withheld by grounding refusals; 1 of 5 robots arrived. Simulation (Isaac Sim), overhead camera. Illustrative take, n = 1.#fig-source("NEW-DC")]),
+) <fig:ch6-m5-after1>
+```
+
+Row 14:
+
+```text
+#figure(
+  image("../assets/images/fig_fiverobot_robot3_island_t147p30.png", width: 75%),
+  caption: flex-caption([Five-robot take: an escort drives `robot_3` into a rack island.], [Five robots, seed position 21, demonstration take 1 of 1 (unresolved), annotated overhead camera frame at simulated time 147.3 s: `robot_3` against the east face of rack island `obstacle_2`. The straight escort segment of decision 2 drove it there; no stage checked that segment against static obstacles. The box is the perception module's last track of `robot_3` before the island's edge hid its marker, so its colour and arrow do not show motion. The contact rests on ground-truth poses (stopped at 146.9 s; within 5 mm of the face in 4526 of 4534 ground-truth rows to the end of the run), not on this image. Simulation (Isaac Sim), overhead camera. Illustrative take, n = 1.#fig-source("NEW-DC")]),
+) <fig:ch6-m5-escort>
+```
+
+Row 15:
+
+```text
+#figure(
+  image("../assets/images/fig_er2live_robot2_aside_robot1_passing_t86p30.png", width: 75%),
+  caption: flex-caption([Earlier head-on run: the model's yielder kept and executed.], [Head-on corridor with obstacle, two robots, from an earlier recorded run (2026-09-30, older code, not part of the demonstration campaign), annotated overhead camera frame at simulated time 86.3 s. `robot_2`, the yielder the model named and the feasibility gate kept, has backed out and parked beside the lane, and `robot_1` is escorted past it. 2 of 2 arrived, `robot_2` only after a navigation-stack stall and recovery. Simulation (Isaac Sim), overhead camera. Illustrative, n = 1, chosen because the model's yielder was kept.#fig-source("NEW-DC")]),
+) <fig:ch6-er2live>
+```
+
+### 10.5 Reading Order by Chapter
+
+- **Chapter 5 (Methodology), `== Scenes`:** row 1 (IB10 camera frame, beside the drawing), then the two new subsections that row 39 proposes, with row 2 (convoy layout) and row 3 (head-on layout). If the owner instead moves those scenes to a demo-campaign section of Chapter 5, rows 2 and 3 move with them.
+- **Chapter 6 (Results), `== Head-on Yielder Choice` (new, section 3 items 4 and 8):** row 15 (ER2LIVE), with a cross-reference to rows 9 and 10 for the contrast case (gate swap).
+- **Chapter 6, `== Demonstration Campaign` (new, section 3 items 5 to 10):** row 4 (panel format) at the top; "=== Intersection, take 5": rows 5 and 6, plus the timeline figure of section 7 row 8 when made; "=== Convoy counterflow": rows 7 and 8; "=== Head-on with obstacle": rows 9, 10 and 11; "=== Five robots": rows 12, 13 and 14.
+- **Chapter 6, safety findings (section 3 items 10 and 14) and Chapter 7, "Limitations" (`07-discussion.typ` line 11):** cite row 14 by label; do not repeat the image.
+- **Appendix:** the video list of section 3 item 15; no stills needed there.
+
+### 10.6 Existing Figures That Become Outdated or Duplicate
+
+- `fig:ch5-ib10` (drawing): not outdated. Row 1 shows the same scene file as a camera frame, so the two partly duplicate each other. Keep the drawing for the dimensions and goals. Row 1 is optional.
+- `fig:ch5-s1b` (drawing): shows one start assignment, not that of seed position 21. Rows 12 to 14 must therefore not be presented as the layout of that drawing; row 12's caption says so.
+- `fig:pipeline` (`figures/pipeline.typ`): the edits in section 7 row 12 still apply (M4 box "robot-pair distance check"; plan audit after grounding as a side box). The opt-in plan-order switch used in the demonstration campaign is not drawn. Add it as a dashed path only if the text describes it there.
+- `fig:architecture`: no change implied by this section.
+- `fig:impl-physical`: not affected (physical robots, different scene).
+- Section 7 row 9 ("Escort into rack island, still and plan view"): row 14 supplies the still, and the crop remains an alternative; the plan view still has to be made.
+
+### 10.7 Still Missing for a Complete Figure Set (List Only; Nothing Created)
+
+- **Drawn layouts of the convoy and head-on scenes,** in the style of `figures/scene-ib10.typ`: barrier gap and length, `blocker_west`, start poses and goals, and the head-on retreat-room figures (0.70 m against 1.08 m). The camera frames show the scenes but give no dimensions or goals.
+- **Seed position 21 start layout** for the five-robot take, if Chapter 6 keeps rows 12 to 14: a variant of `scene-s1b.typ` with the seed's starts and first goals, or a caption-only statement.
+- **Take 5 timeline** (model order against default order; section 7 row 8).
+- **Escort plan view** (escort segment, island box and ground-truth track; section 7 row 9).
+- **Pipeline figure edits** (section 7 row 12).
+- **Physical demonstration scenarios D and E:** the thesis describes them in text (`04-implementation.typ` line 149) but has no image of them. Files `scenario_d_four_robot_central.png` and `scenario_e_compact_dual_lane.png` exist in `~/Downloads/verified_scenarios_12-11-2026/verified_scenarios_images_2026-11-12/`, outside the repository and the thesis. They were not viewed, hashed or prepared here.
+- **No usable image anywhere checked here** for the scenes of the IB10 experiment episodes and the prereg-v3 tranche-1 episodes. Their recordings were not searched; the IB10 camera frame (row 1) comes from a demonstration take of the same scene file.
+- **Contact and safety figure** (section 7 row 11): a table or chart, not an image.
 
 ---
 
