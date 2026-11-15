@@ -79,6 +79,16 @@ The stills below complete the demonstration takes of @sec:res-demo and the earli
   caption: flex-caption([What the safety-exemption key changes.], [The execution and safety monitor's (M4) coordination exemption with the scoped-exemption key off and on (@sec:res-safety). Unit tests and offline replay; on in intersection run 2 (never fired) and in the demonstration takes (firings not counted); not validated live.#fig-source("6.50")]),
 ) <tab:res-sx>
 
+#figure(
+  grid(
+    columns: (1fr, 1fr),
+    column-gutter: 8pt,
+    image("../assets/images/fig_convoy_rerun_held_robot1_crossing_t61p87_clean.png"),
+    image("../assets/images/fig_convoy_rerun_all_arrived_t189p93_clean.png"),
+  ),
+  caption: flex-caption([Convoy rerun take: queued robots held, then all at their goals.], [Four-robot convoy counterflow scene, rerun take (1 of 1, after five unresolved convoy takes), overhead camera frames with the recorder's clock cropped. Left, simulated time 61.87 s: `robot_1` is escorted through the gate while the grounder's queued-robot hold keeps `robot_3` and `robot_4` in place. Right, 189.93 s: all four robots at their goals. Label: resolved, grounder held the queued robots; the model chose the strategy and the yielder (`robot_2`) but named only the two robots in the standoff. The yielder correction was armed and did not fire, so it is untested live. Illustrative, n = 1; not evidence that the VLM resolves convoy congestion.#fig-source("6.84")]),
+) <fig:app-convoy-rerun>
+
 == Demonstration Videos <sec:app-videos>
 
 The demonstration videos are kept outside the repository, on the owner's machine; each is identified by its file name and md5 (@tab:app-videos). Each video is an illustrative demo, not controlled evidence. The panel videos show the annotated camera stream beside the run's own log lines, as in @fig:ch6-demo-panel #ev("6.01").
@@ -97,9 +107,12 @@ The demonstration videos are kept outside the repository, on the owner's machine
     [`hoD_t01_a1_panel.mp4`], [`2aa6534ad508d3440e51822fdcd3f0f0`], [head-on take 1, grounder-default resolution (grounder-corrected)],
     [`m5D_t01_a1_panel.mp4`], [`33e9f5eedd7fb56edd007d8b728ea8c0`], [five robots, unresolved, with the escort caption],
     [`ER2LIVE_20260930_panel.mp4`], [`93cbfe7108e6a9ca9a71fc4c7c79bd47`], [earlier recorded head-on run (30 Sep 2026), the model's yielder kept by the gate; not part of the campaign],
+    [`cvY_t01_a2_panel.mp4`], [`92fc06a855ae0527479d1bfe49af2fbc`], [convoy rerun take, resolved: grounder held the queued robots; model chose strategy and yielder],
     [`demo_campaign_combined.mp4`], [`de8cb6ed07e42008b8acb3f9274352db`], [excerpts of all four scenes plus the earlier run (version 3)],
+    [`cvY_t01_a2_presentation.mp4`], [`60c4ee7c46e9f6ded4f8f3496589e1e0`], [presentation cut of the convoy rerun take],
+    [`presentation_combined.mp4`], [`3d45c8d850952f9b7013bd154957034a`], [presentation excerpts including the convoy rerun (version 2); two older convoy excerpts carry a burned-in "take 1 of 3" header, although there were five such takes],
   ),
-  caption: flex-caption([Demonstration videos.], [Demonstration videos with md5. Every video is an illustrative demo, not controlled evidence.#fig-source("6.01")]),
+  caption: flex-caption([Demonstration videos.], [Demonstration videos with md5. Every video is an illustrative demo, not controlled evidence.#fig-source("6.01") #fig-source("6.84")]),
 ) <tab:app-videos>
 ]
 
