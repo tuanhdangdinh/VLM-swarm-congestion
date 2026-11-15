@@ -772,3 +772,51 @@ def test_present_compositor_reveals_outcome_only_at_its_anchor(tmp_path):
     band = slice(comp.lay.band_top, comp.lay.height)
     assert not np.array_equal(before[band], after[band])
     assert comp.total_sec == pytest.approx(INTRO_SEC + p.timeline.total_video_sec + 10.0)
+
+
+def test_video_at_sim_inverts_sim_at():
+    items = [TimelineItem(10.0, 1, False), TimelineItem(12.0, 1, False)]
+    tl = build_timeline(items, [], 40.0)
+    for sim in (5.0, 11.0, 30.0):
+        assert tl.sim_at(tl.video_at_sim(sim)) == pytest.approx(sim, abs=1e-6)
+
+
+def test_sim_anchor_needs_a_timeline():
+    with pytest.raises(ValueError, match="timeline"):
+        pr.anchor_time(pr.Anchor(sim=5.0), ["a"], [1.0], 9.0)
+    assert pr.anchor_time(pr.Anchor(sim=5.0), ["a"], [1.0], 9.0, lambda s: s * 2) == 10.0
+
+
+def test_trigger_caption_restates_the_line_reason():
+    line = pr.shorten_line(M5_LINES[2])
+    assert pr.trigger_caption(line) == (
+        "Trigger: 2 robot(s) stalled for at least 12 s. The system asks the model again, "
+        "sending a text prompt and the current camera image."
+    )
+    assert pr.trigger_caption("orchestrator: dispatch request=1") is None
+
+
+def test_merged_schedule_replaces_stale_caption_at_uncovered_trigger():
+    texts = [
+        "starting analysis request=a robots=['r'] reason=1 robot(s) stalled >= 12.0s order=x",
+        "y",
+        "starting analysis request=b robots=['r'] reason=1 robot(s) stalled >= 12.0s order=x",
+    ]
+    reveal = [1.0, 2.0, 5.0]
+    sched = pr.merged_caption_schedule([(1.0, "first trigger"), (2.0, "refused")], texts, reveal)
+    assert pr.caption_at(sched, 1.5) == "first trigger"
+    assert pr.caption_at(sched, 4.0) == "refused"
+    assert pr.caption_at(sched, 5.0).startswith("Trigger: 1 robot(s) stalled")
+
+
+def test_present_compositor_rejects_header_overlapping_disclosure(tmp_path):
+    from scripts.demo_panel.pipeline import prepare_present
+    from scripts.demo_panel.present_render import PresentCompositor
+
+    root, _, _ = _present(tmp_path)
+    cmap = tmp_path / "map.json"
+    cmap.write_text(json.dumps({"anchors": [[0, 0.0], [19, 140.0]]}))
+    p = prepare_present(root, [_clip(tmp_path)], cmap)
+    bad = pr.PresentScript.model_validate({**SCRIPT, "header": "x" * 120})
+    with pytest.raises(ValueError, match="overlap"):
+        PresentCompositor(p.pt, p.timeline, p.scene, p.pane, bad)

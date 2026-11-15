@@ -1,0 +1,124 @@
+{
+ "header": "Convoy counterflow  ·  take 1 of 3  ·  VLM: Gemini Robotics-ER 2",
+ "camera_label": "Left: real overhead camera of the simulation (topic /perception/annotated_frame). The boxes and robot ids were drawn on it by the perception module (M1) during the run.",
+ "intro_title": "Convoy counterflow",
+ "intro_lines": [
+  "Two robots meet in a narrow gate between two barriers. Two more robots wait at the west end, held back at the start; their goals lie east of the gate. When a robot has been stuck for 12 s, the system asks a vision-language model (VLM) what to do: it sends a text prompt and the current camera image, checks the answer, and executes it.",
+  "This scenario uses the older ('legacy') grounding, which commands only the robots the model names.",
+  "Robots: 4  ·  Model: Gemini Robotics-ER 2 (gemini-robotics-er-2-preview)  ·  Take 1 of 3 (the selected take), recorded 2026-11-15.",
+  "Left: real overhead camera of the simulation. Right: the run's own logs, replayed in sync with simulation time."
+ ],
+ "watch_for": [
+  "Which robots the model's first answer names (yellow lines on the right).",
+  "What happens to the two queued robots that it does not command.",
+  "What the check does with the later answers (orange lines)."
+ ],
+ "captions": [
+  {
+   "at": {
+    "start": true
+   },
+   "text": "robot_1 and robot_2 drive toward each other into the gate; robot_3 and robot_4 wait at the west end."
+  },
+  {
+   "at": {
+    "match": "starting analysis request=35084986"
+   },
+   "text": "Trigger: robot_2 has been stuck for 12 s. The system sends the model a text prompt and the current camera image; the wait for its answer plays in real time."
+  },
+  {
+   "at": {
+    "match": "^plan: robot_2 yield"
+   },
+   "text": "Model's plan: robot_2 yields (backs out and pulls aside), robot_1 crosses; the queued robot_3 and robot_4 'continue'."
+  },
+  {
+   "at": {
+    "match": "^provenance=vlm_verbatim"
+   },
+   "text": "Check: accepted unchanged (provenance=vlm_verbatim). The legacy grounding commands only the robots the model named: robot_2 and robot_1."
+  },
+  {
+   "at": {
+    "match": "dispatch request=35084986"
+   },
+   "text": "Dispatch: robot_2 is sent 'yield'; robot_1 waits, then is escorted through the gate."
+  },
+  {
+   "at": {
+    "match": "gate_admit command=35084986"
+   },
+   "text": "robot_2 has pulled aside; robot_1 is escorted through. robot_3 and robot_4 were released by their own start timer and follow robot_1 through the gate (they were never commanded)."
+  },
+  {
+   "at": {
+    "sim": 75.0
+   },
+   "text": "By about sim 75 s all four robots stand east of the gate; two pairs are closer than 0.45 m and the safety monitor holds them still. No robot moves again."
+  },
+  {
+   "at": {
+    "match": "starting analysis request=ae826daa"
+   },
+   "text": "The model is asked again. From here on every proposal is refused by a grounding check or has no legacy template; each runs only as an 8 s wait."
+  },
+  {
+   "at": {
+    "match": "yield refused request=c93f4150"
+   },
+   "text": "Check: refused ('both robots outside the corridor on the same side'); the command becomes an 8 s wait."
+  },
+  {
+   "at": {
+    "match": "yield refused request=514b85bf"
+   },
+   "text": "This answer named all four robots, but the first-passer check refused it. It came about 190 s after the first trigger, with the four robots already held."
+  }
+ ],
+ "outcome": {
+  "at": {
+   "end": true
+  },
+  "text": "Outcome: Unresolved failure: 0 of 4 robots arrived by the end of the take (sim 260 s)."
+ },
+ "legend": "Legend: yield = back out and pull aside · cross = drive through · continue = keep driving · temporary_wait = hold still · provenance: vlm_verbatim = plan accepted unchanged, repaired = edited by the verifier, m3_default = replaced by the grounding module's default plan · dispatch_order_source=chi = the system's own ordering · 'safety stop … min_distance_violation' (dim) = robots closer than 0.45 m are held still by the safety monitor.",
+ "disclosure": "Illustrative demo, not controlled experimental evidence. Shown before the registered convoy experiment's VLM arm ran.",
+ "outro_title": "Outcome: Unresolved failure  ·  take 1 of 3 (selected take)",
+ "outro_lines": [
+  "0 of 4 robots arrived. Takes 2 and 3 were also 0 of 4.",
+  "The model's: the first answer's yield (robot_2 backs out, robot_1 passes), executed as named. It left out the two queued robots.",
+  "The system's: when to ask; the legacy grounding, which commanded only the named pair; the start timer that released robot_3 and robot_4; the safety monitor holding the four robots once they were closer than 0.45 m; the later proposals: all 11 ran as 8 s waits (10 refused by grounding checks, 1 had no legacy template)."
+ ],
+ "zooms": [
+  {
+   "start": {
+    "match": "starting analysis request=35084986"
+   },
+   "stop": {
+    "match": "gate_admit command=35084986"
+   },
+   "crop": [
+    544,
+    403,
+    192,
+    144
+   ]
+  },
+  {
+   "start": {
+    "match": "starting analysis request=ae826daa"
+   },
+   "stop": {
+    "end": true
+   },
+   "crop": [
+    776,
+    380,
+    320,
+    240
+   ]
+  }
+ ],
+ "key_request": "35084986",
+ "outcome_kind": "Unresolved failure"
+}

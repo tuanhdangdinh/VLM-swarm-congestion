@@ -100,6 +100,15 @@ class Timeline:
             return s1
         return s0 + (s1 - s0) * (video_t - v0) / (v1 - v0)
 
+    def video_at_sim(self, sim: float) -> float:
+        """First video time at which the sim clock reaches `sim` (end if never)."""
+        for (v0, s0), (v1, s1) in zip(self.keyframes, self.keyframes[1:], strict=False):
+            if s1 >= sim - 1e-9 and s1 > s0:
+                return v0 + (v1 - v0) * max(0.0, sim - s0) / (s1 - s0)
+            if s0 >= sim - 1e-9:
+                return v0
+        return self.total_video_sec
+
     def caption_at(self, video_t: float) -> str:
         """Speed caption at a video time."""
         for v0, v1, text in self.captions:

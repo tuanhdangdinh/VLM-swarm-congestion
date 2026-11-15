@@ -24,6 +24,7 @@ from scripts.demo_panel.presentation import (
     anchor_time,
     caption_at,
     caption_schedule,
+    merged_caption_schedule,
     stage_at,
 )
 from scripts.demo_panel.render import PAGE_BG, TERM_BG, H264Writer, load_mono_font, wrap_text
@@ -255,7 +256,8 @@ class PresentCompositor:
             layout: Pixel layout.
 
         Raises:
-            ValueError: An anchor does not resolve or a zoom crop is invalid.
+            ValueError: An anchor does not resolve, a zoom crop is invalid, or
+                the header and the disclosure do not fit on one line.
         """
         self.pt = pt
         self.tl = timeline
@@ -265,13 +267,18 @@ class PresentCompositor:
         self.lay = layout if layout is not None else PresentLayout()
         self.texts = [it.text for it in pt.transcript.items]
         self.end_t = max(0.0, timeline.total_video_sec - 2.0)
-        self.schedule = caption_schedule(script.captions, self.texts, timeline.reveal, self.end_t)
-        self.outcome_t = anchor_time(script.outcome.at, self.texts, timeline.reveal, self.end_t)
+        vs = timeline.video_at_sim
+        self.schedule = merged_caption_schedule(
+            caption_schedule(script.captions, self.texts, timeline.reveal, self.end_t, vs),
+            self.texts,
+            timeline.reveal,
+        )
+        self.outcome_t = anchor_time(script.outcome.at, self.texts, timeline.reveal, self.end_t, vs)
         self.zooms: list[ZoomWindow] = []
         for z in script.zooms:
             validate_crop(z.crop, scene.frame_size)
-            t0 = anchor_time(z.start, self.texts, timeline.reveal, self.end_t)
-            t1 = anchor_time(z.stop, self.texts, timeline.reveal, self.end_t)
+            t0 = anchor_time(z.start, self.texts, timeline.reveal, self.end_t, vs)
+            t1 = anchor_time(z.stop, self.texts, timeline.reveal, self.end_t, vs)
             self.zooms.append(ZoomWindow(t0, t1, z.crop))
         self.f_title = load_sans_font(30, bold=True)
         self.f_clock = load_mono_font(20)
@@ -281,6 +288,9 @@ class PresentCompositor:
         self.f_cap = load_sans_font(25, bold=True)
         self.f_outcome = load_sans_font(23, bold=True)
         self.f_small = load_sans_font(16)
+        free = self.lay.width - 48 - self.f_title.getlength(script.header) - 40
+        if self.f_disc.getlength(script.disclosure) > free:
+            raise ValueError("header and disclosure overlap; shorten one of them")
         self._intro = self._card(intro=True)
         self._outro = self._card(intro=False)
 

@@ -1,0 +1,139 @@
+{
+ "header": "Head-on with obstacle  ·  take 1 of 1  ·  VLM: Gemini Robotics-ER 2",
+ "camera_label": "Left: real overhead camera of the simulation (topic /perception/annotated_frame). The red boxes and robot ids were drawn on it by the perception module (M1) during the run.",
+ "intro_title": "Head-on with obstacle",
+ "intro_lines": [
+  "Two robots meet nose to nose in a narrow aisle between two barriers; there is an obstacle near the west end. When a robot has been stuck for 12 s, the system asks a vision-language model (VLM) what to do, checks the answer, and executes it.",
+  "Robots: 2  ·  Model: Gemini Robotics-ER 2 (gemini-robotics-er-2-preview)  ·  Take 1 of 1, recorded 2026-11-15.",
+  "Left: real overhead camera of the simulation. Right: the run's own logs, replayed in sync with simulation time."
+ ],
+ "watch_for": [
+  "What the model proposes each time it is asked (yellow lines on the right).",
+  "What the check does with the model's choice of which robot backs out (orange lines).",
+  "Which robot actually backs out on the camera."
+ ],
+ "captions": [
+  {
+   "at": {
+    "start": true
+   },
+   "text": "The two robots drive toward each other under their normal navigation (Nav2)."
+  },
+  {
+   "at": {
+    "match": "starting analysis request=4de32642"
+   },
+   "text": "Trigger: robot_1 has been stuck for 12 s. The system sends the model a text prompt and the current camera image. The wait for the answer plays in real time."
+  },
+  {
+   "at": {
+    "match": "^strategy=reverse"
+   },
+   "text": "Model's answer (decision 1): both robots reverse (back out). It names no yielder."
+  },
+  {
+   "at": {
+    "match": "yield_robot_grounded_from",
+    "nth": 1
+   },
+   "text": "Check: no yielder was named, so there is nothing to correct (yield_robot_grounded_from = null)."
+  },
+  {
+   "at": {
+    "match": "dispatch request=4de32642"
+   },
+   "text": "Dispatch: both robots are sent 'reverse'."
+  },
+  {
+   "at": {
+    "match": "exempt pairs changed pairs=-",
+    "nth": 1
+   },
+   "text": "Both reverses completed. Afterwards the robots drove back toward each other and stopped again."
+  },
+  {
+   "at": {
+    "match": "starting analysis request=f40c0537"
+   },
+   "text": "Trigger again: both robots stuck for 12 s. The model is asked again; this prompt also reports that the reverse completed and the robots stalled again."
+  },
+  {
+   "at": {
+    "match": "^strategy=yield"
+   },
+   "text": "Model's answer (decision 2): yield, with robot_1 as the robot that backs out so robot_2 can pass."
+  },
+  {
+   "at": {
+    "match": "yield re-grounded request=f40c0537"
+   },
+   "text": "Check: robot_1 has only 0.70 m of room to back into (1.08 m needed). The feasibility gate swaps the yielder to robot_2 ('yield re-grounded')."
+  },
+  {
+   "at": {
+    "match": "dispatch request=f40c0537"
+   },
+   "text": "Dispatch: robot_2 is sent 'yield' (back out and pull aside); robot_1 is told to wait."
+  },
+  {
+   "at": {
+    "match": "gate_admit command=f40c0537"
+   },
+   "text": "robot_2 has pulled aside; robot_1 is escorted past it toward its goal."
+  },
+  {
+   "at": {
+    "match": "robot robot_1 arrived at base goal"
+   },
+   "text": "robot_1 has reached its goal; robot_2 now drives to its own goal."
+  }
+ ],
+ "outcome": {
+  "at": {
+   "match": "robot robot_2 arrived at base goal"
+  },
+  "text": "Outcome: M3-default resolution (grounder-corrected): the system's check corrected the model's yielder. 2 of 2 robots arrived."
+ },
+ "legend": "Legend: reverse = back straight out · yield = back out and pull aside so the other robot passes · temporary_wait = hold still · yield_robot_grounded_from = the yielder the model named before a gate swap (null = no swap) · dispatch_order_source=chi = the system's own ordering · 'safety stop … min_distance_violation' (dim) = robots closer than 0.45 m are held still by the safety monitor.",
+ "disclosure": "Illustrative demo, not controlled experimental evidence. Single take (n = 1).",
+ "outro_title": "Outcome: M3-default resolution (grounder-corrected)",
+ "outro_lines": [
+  "2 of 2 robots arrived.",
+  "The model's: decision 1 'reverse' (it ran and did not clear the scene); decision 2 'yield' with robot_1 as the yielder.",
+  "The system's: when to ask; the feasibility gate's swap of the yielder to robot_2 (robot_1 had 0.70 m of room to back into, 1.08 m needed); the back-out distances; the escort of robot_1 past robot_2.",
+  "So this resolution is grounder-corrected, not VLM-driven. What the uncorrected yield would have done is not shown by this take."
+ ],
+ "zooms": [
+  {
+   "start": {
+    "match": "starting analysis request=4de32642"
+   },
+   "stop": {
+    "match": "exempt pairs changed pairs=robot_1\\+robot_2",
+    "nth": 1
+   },
+   "crop": [
+    544,
+    403,
+    192,
+    144
+   ]
+  },
+  {
+   "start": {
+    "match": "^strategy=yield"
+   },
+   "stop": {
+    "match": "gate_admit command=f40c0537"
+   },
+   "crop": [
+    544,
+    403,
+    192,
+    144
+   ]
+  }
+ ],
+ "key_request": "f40c0537",
+ "outcome_kind": "M3-default resolution"
+}

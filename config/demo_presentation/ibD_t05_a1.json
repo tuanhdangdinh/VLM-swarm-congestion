@@ -1,0 +1,118 @@
+{
+ "header": "4-robot intersection  ·  take 5 of 5  ·  VLM: Gemini Robotics-ER 2",
+ "camera_label": "Left: real overhead camera of the simulation (topic /perception/annotated_frame). The boxes and robot ids were drawn on it by the perception module (M1) during the run.",
+ "intro_title": "4-robot intersection",
+ "intro_lines": [
+  "Four robots drive toward a crossing from four sides and jam in the middle. When a robot has been stuck for 12 s, the system asks a vision-language model (VLM) what to do: it sends a text prompt and the current camera image, checks the answer, and executes it.",
+  "In this scenario the prompt lists, for each robot, the actions the system's plan verifier would accept. The model picks one action per robot and the order.",
+  "Robots: 4  ·  Model: Gemini Robotics-ER 2 (gemini-robotics-er-2-preview)  ·  Take 5 of 5 of this scenario, recorded 2026-11-15. Why this take is shown is stated at the end.",
+  "Left: real overhead camera of the simulation. Right: the run's own logs, replayed in sync with simulation time."
+ ],
+ "watch_for": [
+  "The model's plan: which robot backs out, yields or crosses, and in which order (yellow lines on the right).",
+  "The check: whether the plan is accepted unchanged (orange lines).",
+  "On the camera: which robot backs out first."
+ ],
+ "captions": [
+  {
+   "at": {
+    "start": true
+   },
+   "text": "The four robots drive toward the crossing under their normal navigation (Nav2)."
+  },
+  {
+   "at": {
+    "match": "starting analysis request=510f79e2"
+   },
+   "text": "Trigger: robot_2 has been stuck for 12 s. The system sends the model a text prompt and the current camera image; the wait for its answer plays in real time."
+  },
+  {
+   "at": {
+    "match": "^strategy=none"
+   },
+   "text": "Model's answer: no congestion yet (strategy=none), so nothing is sent and the robots keep driving."
+  },
+  {
+   "at": {
+    "match": "starting analysis request=df397030"
+   },
+   "text": "Trigger: robot_3 has been stuck for 12 s; the four robots are jammed in the middle. The model is asked again."
+  },
+  {
+   "at": {
+    "match": "^plan: robot_3 reverse"
+   },
+   "text": "Model's plan: robot_3 and robot_4 back out (robot_3 first), robot_1 yields, robot_2 crosses. It picked each robot's action from the list of allowed actions in the prompt, and it chose the back-out order."
+  },
+  {
+   "at": {
+    "match": "^provenance=vlm_verbatim"
+   },
+   "text": "Check: the plan verifier accepted the plan unchanged (provenance=vlm_verbatim); the back-out order is the model's (dispatch_order_source=model). The system's default order would have put robot_4 first; it was computed offline and is not in these logs."
+  },
+  {
+   "at": {
+    "match": "dispatch request=df397030 command=df397030-junction-recede-robot_3 robot=robot_3"
+   },
+   "text": "Dispatch, phase 1: robot_3 is sent 'reverse' (back out); the other three robots are told to wait."
+  },
+  {
+   "at": {
+    "match": "junction-recede-robot_4 robot=robot_4 action=reverse"
+   },
+   "text": "Phase 2: robot_3 has backed out; now robot_4 backs out."
+  },
+  {
+   "at": {
+    "match": "junction-cross robot=robot_1 action=yield"
+   },
+   "text": "Phase 3: robot_1 yields and robot_2 is escorted across. From here on the order and timing are the system's (the model's crossing_order was not used)."
+  },
+  {
+   "at": {
+    "match": "robot robot_2 arrived at base goal"
+   },
+   "text": "robot_2 has reached its goal; the system now releases the others one at a time."
+  },
+  {
+   "at": {
+    "match": "starting analysis request=bc712975"
+   },
+   "text": "The model is asked once more while robot_1 is still on its way; it answers 'no congestion', so nothing is sent."
+  }
+ ],
+ "outcome": {
+  "at": {
+   "match": "robot robot_1 arrived at base goal"
+  },
+  "text": "Outcome: VLM-driven execution: the model's plan and back-out order were executed as written. 4 of 4 robots arrived."
+ },
+ "legend": "Legend: reverse = back straight out · yield = back out and pull aside · cross = drive through · temporary_wait = hold still · provenance=vlm_verbatim = plan accepted unchanged · dispatch_order_source=model = the back-out order is the model's · 'safety stop … min_distance_violation' (dim) = robots closer than 0.45 m are held still by the safety monitor.",
+ "disclosure": "Illustrative demo, not controlled experimental evidence.",
+ "outro_title": "Outcome: VLM-driven execution  ·  take 5 of 5",
+ "outro_lines": [
+  "4 of 4 robots arrived.",
+  "The model's: each robot's action, chosen from the listed allowed actions, and the back-out order (robot_3 first).",
+  "The system's: when to ask; the list of allowed actions; back-out distances; the cross and release phases and everything after the two back-outs. The system's default back-out order was robot_4 first (computed offline). The two orders differ by about 1 cm in the system's cost (a near-tie), so only the timing of the two back-outs changed: robot_3 backed out about 9 s before robot_4.",
+  "Why this take: it is the only VLM-driven take of the five. Takes 1–4: one unresolved, three resolved by the grounding module's default plan (M3-default)."
+ ],
+ "zooms": [
+  {
+   "start": {
+    "match": "starting analysis request=df397030"
+   },
+   "stop": {
+    "match": "phase advance",
+    "nth": 1
+   },
+   "crop": [
+    500,
+    372,
+    280,
+    210
+   ]
+  }
+ ],
+ "key_request": "df397030",
+ "outcome_kind": "VLM-driven execution"
+}

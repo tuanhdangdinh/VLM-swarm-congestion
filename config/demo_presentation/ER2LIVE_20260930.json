@@ -1,0 +1,105 @@
+{
+ "header": "Head-on with obstacle, earlier run  ·  Gemini Robotics-ER 2",
+ "camera_label": "Left: real overhead camera of the simulation (topic /perception/annotated_frame). The boxes and robot ids were drawn on it by the perception module (M1) during the run.",
+ "intro_title": "Head-on with obstacle: an earlier recorded run",
+ "intro_lines": [
+  "Recorded 2026-09-30 on an earlier code version; not part of the 2026-11-15 campaign. Same scene as the head-on take: two robots meet nose to nose in a narrow aisle between two barriers, with an obstacle near the west end.",
+  "When a robot has been stuck for 12 s, the system asks a vision-language model (VLM) what to do: it sends a text prompt and the current camera image, checks the answer, and executes it.",
+  "Robots: 2  ·  Model: Gemini Robotics-ER 2 (gemini-robotics-er-2-preview)  ·  One run (n = 1), selected because the model's choice was executed without correction.",
+  "Left: real overhead camera of the simulation. Right: the run's own logs, replayed in sync with simulation time."
+ ],
+ "watch_for": [
+  "Which robot the model chooses to back out (yellow lines on the right).",
+  "Whether the check keeps or swaps that choice (orange line).",
+  "Which parts of the manoeuvre are the system's rather than the model's."
+ ],
+ "captions": [
+  {
+   "at": {
+    "start": true
+   },
+   "text": "The two robots drive toward each other into the aisle under their normal navigation (Nav2)."
+  },
+  {
+   "at": {
+    "match": "starting analysis request=67d5cb88"
+   },
+   "text": "Trigger: robot_1 has been stuck for 12 s. The system sends the model a text prompt and the current camera image; the wait for its answer plays in real time."
+  },
+  {
+   "at": {
+    "match": "^yield_robot: robot_2"
+   },
+   "text": "Model's answer: yield, with robot_2 as the robot that backs out so robot_1 can pass."
+  },
+  {
+   "at": {
+    "match": "\"yield_robot_grounded_from\":null"
+   },
+   "text": "Check: the feasibility gate kept the model's choice (yield_robot_grounded_from = null: no swap)."
+  },
+  {
+   "at": {
+    "match": "dispatch request=67d5cb88"
+   },
+   "text": "Dispatch: robot_2 is sent 'yield' (back out and pull aside); robot_1 is told to wait."
+  },
+  {
+   "at": {
+    "sim": 64.0
+   },
+   "text": "robot_2 has backed out and stepped aside. The system now escorts robot_1 past it."
+  },
+  {
+   "at": {
+    "match": "robot robot_1 arrived at base goal"
+   },
+   "text": "robot_1 has reached its goal. robot_2 resumes its own drive under Nav2."
+  },
+  {
+   "at": {
+    "match": "starting analysis request=fbaa01a8"
+   },
+   "text": "robot_2's own drive stalled. The model is asked three times and answers 'no congestion'; nothing is sent."
+  },
+  {
+   "at": {
+    "sim": 120.0
+   },
+   "text": "robot_2 moves again after Nav2's own recovery (the system's, not the model's)."
+  }
+ ],
+ "outcome": {
+  "at": {
+   "match": "robot robot_2 arrived at base goal"
+  },
+  "text": "Outcome: VLM-driven execution: the model's yielder was kept by the gate and executed. 2 of 2 robots arrived."
+ },
+ "legend": "Legend: yield = back out and pull aside so the other robot passes · temporary_wait = hold still · yield_robot_grounded_from = the yielder the model named before a gate swap (null = no swap) · 'safety stop … min_distance_violation' (dim) = robots closer than 0.45 m are held still by the safety monitor.",
+ "disclosure": "Illustrative demo, not controlled experimental evidence. Earlier run (2026-09-30), not part of the campaign.",
+ "outro_title": "Outcome: VLM-driven execution  ·  recorded 2026-09-30 (earlier run)",
+ "outro_lines": [
+  "2 of 2 robots arrived.",
+  "The model's: the congestion call, the strategy 'yield' and the choice of robot_2 as the yielder; the feasibility gate kept the choice.",
+  "The system's: when to ask; the back-out distance; robot_1's wait; the escort of robot_1 past robot_2; the return to the normal mission; Nav2's recovery after robot_2 stalled (sim ~97–120 s).",
+  "Caveats: an earlier code version. It predates the current 0.20 m hard floor (on centre distance) and the safety-exemption fix; closest centre distance 0.264 m, body-to-body gap 0.19 m. One run, selected because it qualifies. In the 2026-11-15 take of this scene the model chose the other robot and the gate swapped it."
+ ],
+ "zooms": [
+  {
+   "start": {
+    "match": "starting analysis request=67d5cb88"
+   },
+   "stop": {
+    "sim": 45.0
+   },
+   "crop": [
+    544,
+    403,
+    192,
+    144
+   ]
+  }
+ ],
+ "key_request": "67d5cb88",
+ "outcome_kind": "VLM-driven execution"
+}

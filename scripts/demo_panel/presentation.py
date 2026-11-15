@@ -30,7 +30,7 @@ from __future__ import annotations
 import json
 import re
 import shlex
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any, Literal
 
@@ -380,21 +380,25 @@ class Anchor(BaseModel):
     """When a caption or zoom starts or ends.
 
     Exactly one of: `match` (regex searched in shown terminal text; the
-    `nth` match, 1-based), `start` (video start of the take) or `end` (the
-    end-of-episode hold, after the last line).
+    `nth` match, 1-based), `sim` (the first moment the sim clock reaches
+    that second, for facts with no log line, taken from the campaign
+    report), `start` (video start of the take) or `end` (the end-of-episode
+    hold, after the last line).
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     match: str | None = None
     nth: int = Field(default=1, ge=1)
+    sim: float | None = None
     start: bool = False
     end: bool = False
 
     @model_validator(mode="after")
     def _one_kind(self) -> Anchor:
-        if sum((self.match is not None, self.start, self.end)) != 1:
-            raise ValueError("anchor needs exactly one of match / start / end")
+        kinds = (self.match is not None, self.sim is not None, self.start, self.end)
+        if sum(kinds) != 1:
+            raise ValueError("anchor needs exactly one of match / sim / start / end")
         return self
 
 
@@ -447,7 +451,11 @@ def load_script(path: Path) -> PresentScript:
 
 
 def anchor_time(
-    anchor: Anchor, texts: Sequence[str], reveal: Sequence[float], end_t: float
+    anchor: Anchor,
+    texts: Sequence[str],
+    reveal: Sequence[float],
+    end_t: float,
+    video_at_sim: Callable[[float], float] | None = None,
 ) -> float:
     """Video time (within the take) at which an anchor fires.
 
@@ -456,15 +464,21 @@ def anchor_time(
         texts: Shown text of each item.
         reveal: Reveal time of each item.
         end_t: Start of the end-of-episode hold.
+        video_at_sim: Sim-to-video map (required for `sim` anchors).
 
     Returns:
         The time.
 
     Raises:
-        ValueError: A `match` anchor has fewer than `nth` matches.
+        ValueError: A `match` anchor has fewer than `nth` matches, or a `sim`
+            anchor has no sim-to-video map.
     """
     if anchor.start:
         return 0.0
+    if anchor.sim is not None:
+        if video_at_sim is None:
+            raise ValueError("sim anchor needs a timeline")
+        return video_at_sim(anchor.sim)
     if anchor.end:
         return end_t
     rx = re.compile(anchor.match or "")
@@ -475,14 +489,18 @@ def anchor_time(
 
 
 def caption_schedule(
-    captions: Sequence[Caption], texts: Sequence[str], reveal: Sequence[float], end_t: float
+    captions: Sequence[Caption],
+    texts: Sequence[str],
+    reveal: Sequence[float],
+    end_t: float,
+    video_at_sim: Callable[[float], float] | None = None,
 ) -> list[tuple[float, str]]:
     """Caption start times, sorted; each caption shows until the next starts.
 
     Raises:
         ValueError: An anchor does not resolve.
     """
-    return sorted((anchor_time(c.at, texts, reveal, end_t), c.text) for c in captions)
+    return sorted((anchor_time(c.at, texts, reveal, end_t, video_at_sim), c.text) for c in captions)
 
 
 def caption_at(schedule: Sequence[tuple[float, str]], video_t: float) -> str:
@@ -492,3 +510,42 @@ def caption_at(schedule: Sequence[tuple[float, str]], video_t: float) -> str:
         if t0 <= video_t + 1e-9:
             text = t
     return text
+
+
+_TRIGGER_REASON = re.compile(r"starting analysis request=\S+ robots=\[[^\]]*\] reason=(.*?) order=")
+
+
+def trigger_caption(text: str) -> str | None:
+    """Generic caption for a `starting analysis` line, or None for other lines.
+
+    It restates the line's own trigger reason in plain words, so a script
+    caption from an earlier decision never stays on screen into a new one.
+    """
+    m = _TRIGGER_REASON.search(text)
+    if m is None:
+        return None
+    reason = m.group(1).replace(">=", "for at least").replace("12.0s", "12 s")
+    return (
+        f"Trigger: {reason}. The system asks the model again, sending a text prompt "
+        "and the current camera image."
+    )
+
+
+def merged_caption_schedule(
+    schedule: Sequence[tuple[float, str]], texts: Sequence[str], reveal: Sequence[float]
+) -> list[tuple[float, str]]:
+    """Add a generic trigger caption at every `starting analysis` line no script caption covers.
+
+    A script caption anchored at (or after) the same moment wins.
+    """
+    starts = [t0 for t0, _ in schedule]
+    out = list(schedule)
+    for i, text in enumerate(texts):
+        cap = trigger_caption(text)
+        if cap is None:
+            continue
+        nxt = next((t0 for t0 in starts if t0 >= reveal[i] - 1e-9), None)
+        if nxt is not None and nxt <= reveal[i] + 1e-9:
+            continue
+        out.append((reveal[i], cap))
+    return sorted(out, key=lambda x: x[0])
