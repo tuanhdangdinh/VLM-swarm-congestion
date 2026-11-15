@@ -31,6 +31,14 @@ Scope: declared boxes only (`static_obstacles`, which in the S1b floors also
 carry the four walls). Undeclared geometry, such as an aisle barrier built
 from the scenario yaml, is not seen. Without a scene geometry there is no
 footprint, and nothing is checked.
+
+Reverse legs (2026-11-15, validation take `m5V_t01_a1`, decision
+`95066420`): the same test is applied to a `reverse` strategy's backup legs
+(`reverse_obstacle_hits`). M4's backup also publishes raw cmd_vel below the
+collision monitor and ends only on distance, deadline or a fresh robot
+latch; with `backup_line_hold` it holds the line through its start pose
+along its start heading, so the leg is the snapshot pose, heading
+`theta + pi`, and the dispatched `backup_distance_m`.
 """
 
 from __future__ import annotations
@@ -47,6 +55,7 @@ from reasoning.rag.scene_geometry import SceneGeometry
 from reasoning.vlm.models import SnapshotFrame, StaticObstacleInput
 
 ESCORT_HITS_OBSTACLE_REASON = "escort_hits_obstacle"
+REVERSE_HITS_OBSTACLE_REASON = "reverse_hits_obstacle"
 _EPS = 1e-9
 
 
@@ -81,6 +90,23 @@ class EscortObstacleHit(BaseModel):
     distance_m: float
     # How far along the leg the passer can drive before its grown footprint
     # enters the obstacle (0.0 when it starts inside and heads deeper).
+    clear_m: float
+
+
+class ReverseObstacleHit(BaseModel):
+    """One reverse backup leg whose swept footprint enters a declared obstacle."""
+
+    model_config = ConfigDict(frozen=True)
+
+    robot_id: str
+    obstacle_id: str
+    start_xy: tuple[float, float]
+    # World-frame direction of travel in radians: the snapshot heading + pi.
+    heading_rad: float
+    # The dispatched backup distance.
+    distance_m: float
+    # How far the robot can back up before its grown footprint enters the
+    # obstacle (0.0 when it starts inside and heads deeper).
     clear_m: float
 
 
@@ -206,11 +232,7 @@ def escort_obstacle_hits(
         return []
     hits: list[EscortObstacleHit] = []
     for drive in escort_drives(yielder_id, parameters, snapshot, geometry):
-        first: tuple[float, str] | None = None
-        for box in boxes:
-            entry = segment_entry_m(drive.start_xy, drive.heading_rad, drive.distance_m, box.bounds)
-            if entry is not None and (first is None or entry < first[0] - _EPS):
-                first = (entry, box.obstacle_id)
+        first = _first_entry(drive.start_xy, drive.heading_rad, drive.distance_m, boxes)
         if first is not None:
             hits.append(
                 EscortObstacleHit(
@@ -223,6 +245,82 @@ def escort_obstacle_hits(
                 )
             )
     return hits
+
+
+def _first_entry(
+    start: tuple[float, float],
+    heading_rad: float,
+    length_m: float,
+    boxes: Sequence[ObstacleBox],
+) -> tuple[float, str] | None:
+    # The first box the segment enters; ties keep declaration order.
+    first: tuple[float, str] | None = None
+    for box in boxes:
+        entry = segment_entry_m(start, heading_rad, length_m, box.bounds)
+        if entry is not None and (first is None or entry < first[0] - _EPS):
+            first = (entry, box.obstacle_id)
+    return first
+
+
+def reverse_obstacle_hits(
+    legs: Sequence[tuple[str, float]],
+    snapshot: SnapshotFrame,
+    static_obstacles: Sequence[StaticObstacleInput],
+    margin_m: float,
+) -> list[ReverseObstacleHit]:
+    """The reverse backup legs whose swept footprint enters a declared box.
+
+    Each leg starts at the robot's snapshot pose and runs backward along its
+    snapshot heading (`theta + pi`), the line M4's backup holds under
+    `backup_line_hold`. It is swept exactly as an escort leg is
+    (`segment_entry_m`, the same growth and start-inside rule).
+
+    Args:
+        legs: `(robot_id, backup_distance_m)` per reversing robot, in order.
+        snapshot: The decision snapshot the reverse was grounded on.
+        static_obstacles: Fixed obstacles of the running scenario.
+        margin_m: Box growth (`escort_obstacle_margin_m`).
+
+    Returns:
+        One hit per blocked leg, in `legs` order, naming the first box the
+        leg enters (ties: declaration order); empty when every leg clears.
+        A robot missing from the snapshot is skipped.
+    """
+    boxes = grown_obstacle_boxes(static_obstacles, margin_m)
+    if not boxes:
+        return []
+    hits: list[ReverseObstacleHit] = []
+    for robot_id, distance_m in legs:
+        state = snapshot.find_robot(robot_id)
+        if state is None:
+            continue
+        start = (state.x, state.y)
+        heading = state.theta + math.pi
+        first = _first_entry(start, heading, distance_m, boxes)
+        if first is not None:
+            hits.append(
+                ReverseObstacleHit(
+                    robot_id=robot_id,
+                    obstacle_id=first[1],
+                    start_xy=start,
+                    heading_rad=heading,
+                    distance_m=distance_m,
+                    clear_m=first[0],
+                )
+            )
+    return hits
+
+
+def reverse_hits_obstacle_reason(hit: ReverseObstacleHit) -> str:
+    """The `reverse=infeasible:` reason for one blocked backup leg.
+
+    Args:
+        hit: A hit from `reverse_obstacle_hits`.
+
+    Returns:
+        `reverse_hits_obstacle:<robot>:<obstacle>:<clear length m, 3 dp>`.
+    """
+    return f"{REVERSE_HITS_OBSTACLE_REASON}:{hit.robot_id}:{hit.obstacle_id}:{hit.clear_m:.3f}"
 
 
 def obstacle_hit_suffix(hit: EscortObstacleHit) -> str:

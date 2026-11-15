@@ -22,10 +22,13 @@ from reasoning.rag.escort_clearance import (
 )
 from reasoning.rag.escort_obstacles import (
     EscortObstacleHit,
+    ReverseObstacleHit,
     escort_hits_obstacle_reason,
     escort_obstacle_hits,
     escort_obstacle_margin_m,
     obstacle_hit_suffix,
+    reverse_hits_obstacle_reason,
+    reverse_obstacle_hits,
 )
 from reasoning.rag.grounding_view import (
     GroundingView,
@@ -129,6 +132,11 @@ PASSER_CLEARANCE_M = 0.65
 # hold would expire mid-escort and both robots would re-enter the aisle.
 MIN_ESCORT_M = 0.5
 MAX_ESCORT_M = 4.0
+# The legacy template's fixed backup distance (see `_ground_legacy`): every
+# plain `reverse` leg, before the tracked-band clamp.
+_FALLBACK_BACKUP_M = 1.3
+# The legacy template's wait for a substituted or non-spatial strategy.
+_LEGACY_WAIT_SEC = 8.0
 
 
 def _clamp(value: float, low: float, high: float) -> float:
@@ -311,6 +319,62 @@ def _clamp_reverse_distance_to_tracked_band(
     current_progress = recede_axis_offset_m(position, arm, geometry)
     headroom = geometry.tracked_extent_m - current_progress
     return round(max(0.0, min(distance_m, headroom)), 3)
+
+
+def _reverse_refusal_actions(
+    robot_ids: Sequence[str], duration_sec: float, reason: str
+) -> list[dict[str, Any]]:
+    # A refused reverse holds every involved robot on a short wait carrying
+    # the refusal reason (the corridor same-side refusal's shape).
+    return [
+        {
+            "robot_id": robot_id,
+            "action": "temporary_wait",
+            "parameters": {
+                "duration_sec": duration_sec,
+                "requested_strategy": "reverse",
+                "reason": reason,
+            },
+        }
+        for robot_id in robot_ids
+    ]
+
+
+def _reverse_obstacle_refusal(
+    robot_ids: Sequence[str],
+    snapshot: SnapshotFrame,
+    geometry: SceneGeometry | None,
+    params: GroundingParams | None,
+    static_obstacles: Sequence[StaticObstacleInput],
+) -> list[ReverseObstacleHit]:
+    # The reverse obstacle guard, shared by dispatch (`_ground_derived`), the
+    # default plan and the plan audit so they cannot disagree. Each robot's
+    # leg is the one `_ground_legacy` dispatches: the fixed backup after the
+    # tracked-band clamp. Without a geometry there is no footprint to sweep.
+    if (
+        params is None
+        or params.mode != "derived"
+        or not params.reverse_obstacle_guard
+        or geometry is None
+        or not static_obstacles
+    ):
+        return []
+    legs: list[tuple[str, float]] = []
+    for robot_id in robot_ids:
+        state = snapshot.find_robot(robot_id)
+        if state is None:
+            continue
+        legs.append(
+            (
+                robot_id,
+                _clamp_reverse_distance_to_tracked_band(
+                    robot_id, _FALLBACK_BACKUP_M, (state.x, state.y), geometry
+                ),
+            )
+        )
+    return reverse_obstacle_hits(
+        legs, snapshot, static_obstacles, escort_obstacle_margin_m(geometry, params)
+    )
 
 
 _ALIASED_STRATEGIES = frozenset({"convoy", "priority_override"})
@@ -855,7 +919,7 @@ def _ground_legacy(
     # Set only by a tracked-band clamp that actually shortened a reverse;
     # empty keeps every other legacy command byte-identical (no key).
     clamp_tags: list[str] = []
-    duration_sec = 8.0
+    duration_sec = _LEGACY_WAIT_SEC
     # Fallback distance the yielding robot reverses, used when the caller
     # supplies no positions (and by `reverse`, which has no park target). Sized
     # for a nose-to-nose standoff near x=0: robots stop at ~0.3-0.45 m
@@ -865,7 +929,7 @@ def _ground_legacy(
     # stalled in "Failed to make progress" loops (observed 2026-07-03 run 4).
     # 1.3 m parks it ~1.2 m clear of that exit. The scene-aware path below
     # replaces this with |yielder_x - park_x|.
-    backup_distance_m = 1.3
+    backup_distance_m = _FALLBACK_BACKUP_M
     # A straight backup alone re-deadlocks this scenario: the yielder stays on
     # the passer's line, and with min_distance_m=0.45 in the 1.2 m aisle the
     # passer cannot clear a centerline-parked yielder without tripping the
@@ -1111,21 +1175,12 @@ def _ground_legacy(
                     first_position, second_position, geometry
                 )
         if reverse_refused:
-            actions = [
-                {
-                    "robot_id": robot_id,
-                    "action": "temporary_wait",
-                    "parameters": {
-                        "duration_sec": duration_sec,
-                        "requested_strategy": "reverse",
-                        "reason": (
-                            "reverse refused: both robots outside the corridor on "
-                            "the same side; backing up would re-enter it"
-                        ),
-                    },
-                }
-                for robot_id in robot_ids
-            ]
+            actions = _reverse_refusal_actions(
+                robot_ids,
+                duration_sec,
+                "reverse refused: both robots outside the corridor on "
+                "the same side; backing up would re-enter it",
+            )
         else:
             actions = []
             for robot_id in robot_ids:
@@ -2546,6 +2601,27 @@ def _ground_derived(
         legacy = _ground_legacy(
             result, positions, geometry, static_obstacles, yield_feasibility_mode
         )
+        if decision.strategy == "reverse" and snapshot is not None:
+            robot_ids = resolve_robot_order(decision)
+            hits = (
+                _reverse_obstacle_refusal(robot_ids, snapshot, geometry, params, static_obstacles)
+                if any(action["action"] == "reverse" for action in legacy["actions"])
+                else []
+            )
+            if hits:
+                # Refused as the same-side refusal is: every involved robot
+                # waits, one tag per blocked leg, no partial reverse.
+                return _with_degradations(
+                    {
+                        "command_id": legacy["command_id"],
+                        "actions": _reverse_refusal_actions(
+                            robot_ids, _LEGACY_WAIT_SEC, reverse_hits_obstacle_reason(hits[0])
+                        ),
+                        "expected_resolution_time_sec": _LEGACY_WAIT_SEC,
+                        "fallback": "stop",
+                    },
+                    [f"reverse=infeasible:{reverse_hits_obstacle_reason(hit)}" for hit in hits],
+                )
         return _with_degradations(
             legacy,
             [*legacy.get("degradations", []), *_legacy_template_degradations(decision, legacy)],
@@ -4012,6 +4088,21 @@ def _plan_problems(
                 if legs[i].robot_id in (first_id, second_id) and legs[i].action == "reverse":
                     problems.append((i, reason))
 
+    if decision.strategy == "reverse":
+        # Dispatch refuses the whole reverse when any involved robot's backup
+        # leg is blocked, so every reverse leg of an involved robot fails.
+        hits = _reverse_obstacle_refusal(
+            resolve_robot_order(decision), snapshot, geometry, grounding_params, static_obstacles
+        )
+        if hits:
+            reason = (
+                f"{hits[0].robot_id}'s backup enters {hits[0].obstacle_id} after "
+                f"{hits[0].clear_m:.3f} m ({reverse_hits_obstacle_reason(hits[0])})"
+            )
+            for i in active_idx:
+                if legs[i].robot_id in involved and legs[i].action == "reverse":
+                    problems.append((i, reason))
+
     if cross_idx:
         if not yield_idx or yield_idx[0] > cross_idx[0]:
             problems.append(
@@ -4602,10 +4693,15 @@ def _derive_default_plan(
         ordered = junction_ordered
     elif working.strategy == "reverse":
         order = resolve_robot_order(working)
-        refused = geometry is not None and any(
-            _beyond_corridor_same_side(positions[a], positions[b], geometry)
-            for a, b in combinations(order, 2)
-            if a in positions and b in positions
+        refused = (
+            geometry is not None
+            and any(
+                _beyond_corridor_same_side(positions[a], positions[b], geometry)
+                for a, b in combinations(order, 2)
+                if a in positions and b in positions
+            )
+        ) or bool(
+            _reverse_obstacle_refusal(order, snapshot, geometry, grounding_params, static_obstacles)
         )
         for robot_id in order:
             actions[robot_id] = "wait" if refused else "reverse"

@@ -170,6 +170,17 @@ class GroundingParams(BaseModel):
     # scene geometry only. False (default): never checked, and kept out of
     # every dump.
     escort_obstacle_guard: bool = False
+    # Reverse obstacle guard (2026-11-15, validation take m5V_t01_a1 decision
+    # `95066420`; `escort_obstacles.reverse_obstacle_hits`): the same sweep
+    # applied to a derived `reverse` strategy's backup legs (snapshot pose,
+    # heading theta + pi, the dispatched distance). One blocked leg refuses
+    # the whole reverse into the corridor same-side refusal's wait fan-out
+    # (`reverse=infeasible:reverse_hits_obstacle:<robot>:<obstacle>:<clear m>`).
+    # A separate key so `escort_obstacle_guard: true` keeps the meaning
+    # m5V_t01_a1 ran under. Derived mode with a scene geometry only; junction
+    # recede phases are not covered. False (default): never checked, and
+    # kept out of every dump.
+    reverse_obstacle_guard: bool = False
 
     @model_validator(mode="after")
     def _check_bands(self) -> "GroundingParams":
@@ -216,6 +227,8 @@ class GroundingParams(BaseModel):
             data.pop("escort_park_clearance", None)
         if not data.get("escort_obstacle_guard"):
             data.pop("escort_obstacle_guard", None)
+        if not data.get("reverse_obstacle_guard"):
+            data.pop("reverse_obstacle_guard", None)
         return data
 
 

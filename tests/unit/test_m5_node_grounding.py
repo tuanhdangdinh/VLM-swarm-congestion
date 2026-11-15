@@ -59,6 +59,30 @@ def test_startup_logs_the_escort_obstacle_guard_when_on(node_env, tmp_path):  # 
     assert line.endswith("stage2_retreat_selection=False escort_obstacle_guard=True")
 
 
+def test_startup_logs_the_reverse_obstacle_guard_when_on(node_env, tmp_path):  # noqa: F811
+    path = tmp_path / "rag.yaml"
+    path.write_text(
+        "grounding:\n  mode: derived\n  reverse_obstacle_guard: true\n", encoding="utf-8"
+    )
+    node = _node(node_env, tmp_path, grounding_params_path=str(path),
+                 stage2_retreat_selection=False)
+    [line] = node.get_logger().matching("grounding mode=")
+    assert line.endswith("stage2_retreat_selection=False reverse_obstacle_guard=True")
+
+
+def test_startup_logs_both_obstacle_guards_when_on(node_env, tmp_path):  # noqa: F811
+    path = tmp_path / "rag.yaml"
+    path.write_text(
+        "grounding:\n  mode: derived\n  escort_obstacle_guard: true\n"
+        "  reverse_obstacle_guard: true\n",
+        encoding="utf-8",
+    )
+    node = _node(node_env, tmp_path, grounding_params_path=str(path),
+                 stage2_retreat_selection=False)
+    [line] = node.get_logger().matching("grounding mode=")
+    assert line.endswith("escort_obstacle_guard=True reverse_obstacle_guard=True")
+
+
 def test_startup_applies_and_logs_a_per_scenario_band(node_env, tmp_path):  # noqa: F811
     path = tmp_path / "rag.yaml"
     path.write_text("grounding:\n  mode: derived\n", encoding="utf-8")
