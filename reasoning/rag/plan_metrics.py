@@ -472,7 +472,55 @@ def shield_excluded_dispatch_match(artifact: Mapping[str, Any]) -> ShieldExclude
     )
 
 
-StrategyStratum = Literal["strategy_correct", "strategy_incorrect", "strategy_unscored"]
+class DispatchAgreement(BaseModel):
+    """Plan agreement read with and without the dispatch check (`plan_dispatch_mismatch`).
+
+    A separate record, never a field of `PlanDecisionMetrics`: the registered
+    `agreement` keeps its meaning (and its serialised shape) for every reader.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    # The registered definition: a consistent plan verified `vlm_verbatim`.
+    agreement: bool
+    # Corrected: `agreement` AND the dispatched command carries the plan out
+    # (`plan_dispatch_mismatch.matches`, retreat-shield bystanders and
+    # in-epsilon junction orders excluded as registered).
+    agreement_dispatched: bool
+    # `vlm_verbatim` as recorded, and `vlm_verbatim` AND dispatched as planned.
+    verbatim: bool
+    verbatim_dispatched: bool
+    # `plan_dispatch_mismatch.provenance_dispatched` (`overridden` for a
+    # verbatim plan dispatch contradicted).
+    provenance_dispatched: str
+
+
+def score_dispatch_agreement(artifact: Mapping[str, Any]) -> DispatchAgreement | None:
+    """Read one artifact's agreement under both definitions, from its mismatch block.
+
+    Args:
+        artifact: One parsed `decisions/<request_id>.json`.
+
+    Returns:
+        None when the artifact has no plan, or no `plan_dispatch_mismatch`
+        block (key off, or written before the key existed), or a block that
+        records an error instead of a comparison.
+    """
+    block = artifact.get("plan_dispatch_mismatch")
+    metrics = score_decision_artifact(artifact)
+    if metrics is None or not block or "matches" not in block:
+        return None
+    verbatim = metrics.provenance == "vlm_verbatim"
+    return DispatchAgreement(
+        agreement=metrics.agreement,
+        agreement_dispatched=metrics.agreement and bool(block["matches"]),
+        verbatim=verbatim,
+        verbatim_dispatched=verbatim and bool(block["matches"]),
+        provenance_dispatched=str(block["provenance_dispatched"]),
+    )
+
+
+StrategyStratum =Literal["strategy_correct", "strategy_incorrect", "strategy_unscored"]
 
 
 class ProvenanceStratum(BaseModel):

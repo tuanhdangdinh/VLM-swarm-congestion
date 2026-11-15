@@ -1048,6 +1048,8 @@ def write_decision_artifact(
     dispatch_suppressed: bool | None = None,
     reanalysis_suppression: dict[str, Any] | None = None,
     dispatch_withheld: dict[str, Any] | None = None,
+    plan_dispatch_mismatch: dict[str, Any] | None = None,
+    reverse_dispatch: dict[str, Any] | None = None,
 ) -> Path:
     """Persist one M2 decision outcome for capstone acceptance evidence.
 
@@ -1164,6 +1166,13 @@ def write_decision_artifact(
     M4 WOULD have received, as under `dispatch_suppressed`. Absent when
     None, so every other artifact is byte-identical to one written before
     the key existed.
+
+    `plan_dispatch_mismatch` and `reverse_dispatch` (set by M5 only while
+    `plan_dispatch_mismatch_visibility` is on) add blocks of those names:
+    the plan-versus-dispatch comparison (`reasoning.rag.
+    plan_dispatch_mismatch`) and, for a `reverse` decision, whether it was
+    executed or refused. Both absent when None, so a key-off artifact is
+    byte-identical to one written before the key existed.
 
     `prompt_conditions` (prereg-v2 rev 6 apparatus) is always written, null
     only when the caller passed none; M5 passes it on every analysis, all-off
@@ -1309,6 +1318,10 @@ def write_decision_artifact(
         payload["reanalysis_suppression"] = reanalysis_suppression
     if dispatch_withheld is not None:
         payload["dispatch_withheld"] = dispatch_withheld
+    if plan_dispatch_mismatch is not None:
+        payload["plan_dispatch_mismatch"] = plan_dispatch_mismatch
+    if reverse_dispatch is not None:
+        payload["reverse_dispatch"] = reverse_dispatch
     payload["prompt_conditions"] = (
         None if prompt_conditions is None else prompt_conditions.model_dump(mode="json")
     )
@@ -1791,6 +1804,7 @@ class InProcessPipeline:
             stage2=stage2,
             plan=plan_info,
             plan_error=plan_error,
+            plan_verified_legs=None if plan_info is None else tuple(verified.legs),
             junction_phases=junction_phases,
             dispatch_order_source=dispatch_order_source,
         )

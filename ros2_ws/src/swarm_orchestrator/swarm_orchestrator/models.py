@@ -27,6 +27,7 @@ from reasoning.rag.command_grounder import (
 )
 from reasoning.rag.scene_geometry import SceneGeometry
 from reasoning.vlm.models import (
+    ProposedPlanLeg,
     ReasonerResult,
     StaticObstacleInput,
 )
@@ -473,6 +474,17 @@ class OrchestratorConfig(BaseModel):
     # in every decision artifact (`plan_dispatch_order_source`, beside the
     # per-decision `dispatch_order_source`). Needs `plan_channel_enabled`.
     plan_dispatch_order_source: DispatchOrderSourceMode = "chi"
+    # Plan-dispatch mismatch visibility (owner decision 2026-11-15, option 1:
+    # logging and provenance only). False (default): artifacts, logs and
+    # metrics are byte-identical to before the key existed. True: each
+    # plan-channel decision's artifact gains `plan_dispatch_mismatch` (what
+    # the dispatched command does differently from the plan, a corrected
+    # provenance reading beside the untouched `plan.provenance`, the
+    # `plan=overridden:...` tags and a corrected leg-status record) and, for
+    # a `reverse`, `reverse_dispatch`; M5 logs a WARN line per difference and
+    # an explicit `reverse refused` / `reverse executed` line. No command,
+    # plan, plan-leg status or prompt changes. Needs `plan_channel_enabled`.
+    plan_dispatch_mismatch_visibility: bool = False
     # Prompt apparatus (prereg-v2 rev 6 + round-3 deltas, 2026-10-04): five
     # registered A/B conditions, ALL default off, each recorded in every
     # decision artifact's `prompt_conditions` block whatever its value
@@ -607,6 +619,17 @@ class OrchestratorConfig(BaseModel):
             raise ValueError(
                 f"plan_dispatch_order_source={self.plan_dispatch_order_source!r} requires "
                 "plan_channel_enabled (plans are only verified on the plan channel)"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _mismatch_visibility_needs_plan_channel(self) -> OrchestratorConfig:
+        # Without the plan channel there is no plan to compare a dispatch to;
+        # the key would silently record nothing.
+        if self.plan_dispatch_mismatch_visibility and not self.plan_channel_enabled:
+            raise ValueError(
+                "plan_dispatch_mismatch_visibility requires plan_channel_enabled "
+                "(plans are only verified on the plan channel)"
             )
         return self
 
@@ -862,6 +885,12 @@ class PipelineOutcome(BaseModel):
     # otherwise-successful dispatch (FR5.3.2's "never raised past this
     # adapter", extended to this channel). None in every other case.
     plan_error: str | None = None
+    # The legs `PlanDispatchInfo.dispatch_matches_plan` was computed against
+    # (this decision's own `VerifiedPlan.legs`; on a hold they differ from
+    # `plan.legs`, the active plan's). Set whenever `plan` is; read only by
+    # M5's `plan_dispatch_mismatch_visibility` record and never written to
+    # an artifact as such.
+    plan_verified_legs: tuple[ProposedPlanLeg, ...] | None = None
     # `junction_clear`'s full precomputed phase sequence (prereg-v2 (a) M5,
     # build-order step 5): None unless `grounded_command`'s decision is
     # `junction_clear` AND a non-degenerate recede set was groundable
