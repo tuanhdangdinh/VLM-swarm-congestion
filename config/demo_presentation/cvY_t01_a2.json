@@ -1,5 +1,5 @@
 {
- "header": "Four-robot convoy counterflow scene, rerun  ·  demonstration take 1 of 1  ·  VLM: Gemini Robotics-ER 2",
+ "header": "Convoy counterflow rerun  ·  take 1 of 1  ·  VLM: Gemini Robotics-ER 2",
  "camera_label": "Left: real overhead camera of the simulation (topic /perception/annotated_frame). The red boxes and robot ids were drawn on it by the perception module (M1) during the run.",
  "intro_title": "Four-robot convoy counterflow scene, rerun",
  "intro_lines": [
@@ -36,7 +36,7 @@
    "at": {
     "match": "^provenance=repaired"
    },
-   "text": "Check: the grounder's queued-robot hold added robot_3 and robot_4 to the crossing order and holds them until the gate admits each one (plan repaired, 2 edits: 'continue' became 'cross'). The yielder correction was armed and did not fire: robot_2 already had room to back out."
+   "text": "Check: the grounder's queued-robot hold added robot_3 and robot_4 to the crossing order and holds them until the gate admits each one (plan repaired, 2 edits: 'continue' became 'cross'). The yielder correction was armed and did not fire: with robot_2 yielding, every robot that crosses starts on the opposite side."
   },
   {
    "at": {
@@ -85,13 +85,13 @@
   "at": {
    "match": "robot robot_2 arrived at base goal"
   },
-  "text": "Outcome: Resolved — grounder held the queued robots; model chose strategy and yielder. 4 of 4 robots arrived (ground truth, sim s: robot_1 75.3, robot_3 116.4, robot_4 158.1, robot_2 180.1)."
+  "text": "Outcome: Resolved — grounder held the queued robots; model chose strategy and yielder. 4 of 4 robots arrived."
  },
  "legend": "Legend: yield = back out and pull aside · cross = drive through · continue = keep driving · temporary_wait = hold still until admitted · provenance: repaired = edited by the grounder's verifier · dispatch_order_source=chi = the grounder's own ordering · gate_admit / gate_cleared / gate_release = M4 lets one robot through the gate, sees it clear, then releases the yielder · 'safety stop … min_distance_violation' (dim) = robots closer than 0.45 m are held still by the safety monitor · robot_35 (start-up lines only) = a perception ghost id, not a robot.",
  "disclosure": "Illustrative demo, not controlled experimental evidence; not evidence that the VLM resolves convoy congestion.",
  "outro_title": "Outcome: Resolved — grounder held the queued robots; model chose strategy and yielder",
  "outro_lines": [
-  "4 of 4 robots arrived, in the order robot_1, robot_3, robot_4, then robot_2. Rerun, demonstration take 1 of 1, after five unresolved convoy takes.",
+  "4 of 4 robots arrived, in the order robot_1, robot_3, robot_4, then robot_2 (ground truth, sim s: 75.3, 116.4, 158.1, 180.1). Rerun, demonstration take 1 of 1, after five unresolved convoy takes.",
   "The model's: the yield strategy, robot_2 as yielder and robot_1 as passer. It named only robot_1 and robot_2.",
   "The system's: when to ask; the grounder's queued-robot hold (robot_3 and robot_4 added to the crossing order and held; plan repaired, 2 edits), the park point and distances; M4's gate admissions and escorts; robot_2's drive home (Nav2).",
   "Caveats: n = 1. The yielder correction was armed but did not fire, so it is untested live. Closest non-exempted pair 0.497 m against a 0.45 m safety distance. Not evidence that the VLM resolves convoy congestion."
