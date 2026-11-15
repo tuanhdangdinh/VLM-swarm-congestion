@@ -6,6 +6,7 @@
 
 - Initial draft: statements to change in the thesis report, results to add, drop or relabel, new limitations, pending items and figures to make, mapped to the evidence of 2026-11-15.
 - Rev 2 (2026-11-15): added section 10, "Scenario Images: What to Insert and Where" (15 extracted stills with md5s, a placement table, Typst snippets, reading order, outdated figures, missing figures).
+- Rev 3 (2026-11-15): added section 10.8, the drawn take 5 decision-flow figure with real output and a head-on gate contrast strip (files with md5s, insertion point, caveats).
 
 ---
 
@@ -600,6 +601,28 @@ Row 15:
 - **Physical demonstration scenarios D and E:** the thesis describes them in text (`04-implementation.typ` line 149) but has no image of them. Files `scenario_d_four_robot_central.png` and `scenario_e_compact_dual_lane.png` exist in `~/Downloads/verified_scenarios_12-11-2026/verified_scenarios_images_2026-11-12/`, outside the repository and the thesis. They were not viewed, hashed or prepared here.
 - **No usable image anywhere checked here** for the scenes of the IB10 experiment episodes and the prereg-v3 tranche-1 episodes. Their recordings were not searched; the IB10 camera frame (row 1) comes from a demonstration take of the same scene file.
 - **Contact and safety figure** (section 7 row 11): a table or chart, not an image.
+
+### 10.8 Drawn Figure: Take 5 Decision Flow With Real Output (Added in Rev 3)
+
+- **What it is.** The figure shows the decision flow in six stages: trigger, request, VLM response, check, grounding into phases, and dispatch and execution. Each stage is annotated with the real output of intersection take 5 (request `df397030…`). A side rail shows the M4 safety monitor beside every stage. Boxes with a solid border and a filled background mark what the model decided: the strategy, the plan legs and the back-out order. Dashed boxes mark what the system decided: the actions offered, the yielder, the distances, the waits, the crossing chain, the release and the safety rules. Grey text marks model output that the system did not use (`crossing_order`). Fill and border style keep the two classes apart in greyscale. A bottom strip compares the two outcomes of stage 4. On the left, the take 5 plan was accepted unchanged by the plan verifier. On the right, the head-on take (decision 2, `f40c0537…`) was corrected by the yield feasibility gate, and the strip quotes the gate's `m5.log` line verbatim. The figure is drawn with Typst built-ins and needs no package; all text is at least 7 pt. It was compiled with the Typst 0.15.1 compiler bundled in the VS Code Tinymist extension, because no `typst` binary is installed.
+- **Files** (folder `P/flow_diagram/`, git-ignored, on this Mac only):
+
+| File | md5 |
+|---|---|
+| `vlm_flow_take5.typ` (figure function `vlm-flow-figure()` plus a standalone A4 preview with the thesis page setup) | `595d889e61c92f90eb7f660f3daaa1d2` |
+| `vlm_flow_take5.pdf` (standalone preview, 1 page) | `cbdfcaf2ec203cc1c39a276cacffe5d8` |
+| `vlm_flow_take5.png` (same page, 300 ppi, 2480 x 3508) | `359b3c7d152e392fa2d853094b054338` |
+| `SOURCES.md` (every value with its file, JSON path or log line) | `0c963b8e53600b7071c486f968ded967` |
+| `INSERT.md` (copy step, import line, snippet, placement) | `bd538fad8043edae1cebccc183a55418` |
+
+- **Where to insert.** Copy the `.typ` file to `thesis/figures/vlm-flow-take5.typ` and add `#import "../figures/vlm-flow-take5.typ": vlm-flow-figure` after line 1 of `06-results.typ`. Place the figure in Chapter 6, under "== Demonstration Campaign" → "=== Intersection, take 5", the headings that rows 4 to 6 add after line 18; it goes after rows 5 and 6. The label is `fig:ch6-flow-take5`, and the figure call needs `kind: image`. In a scratch copy of the thesis with a stub `NEW-DC` row, the figure and its caption fit on one page (page 55 of that build), and the build compiled with no errors or warnings.
+- **Source tag.** Like every snippet in 10.4, the figure uses `#fig-source("NEW-DC")` and does not compile until the demo-campaign Evidence Index row exists (section 7 row 13).
+- **Caveats carried by the caption.** Illustrative, not controlled evidence. Take 5 of 5, selected because it is the only take labelled VLM-driven execution. Only the back-out order was the model's, and it was a near-tie: 0.010 m in recede cost against the verifier's 0.15 m tolerance. The head-on strip comes from a different take, with n = 1. The caption makes no contact or rate claims.
+- **Found while checking the values** (`SOURCES.md` has details):
+  - In phase 3, `robot_2`'s own command is a `temporary_wait` linked to the yield as its passer, not a `cross` action. The figure says "passes, escorted 2.024 m".
+  - The GT speed of robot_3 and robot_4 first rises above 0 at 32.3 s and 41.4 s. `DC` 7.2 gives the back-out starts as 32.9 s and 41.9 s, which matches the first sample displaced more than 0.05 m from the standing pose. The figure keeps the report's values.
+  - The take 5 request ran with `grounding_yield_feasibility=off`. Its plan was accepted by the plan verifier, not by the yield gate.
+  - The M4 startup line of take 5 shows `scoped_clearing_exemption=True`, unlike the runtime that the thesis evaluates. The rail says so.
 
 ---
 
