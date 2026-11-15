@@ -109,7 +109,8 @@
 #include "chapters/07-discussion.typ"
 #include "chapters/08-conclusion.typ"
 
-#bibliography("bibliography/refs.bib", style: "apa", title: "References")
+// Template APA style with name disambiguation off: Typst 0.15 drops author lists when it disambiguates by name; year suffixes (2023a/b) are used instead.
+#bibliography("bibliography/refs.bib", style: "bibliography/apa.csl", title: "References")
 
 #set heading(numbering: "A.1")
 #counter(heading).update(0)
