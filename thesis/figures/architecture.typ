@@ -23,15 +23,15 @@
     label-sep: 4pt,
     node-stroke: none,
 
-    node((2.5, 0.5), name: <l2>, box(width: 0pt, height: 8pt, place(center + horizon, box(width: 70mm, text(size: 7.5pt, fill: acc, weight: "bold")[Layer 2: semantic reasoning, 0.5–2 Hz])))),
+    node((2.5, 0.5), name: <l2>, box(width: 0pt, height: 8pt, place(center + horizon, box(width: 70mm, text(size: 7.5pt, fill: acc, weight: "bold")[Coordination layer (Layer 2), 0.5–2 Hz])))),
     node(enclose: (<m1>, <m5>, <m2>, <m3>, <l2>), inset: 8pt, stroke: 1pt + acc, fill: acc.lighten(94%), corner-radius: 3pt, snap: -1),
-    node((1.2, 2.6), name: <l1>, box(width: 0pt, height: 16pt, place(center + horizon, box(width: 40mm, text(size: 7.5pt, weight: "bold")[Layer 1: local reactive \ control, 20–50 Hz])))),
+    node((1.2, 2.6), name: <l1>, box(width: 0pt, height: 16pt, place(center + horizon, box(width: 40mm, text(size: 7.5pt, weight: "bold")[Local navigation (Layer 1), \ 20–50 Hz])))),
     node(enclose: (<m4>, <nav>, <l1>), inset: 8pt, stroke: 1pt + luma(60), fill: g2, corner-radius: 3pt, snap: -1),
 
     mod("M1", [Perception], (0, 0), name: <m1>),
     mod("M5", [Orchestrator], (1, 0), name: <m5>),
     mod("M2", [VLM reasoning], (2, 0), name: <m2>),
-    mod("M3", [Grounding], (3, 0), name: <m3>),
+    mod("M3", [Grounder], (3, 0), name: <m3>),
     mod("M4", [Execution and safety], (1, 2), name: <m4>),
     mod("Nav2", [per-robot navigation], (2, 2), name: <nav>),
     node((2, 3.9), name: <m6>, inset: 4pt, corner-radius: 2pt, stroke: (paint: luma(60), thickness: 0.7pt, dash: "dashed"), fill: white, width: 25mm, align(center, text(size: 8pt)[*M6* \ Isaac Sim: robots and overhead camera])),
