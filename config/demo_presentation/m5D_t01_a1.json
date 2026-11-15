@@ -96,7 +96,7 @@
    "at": {
     "match": "yield refused request=c2f7094b"
    },
-   "text": "Check: refused ('no feasible yielder': no robot has room to back out). The command is withheld; nothing moves."
+   "text": "Check: refused ('no feasible yielder': the robots it could ask to yield have 0.00 m of room to back out, 0.77 m needed). The command is withheld; nothing moves."
   },
   {
    "at": {
