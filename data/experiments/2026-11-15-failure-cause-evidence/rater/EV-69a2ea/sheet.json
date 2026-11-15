@@ -1,0 +1,1095 @@
+{
+ "censor": {
+  "cut_short_stop_rule": false,
+  "reason_a33": "horizon",
+  "t_end_rel": 570.67
+ },
+ "clock": {
+  "gt_offset_s": 0.67,
+  "rel_s": "GT sim-s minus robot_1 release on the GT clock (A33(0)); = M1/ROS sim-s minus t0_m1",
+  "t0_m1_sim_s": 30.0,
+  "wall_mapping": "U:no_m4_clock_anchor (m4.log has fewer than 2 sim_t= lines)",
+  "wall_to_sim_fit_m4": null
+ },
+ "contacts": {
+  "builder_boxes": [
+   "wall/north",
+   "wall/south",
+   "wall/east",
+   "wall/west",
+   "rack/NE_east",
+   "rack/NE_north",
+   "rack/NW_west",
+   "rack/NW_north",
+   "rack/SE_east",
+   "rack/SE_south",
+   "rack/SW_west",
+   "rack/SW_south",
+   "obstacle_1",
+   "obstacle_2"
+  ],
+  "declared_boxes": [
+   "obstacle_1",
+   "obstacle_2",
+   "obstacle_3",
+   "obstacle_4",
+   "obstacle_5",
+   "obstacle_6"
+  ],
+  "recompute_events": [],
+  "recompute_min_robot_robot_gap": {
+   "min_gap_m": 0.11943,
+   "robot_ids": [
+    "robot_1",
+    "robot_4"
+   ],
+   "sim_s": 46.1
+  },
+  "recompute_robot_min_static_gap": {
+   "robot_1": {
+    "category": "static_obstacle",
+    "min_gap_m": 0.01402,
+    "obstacle_id": "obstacle_1",
+    "sim_s": 38.8
+   },
+   "robot_2": {
+    "category": "static_obstacle",
+    "min_gap_m": 0.02135,
+    "obstacle_id": "obstacle_2",
+    "sim_s": 42.6
+   },
+   "robot_3": {
+    "category": "static_obstacle",
+    "min_gap_m": 0.34941,
+    "obstacle_id": "obstacle_2",
+    "sim_s": 48.7
+   },
+   "robot_4": {
+    "category": "rack",
+    "min_gap_m": 0.09789,
+    "obstacle_id": "rack/SW_west",
+    "sim_s": 22.0
+   },
+   "robot_5": {
+    "category": "rack",
+    "min_gap_m": 0.0979,
+    "obstacle_id": "rack/NW_west",
+    "sim_s": 0.0333
+   }
+  },
+  "recompute_summary_keys": [
+   "bundle",
+   "category_min_gap_within_near_cutoff",
+   "contact_model",
+   "declared_static_obstacles",
+   "family",
+   "ground_truth",
+   "logged_rows_nonempty",
+   "logged_rows_with_contact_model",
+   "min_robot_robot_gap",
+   "n_boxes",
+   "n_rows",
+   "near_cutoff_m",
+   "robot_min_static_gap",
+   "robot_pairs",
+   "robot_robot_verdict",
+   "row_dt_s",
+   "scenario",
+   "sim_span_s",
+   "static_pairs",
+   "static_verdict",
+   "sustained_min_sec",
+   "threshold_m",
+   "timed_obstacles",
+   "unmodelled_obstacles"
+  ],
+  "recompute_unmodelled_obstacles": [],
+  "recompute_verdicts": {
+   "robot_robot": "clear",
+   "static": "clear"
+  },
+  "spans_within_0.05m_rel": {
+   "robot_1|box:obstacle_1": [
+    {
+     "contact": false,
+     "from_rel": 8.87,
+     "min_gap_m": 0.014,
+     "to_rel": 10.47
+    }
+   ],
+   "robot_2|box:obstacle_2": [
+    {
+     "contact": false,
+     "from_rel": 12.67,
+     "min_gap_m": 0.0213,
+     "to_rel": 14.07
+    }
+   ]
+  },
+  "undeclared_builder_boxes": [
+   "wall/north",
+   "wall/south",
+   "wall/east",
+   "wall/west",
+   "rack/NE_east",
+   "rack/NE_north",
+   "rack/NW_west",
+   "rack/NW_north",
+   "rack/SE_east",
+   "rack/SE_south",
+   "rack/SW_west",
+   "rack/SW_south"
+  ]
+ },
+ "decisions": [],
+ "fidelity": {
+  "episode_usable": {
+   "as_written": false,
+   "plus_stage2": false,
+   "plus_stage2_intents": false
+  },
+  "n_no_record": 0,
+  "rates": {
+   "as_written": "0/0",
+   "plus_stage2": "0/0",
+   "plus_stage2_intents": "0/0"
+  },
+  "rows": []
+ },
+ "latch": {
+  "exempt_changes": [],
+  "safety_stop_spans": {
+   "robot_1|min_distance_violation": [
+    {
+     "from_rel": null,
+     "lines": 136452,
+     "to_rel": null
+    }
+   ],
+   "robot_2|min_distance_violation": [
+    {
+     "from_rel": null,
+     "lines": 135539,
+     "to_rel": null
+    }
+   ],
+   "robot_3|min_distance_violation": [
+    {
+     "from_rel": null,
+     "lines": 135539,
+     "to_rel": null
+    }
+   ],
+   "robot_4|min_distance_violation": [
+    {
+     "from_rel": null,
+     "lines": 136452,
+     "to_rel": null
+    }
+   ],
+   "robot_5|min_distance_violation": [
+    {
+     "from_rel": null,
+     "lines": 134934,
+     "to_rel": null
+    }
+   ]
+  },
+  "waiver_events": []
+ },
+ "legs": [],
+ "nav2": [],
+ "stale_spans": {
+  "robot_1": [
+   {
+    "duration_s": 0.7,
+    "from_rel": 17.933,
+    "ge_10s": false,
+    "to_rel": 18.633
+   }
+  ]
+ },
+ "t1": {
+  "FU1": {
+   "t0": {
+    "candidates": [
+     "robot_1",
+     "robot_4",
+     "robot_5",
+     "robot_3"
+    ],
+    "fidelity": {
+     "as_written": "unverifiable_in_bundle",
+     "plus_stage2_intents": "unverifiable_in_bundle"
+    },
+    "snapshot_rel": 16.1,
+    "variants": {
+     "all_guards_on": {
+      "motion": [
+       "R:robot_1",
+       "R:robot_4",
+       "R:robot_1+robot_3",
+       "R:robot_3+robot_4",
+       "R:robot_1+robot_3+robot_4+robot_5"
+      ],
+      "n_errors": 0,
+      "n_h": 88,
+      "n_motion": 5,
+      "n_motion_counting_empty_reroute": 7,
+      "nonempty": true
+     },
+     "as_written": {
+      "motion": [
+       "R:robot_1",
+       "R:robot_4",
+       "R:robot_1+robot_3",
+       "R:robot_3+robot_4",
+       "R:robot_1+robot_3+robot_4+robot_5"
+      ],
+      "n_errors": 0,
+      "n_h": 88,
+      "n_motion": 5,
+      "n_motion_counting_empty_reroute": 7,
+      "nonempty": true
+     },
+     "plus_intents": {
+      "motion": [
+       "R:robot_1",
+       "R:robot_4",
+       "R:robot_1+robot_3",
+       "R:robot_3+robot_4",
+       "R:robot_1+robot_3+robot_4+robot_5"
+      ],
+      "n_errors": 0,
+      "n_h": 88,
+      "n_motion": 5,
+      "n_motion_counting_empty_reroute": 7,
+      "nonempty": true
+     }
+    }
+   }
+  },
+  "FU2": {
+   "t0": {
+    "candidates": [
+     "robot_2",
+     "robot_3",
+     "robot_5",
+     "robot_1",
+     "robot_4"
+    ],
+    "fidelity": {
+     "as_written": "unverifiable_in_bundle",
+     "plus_stage2_intents": "unverifiable_in_bundle"
+    },
+    "snapshot_rel": 19.733,
+    "variants": {
+     "all_guards_on": {
+      "motion": [
+       "Y:robot_2>robot_3",
+       "Y:robot_2>robot_5",
+       "Y:robot_3>robot_2",
+       "Y:robot_5>robot_2",
+       "Y:robot_2>robot_1>robot_3",
+       "Y:robot_2>robot_1>robot_5",
+       "Y:robot_2>robot_3>robot_1",
+       "Y:robot_2>robot_3>robot_4",
+       "Y:robot_2>robot_3>robot_5",
+       "Y:robot_2>robot_4>robot_3",
+       "Y:robot_2>robot_4>robot_5",
+       "Y:robot_2>robot_5>robot_1",
+       "Y:robot_2>robot_5>robot_3",
+       "Y:robot_2>robot_5>robot_4",
+       "Y:robot_2>robot_1>robot_3>robot_4",
+       "Y:robot_2>robot_1>robot_3>robot_5",
+       "Y:robot_2>robot_1>robot_4>robot_3",
+       "Y:robot_2>robot_1>robot_4>robot_5",
+       "Y:robot_2>robot_1>robot_5>robot_3",
+       "Y:robot_2>robot_1>robot_5>robot_4",
+       "Y:robot_2>robot_3>robot_1>robot_4",
+       "Y:robot_2>robot_3>robot_1>robot_5",
+       "Y:robot_2>robot_3>robot_4>robot_1",
+       "Y:robot_2>robot_3>robot_4>robot_5",
+       "Y:robot_2>robot_3>robot_5>robot_1",
+       "Y:robot_2>robot_3>robot_5>robot_4",
+       "Y:robot_2>robot_4>robot_1>robot_3",
+       "Y:robot_2>robot_4>robot_1>robot_5",
+       "Y:robot_2>robot_4>robot_3>robot_1",
+       "Y:robot_2>robot_4>robot_3>robot_5",
+       "Y:robot_2>robot_4>robot_5>robot_1",
+       "Y:robot_2>robot_4>robot_5>robot_3",
+       "Y:robot_2>robot_5>robot_1>robot_3",
+       "Y:robot_2>robot_5>robot_1>robot_4",
+       "Y:robot_2>robot_5>robot_3>robot_1",
+       "Y:robot_2>robot_5>robot_3>robot_4",
+       "Y:robot_2>robot_5>robot_4>robot_1",
+       "Y:robot_2>robot_5>robot_4>robot_3",
+       "Y:robot_3>robot_1>robot_2",
+       "Y:robot_3>robot_2>robot_1",
+       "Y:robot_3>robot_2>robot_4",
+       "Y:robot_3>robot_2>robot_5",
+       "Y:robot_3>robot_4>robot_2",
+       "Y:robot_3>robot_5>robot_2",
+       "Y:robot_3>robot_1>robot_2>robot_4",
+       "Y:robot_3>robot_1>robot_2>robot_5",
+       "Y:robot_3>robot_1>robot_4>robot_2",
+       "Y:robot_3>robot_1>robot_5>robot_2",
+       "Y:robot_3>robot_2>robot_1>robot_4",
+       "Y:robot_3>robot_2>robot_1>robot_5",
+       "Y:robot_3>robot_2>robot_4>robot_1",
+       "Y:robot_3>robot_2>robot_4>robot_5",
+       "Y:robot_3>robot_2>robot_5>robot_1",
+       "Y:robot_3>robot_2>robot_5>robot_4",
+       "Y:robot_3>robot_4>robot_1>robot_2",
+       "Y:robot_3>robot_4>robot_2>robot_1",
+       "Y:robot_3>robot_4>robot_2>robot_5",
+       "Y:robot_3>robot_4>robot_5>robot_2",
+       "Y:robot_3>robot_5>robot_1>robot_2",
+       "Y:robot_3>robot_5>robot_2>robot_1",
+       "Y:robot_3>robot_5>robot_2>robot_4",
+       "Y:robot_3>robot_5>robot_4>robot_2",
+       "Y:robot_5>robot_1>robot_2",
+       "Y:robot_5>robot_2>robot_1",
+       "Y:robot_5>robot_2>robot_3",
+       "Y:robot_5>robot_2>robot_4",
+       "Y:robot_5>robot_3>robot_2",
+       "Y:robot_5>robot_4>robot_2",
+       "Y:robot_5>robot_1>robot_2>robot_3",
+       "Y:robot_5>robot_1>robot_2>robot_4",
+       "Y:robot_5>robot_1>robot_3>robot_2",
+       "Y:robot_5>robot_1>robot_4>robot_2",
+       "Y:robot_5>robot_2>robot_1>robot_3",
+       "Y:robot_5>robot_2>robot_1>robot_4",
+       "Y:robot_5>robot_2>robot_3>robot_1",
+       "Y:robot_5>robot_2>robot_3>robot_4",
+       "Y:robot_5>robot_2>robot_4>robot_1",
+       "Y:robot_5>robot_2>robot_4>robot_3",
+       "Y:robot_5>robot_3>robot_1>robot_2",
+       "Y:robot_5>robot_3>robot_2>robot_1",
+       "Y:robot_5>robot_3>robot_2>robot_4",
+       "Y:robot_5>robot_3>robot_4>robot_2",
+       "Y:robot_5>robot_4>robot_1>robot_2",
+       "Y:robot_5>robot_4>robot_2>robot_1",
+       "Y:robot_5>robot_4>robot_2>robot_3",
+       "Y:robot_5>robot_4>robot_3>robot_2",
+       "R:robot_2",
+       "R:robot_3",
+       "R:robot_5",
+       "R:robot_1+robot_2",
+       "R:robot_1+robot_3",
+       "R:robot_2+robot_3",
+       "R:robot_2+robot_4",
+       "R:robot_2+robot_5",
+       "R:robot_3+robot_4",
+       "R:robot_3+robot_5",
+       "R:robot_1+robot_2+robot_3+robot_4+robot_5"
+      ],
+      "n_errors": 0,
+      "n_h": 237,
+      "n_motion": 97,
+      "n_motion_counting_empty_reroute": 100,
+      "nonempty": true
+     },
+     "as_written": {
+      "motion": [
+       "Y:robot_2>robot_3",
+       "Y:robot_2>robot_5",
+       "Y:robot_3>robot_2",
+       "Y:robot_5>robot_2",
+       "Y:robot_2>robot_1>robot_3",
+       "Y:robot_2>robot_1>robot_5",
+       "Y:robot_2>robot_3>robot_1",
+       "Y:robot_2>robot_3>robot_4",
+       "Y:robot_2>robot_3>robot_5",
+       "Y:robot_2>robot_4>robot_3",
+       "Y:robot_2>robot_4>robot_5",
+       "Y:robot_2>robot_5>robot_1",
+       "Y:robot_2>robot_5>robot_3",
+       "Y:robot_2>robot_5>robot_4",
+       "Y:robot_2>robot_1>robot_3>robot_4",
+       "Y:robot_2>robot_1>robot_3>robot_5",
+       "Y:robot_2>robot_1>robot_4>robot_3",
+       "Y:robot_2>robot_1>robot_4>robot_5",
+       "Y:robot_2>robot_1>robot_5>robot_3",
+       "Y:robot_2>robot_1>robot_5>robot_4",
+       "Y:robot_2>robot_3>robot_1>robot_4",
+       "Y:robot_2>robot_3>robot_1>robot_5",
+       "Y:robot_2>robot_3>robot_4>robot_1",
+       "Y:robot_2>robot_3>robot_4>robot_5",
+       "Y:robot_2>robot_3>robot_5>robot_1",
+       "Y:robot_2>robot_3>robot_5>robot_4",
+       "Y:robot_2>robot_4>robot_1>robot_3",
+       "Y:robot_2>robot_4>robot_1>robot_5",
+       "Y:robot_2>robot_4>robot_3>robot_1",
+       "Y:robot_2>robot_4>robot_3>robot_5",
+       "Y:robot_2>robot_4>robot_5>robot_1",
+       "Y:robot_2>robot_4>robot_5>robot_3",
+       "Y:robot_2>robot_5>robot_1>robot_3",
+       "Y:robot_2>robot_5>robot_1>robot_4",
+       "Y:robot_2>robot_5>robot_3>robot_1",
+       "Y:robot_2>robot_5>robot_3>robot_4",
+       "Y:robot_2>robot_5>robot_4>robot_1",
+       "Y:robot_2>robot_5>robot_4>robot_3",
+       "Y:robot_3>robot_1>robot_2",
+       "Y:robot_3>robot_2>robot_1",
+       "Y:robot_3>robot_2>robot_4",
+       "Y:robot_3>robot_2>robot_5",
+       "Y:robot_3>robot_4>robot_2",
+       "Y:robot_3>robot_5>robot_2",
+       "Y:robot_3>robot_1>robot_2>robot_4",
+       "Y:robot_3>robot_1>robot_2>robot_5",
+       "Y:robot_3>robot_1>robot_4>robot_2",
+       "Y:robot_3>robot_1>robot_5>robot_2",
+       "Y:robot_3>robot_2>robot_1>robot_4",
+       "Y:robot_3>robot_2>robot_1>robot_5",
+       "Y:robot_3>robot_2>robot_4>robot_1",
+       "Y:robot_3>robot_2>robot_4>robot_5",
+       "Y:robot_3>robot_2>robot_5>robot_1",
+       "Y:robot_3>robot_2>robot_5>robot_4",
+       "Y:robot_3>robot_4>robot_1>robot_2",
+       "Y:robot_3>robot_4>robot_2>robot_1",
+       "Y:robot_3>robot_4>robot_2>robot_5",
+       "Y:robot_3>robot_4>robot_5>robot_2",
+       "Y:robot_3>robot_5>robot_1>robot_2",
+       "Y:robot_3>robot_5>robot_2>robot_1",
+       "Y:robot_3>robot_5>robot_2>robot_4",
+       "Y:robot_3>robot_5>robot_4>robot_2",
+       "Y:robot_5>robot_1>robot_2",
+       "Y:robot_5>robot_2>robot_1",
+       "Y:robot_5>robot_2>robot_3",
+       "Y:robot_5>robot_2>robot_4",
+       "Y:robot_5>robot_3>robot_2",
+       "Y:robot_5>robot_4>robot_2",
+       "Y:robot_5>robot_1>robot_2>robot_3",
+       "Y:robot_5>robot_1>robot_2>robot_4",
+       "Y:robot_5>robot_1>robot_3>robot_2",
+       "Y:robot_5>robot_1>robot_4>robot_2",
+       "Y:robot_5>robot_2>robot_1>robot_3",
+       "Y:robot_5>robot_2>robot_1>robot_4",
+       "Y:robot_5>robot_2>robot_3>robot_1",
+       "Y:robot_5>robot_2>robot_3>robot_4",
+       "Y:robot_5>robot_2>robot_4>robot_1",
+       "Y:robot_5>robot_2>robot_4>robot_3",
+       "Y:robot_5>robot_3>robot_1>robot_2",
+       "Y:robot_5>robot_3>robot_2>robot_1",
+       "Y:robot_5>robot_3>robot_2>robot_4",
+       "Y:robot_5>robot_3>robot_4>robot_2",
+       "Y:robot_5>robot_4>robot_1>robot_2",
+       "Y:robot_5>robot_4>robot_2>robot_1",
+       "Y:robot_5>robot_4>robot_2>robot_3",
+       "Y:robot_5>robot_4>robot_3>robot_2",
+       "R:robot_2",
+       "R:robot_3",
+       "R:robot_5",
+       "R:robot_1+robot_2",
+       "R:robot_1+robot_3",
+       "R:robot_2+robot_3",
+       "R:robot_2+robot_4",
+       "R:robot_2+robot_5",
+       "R:robot_3+robot_4",
+       "R:robot_3+robot_5",
+       "R:robot_1+robot_2+robot_3+robot_4+robot_5"
+      ],
+      "n_errors": 0,
+      "n_h": 237,
+      "n_motion": 97,
+      "n_motion_counting_empty_reroute": 100,
+      "nonempty": true
+     },
+     "plus_intents": {
+      "motion": [
+       "Y:robot_2>robot_3",
+       "Y:robot_2>robot_5",
+       "Y:robot_3>robot_2",
+       "Y:robot_5>robot_2",
+       "Y:robot_2>robot_1>robot_3",
+       "Y:robot_2>robot_1>robot_5",
+       "Y:robot_2>robot_3>robot_1",
+       "Y:robot_2>robot_3>robot_4",
+       "Y:robot_2>robot_3>robot_5",
+       "Y:robot_2>robot_4>robot_3",
+       "Y:robot_2>robot_4>robot_5",
+       "Y:robot_2>robot_5>robot_1",
+       "Y:robot_2>robot_5>robot_3",
+       "Y:robot_2>robot_5>robot_4",
+       "Y:robot_2>robot_1>robot_3>robot_4",
+       "Y:robot_2>robot_1>robot_3>robot_5",
+       "Y:robot_2>robot_1>robot_4>robot_3",
+       "Y:robot_2>robot_1>robot_4>robot_5",
+       "Y:robot_2>robot_1>robot_5>robot_3",
+       "Y:robot_2>robot_1>robot_5>robot_4",
+       "Y:robot_2>robot_3>robot_1>robot_4",
+       "Y:robot_2>robot_3>robot_1>robot_5",
+       "Y:robot_2>robot_3>robot_4>robot_1",
+       "Y:robot_2>robot_3>robot_4>robot_5",
+       "Y:robot_2>robot_3>robot_5>robot_1",
+       "Y:robot_2>robot_3>robot_5>robot_4",
+       "Y:robot_2>robot_4>robot_1>robot_3",
+       "Y:robot_2>robot_4>robot_1>robot_5",
+       "Y:robot_2>robot_4>robot_3>robot_1",
+       "Y:robot_2>robot_4>robot_3>robot_5",
+       "Y:robot_2>robot_4>robot_5>robot_1",
+       "Y:robot_2>robot_4>robot_5>robot_3",
+       "Y:robot_2>robot_5>robot_1>robot_3",
+       "Y:robot_2>robot_5>robot_1>robot_4",
+       "Y:robot_2>robot_5>robot_3>robot_1",
+       "Y:robot_2>robot_5>robot_3>robot_4",
+       "Y:robot_2>robot_5>robot_4>robot_1",
+       "Y:robot_2>robot_5>robot_4>robot_3",
+       "Y:robot_3>robot_1>robot_2",
+       "Y:robot_3>robot_2>robot_1",
+       "Y:robot_3>robot_2>robot_4",
+       "Y:robot_3>robot_2>robot_5",
+       "Y:robot_3>robot_4>robot_2",
+       "Y:robot_3>robot_5>robot_2",
+       "Y:robot_3>robot_1>robot_2>robot_4",
+       "Y:robot_3>robot_1>robot_2>robot_5",
+       "Y:robot_3>robot_1>robot_4>robot_2",
+       "Y:robot_3>robot_1>robot_5>robot_2",
+       "Y:robot_3>robot_2>robot_1>robot_4",
+       "Y:robot_3>robot_2>robot_1>robot_5",
+       "Y:robot_3>robot_2>robot_4>robot_1",
+       "Y:robot_3>robot_2>robot_4>robot_5",
+       "Y:robot_3>robot_2>robot_5>robot_1",
+       "Y:robot_3>robot_2>robot_5>robot_4",
+       "Y:robot_3>robot_4>robot_1>robot_2",
+       "Y:robot_3>robot_4>robot_2>robot_1",
+       "Y:robot_3>robot_4>robot_2>robot_5",
+       "Y:robot_3>robot_4>robot_5>robot_2",
+       "Y:robot_3>robot_5>robot_1>robot_2",
+       "Y:robot_3>robot_5>robot_2>robot_1",
+       "Y:robot_3>robot_5>robot_2>robot_4",
+       "Y:robot_3>robot_5>robot_4>robot_2",
+       "Y:robot_5>robot_1>robot_2",
+       "Y:robot_5>robot_2>robot_1",
+       "Y:robot_5>robot_2>robot_3",
+       "Y:robot_5>robot_2>robot_4",
+       "Y:robot_5>robot_3>robot_2",
+       "Y:robot_5>robot_4>robot_2",
+       "Y:robot_5>robot_1>robot_2>robot_3",
+       "Y:robot_5>robot_1>robot_2>robot_4",
+       "Y:robot_5>robot_1>robot_3>robot_2",
+       "Y:robot_5>robot_1>robot_4>robot_2",
+       "Y:robot_5>robot_2>robot_1>robot_3",
+       "Y:robot_5>robot_2>robot_1>robot_4",
+       "Y:robot_5>robot_2>robot_3>robot_1",
+       "Y:robot_5>robot_2>robot_3>robot_4",
+       "Y:robot_5>robot_2>robot_4>robot_1",
+       "Y:robot_5>robot_2>robot_4>robot_3",
+       "Y:robot_5>robot_3>robot_1>robot_2",
+       "Y:robot_5>robot_3>robot_2>robot_1",
+       "Y:robot_5>robot_3>robot_2>robot_4",
+       "Y:robot_5>robot_3>robot_4>robot_2",
+       "Y:robot_5>robot_4>robot_1>robot_2",
+       "Y:robot_5>robot_4>robot_2>robot_1",
+       "Y:robot_5>robot_4>robot_2>robot_3",
+       "Y:robot_5>robot_4>robot_3>robot_2",
+       "R:robot_2",
+       "R:robot_3",
+       "R:robot_5",
+       "R:robot_1+robot_2",
+       "R:robot_1+robot_3",
+       "R:robot_2+robot_3",
+       "R:robot_2+robot_4",
+       "R:robot_2+robot_5",
+       "R:robot_3+robot_4",
+       "R:robot_3+robot_5",
+       "R:robot_1+robot_2+robot_3+robot_4+robot_5"
+      ],
+      "n_errors": 0,
+      "n_h": 237,
+      "n_motion": 97,
+      "n_motion_counting_empty_reroute": 100,
+      "nonempty": true
+     }
+    }
+   }
+  }
+ },
+ "t2": {
+  "FU1": {
+   "t0": {
+    "footprint": "URDF chassis box (v7m)",
+    "per_robot": {
+     "robot_1": {
+      "headings": {
+       "0": {
+        "blocked_by": null,
+        "distance_m": 0.07,
+        "feasible": true
+       },
+       "135": {
+        "blocked_by": null,
+        "distance_m": 0.24,
+        "feasible": true
+       },
+       "180": {
+        "blocked_by": null,
+        "distance_m": 0.67,
+        "feasible": true
+       },
+       "225": {
+        "blocked_by": "robot:robot_4@0.13",
+        "distance_m": null,
+        "feasible": false
+       },
+       "270": {
+        "blocked_by": null,
+        "distance_m": 0.6,
+        "feasible": true
+       },
+       "315": {
+        "blocked_by": null,
+        "distance_m": 0.19,
+        "feasible": true
+       },
+       "45": {
+        "blocked_by": null,
+        "distance_m": 0.06,
+        "feasible": true
+       },
+       "90": {
+        "blocked_by": null,
+        "distance_m": 0.08,
+        "feasible": true
+       }
+      },
+      "start_gap_robot_m": 0.2582,
+      "start_gap_static_m": 0.2762,
+      "start_within_required_clearance": false
+     },
+     "robot_4": {
+      "headings": {
+       "0": {
+        "blocked_by": "box:obstacle_1@0.46",
+        "distance_m": null,
+        "feasible": false
+       },
+       "135": {
+        "blocked_by": null,
+        "distance_m": 0.19,
+        "feasible": true
+       },
+       "180": {
+        "blocked_by": null,
+        "distance_m": 0.07,
+        "feasible": true
+       },
+       "225": {
+        "blocked_by": null,
+        "distance_m": 0.06,
+        "feasible": true
+       },
+       "270": {
+        "blocked_by": null,
+        "distance_m": 0.08,
+        "feasible": true
+       },
+       "315": {
+        "blocked_by": null,
+        "distance_m": 0.24,
+        "feasible": true
+       },
+       "45": {
+        "blocked_by": "robot:robot_1@0.13",
+        "distance_m": null,
+        "feasible": false
+       },
+       "90": {
+        "blocked_by": null,
+        "distance_m": 0.6,
+        "feasible": true
+       }
+      },
+      "start_gap_robot_m": 0.2582,
+      "start_gap_static_m": 0.517,
+      "start_within_required_clearance": false
+     }
+    },
+    "required_gap_m": 0.14,
+    "result": true,
+    "shortest": {
+     "distance_m": 0.06,
+     "heading_deg": 45,
+     "robot": "robot_1"
+    },
+    "snapshot_rel": 16.1
+   }
+  },
+  "FU2": {
+   "t0": {
+    "footprint": "URDF chassis box (v7m)",
+    "per_robot": {
+     "robot_2": {
+      "headings": {
+       "0": {
+        "blocked_by": null,
+        "distance_m": 0.05,
+        "feasible": true
+       },
+       "135": {
+        "blocked_by": null,
+        "distance_m": 0.03,
+        "feasible": true
+       },
+       "180": {
+        "blocked_by": null,
+        "distance_m": 0.25,
+        "feasible": true
+       },
+       "225": {
+        "blocked_by": "robot:robot_3@0.19",
+        "distance_m": null,
+        "feasible": false
+       },
+       "270": {
+        "blocked_by": "robot:robot_3@0.16",
+        "distance_m": null,
+        "feasible": false
+       },
+       "315": {
+        "blocked_by": "box:obstacle_2@0.39",
+        "distance_m": null,
+        "feasible": false
+       },
+       "45": {
+        "blocked_by": null,
+        "distance_m": 0.02,
+        "feasible": true
+       },
+       "90": {
+        "blocked_by": null,
+        "distance_m": 0.02,
+        "feasible": true
+       }
+      },
+      "start_gap_robot_m": 0.2807,
+      "start_gap_static_m": 0.5092,
+      "start_within_required_clearance": false
+     },
+     "robot_3": {
+      "headings": {
+       "0": {
+        "blocked_by": "box:obstacle_2@0.23",
+        "distance_m": null,
+        "feasible": false
+       },
+       "135": {
+        "blocked_by": "robot:robot_5@0.60",
+        "distance_m": null,
+        "feasible": false
+       },
+       "180": {
+        "blocked_by": null,
+        "distance_m": 0.05,
+        "feasible": true
+       },
+       "225": {
+        "blocked_by": null,
+        "distance_m": 0.02,
+        "feasible": true
+       },
+       "270": {
+        "blocked_by": null,
+        "distance_m": 0.02,
+        "feasible": true
+       },
+       "315": {
+        "blocked_by": null,
+        "distance_m": 0.03,
+        "feasible": true
+       },
+       "45": {
+        "blocked_by": "robot:robot_2@0.19",
+        "distance_m": null,
+        "feasible": false
+       },
+       "90": {
+        "blocked_by": "robot:robot_2@0.16",
+        "distance_m": null,
+        "feasible": false
+       }
+      },
+      "start_gap_robot_m": 0.2807,
+      "start_gap_static_m": 0.3666,
+      "start_within_required_clearance": false
+     },
+     "robot_5": {
+      "headings": {
+       "0": {
+        "blocked_by": null,
+        "distance_m": 0.01,
+        "feasible": true
+       },
+       "135": {
+        "blocked_by": null,
+        "distance_m": 0.01,
+        "feasible": true
+       },
+       "180": {
+        "blocked_by": null,
+        "distance_m": 0.01,
+        "feasible": true
+       },
+       "225": {
+        "blocked_by": null,
+        "distance_m": 0.01,
+        "feasible": true
+       },
+       "270": {
+        "blocked_by": null,
+        "distance_m": 0.01,
+        "feasible": true
+       },
+       "315": {
+        "blocked_by": null,
+        "distance_m": 0.01,
+        "feasible": true
+       },
+       "45": {
+        "blocked_by": null,
+        "distance_m": 0.01,
+        "feasible": true
+       },
+       "90": {
+        "blocked_by": null,
+        "distance_m": 0.01,
+        "feasible": true
+       }
+      },
+      "start_gap_robot_m": 0.6504,
+      "start_gap_static_m": 0.2607,
+      "start_within_required_clearance": false
+     }
+    },
+    "required_gap_m": 0.14,
+    "result": true,
+    "shortest": {
+     "distance_m": 0.01,
+     "heading_deg": 0,
+     "robot": "robot_5"
+    },
+    "snapshot_rel": 19.733
+   }
+  }
+ },
+ "units": [
+  {
+   "analyses_on_fu": [],
+   "chain": {
+    "end_window": [],
+    "rubric": []
+   },
+   "chain_start_rel": null,
+   "conflict_index": 0,
+   "end_rel": 570.67,
+   "evidence_gate": {
+    "decision_artifacts": false,
+    "m4_log": true,
+    "t0_snapshot": true
+   },
+   "excluded": false,
+   "flags": [],
+   "fu": "FU1",
+   "gt_contacts": {
+    "robot_1|box:obstacle_1": [
+     {
+      "contact": false,
+      "from_rel": 8.87,
+      "min_gap_m": 0.014,
+      "to_rel": 10.47
+     }
+    ]
+   },
+   "kind": "conflict",
+   "pairs": [
+    [
+     "robot_1",
+     "robot_4"
+    ]
+   ],
+   "robots": [
+    "robot_1",
+    "robot_4"
+   ],
+   "t0_rel": 15.97,
+   "timeline": [
+    {
+     "ref": "robot_1|box:obstacle_1",
+     "rel": 8.87,
+     "summary": "to 10.47 min gap 0.014 m",
+     "type": "gt_submargin"
+    },
+    {
+     "ref": "robot_1",
+     "rel": 17.933,
+     "summary": "STALE 0.7 s",
+     "type": "m1_stale"
+    },
+    {
+     "ref": "robot_1",
+     "rel": null,
+     "summary": "to None (136452 lines)",
+     "type": "safety_stop_span"
+    },
+    {
+     "ref": "robot_4",
+     "rel": null,
+     "summary": "to None (136452 lines)",
+     "type": "safety_stop_span"
+    }
+   ],
+   "v1_input": {
+    "a33_matched_positive_analyses": 0,
+    "lone_stall_positive_naming_robot": null
+   },
+   "x2_input": [
+    {
+     "duration_s": 554.3,
+     "from_rel": 16.37,
+     "robot": "robot_1",
+     "safety_stop_cover_fraction": 0.0,
+     "to_censor": true,
+     "to_rel": 570.67
+    },
+    {
+     "duration_s": 554.1,
+     "from_rel": 16.57,
+     "robot": "robot_4",
+     "safety_stop_cover_fraction": 0.0,
+     "to_censor": true,
+     "to_rel": 570.67
+    }
+   ],
+   "x3_gt": [
+    {
+     "close_and_stopped_from_rel": 16.67,
+     "pair": [
+      "robot_1",
+      "robot_4"
+     ],
+     "until_rel": 570.67
+    }
+   ]
+  },
+  {
+   "analyses_on_fu": [],
+   "chain": {
+    "end_window": [],
+    "rubric": []
+   },
+   "chain_start_rel": null,
+   "conflict_index": 1,
+   "end_rel": 570.67,
+   "evidence_gate": {
+    "decision_artifacts": false,
+    "m4_log": true,
+    "t0_snapshot": true
+   },
+   "excluded": false,
+   "flags": [],
+   "fu": "FU2",
+   "gt_contacts": {
+    "robot_2|box:obstacle_2": [
+     {
+      "contact": false,
+      "from_rel": 12.67,
+      "min_gap_m": 0.0213,
+      "to_rel": 14.07
+     }
+    ]
+   },
+   "kind": "conflict",
+   "pairs": [
+    [
+     "robot_2",
+     "robot_3"
+    ],
+    [
+     "robot_2",
+     "robot_5"
+    ]
+   ],
+   "robots": [
+    "robot_2",
+    "robot_3",
+    "robot_5"
+   ],
+   "t0_rel": 19.57,
+   "timeline": [
+    {
+     "ref": "robot_2|box:obstacle_2",
+     "rel": 12.67,
+     "summary": "to 14.07 min gap 0.0213 m",
+     "type": "gt_submargin"
+    },
+    {
+     "ref": "robot_3",
+     "rel": null,
+     "summary": "to None (135539 lines)",
+     "type": "safety_stop_span"
+    },
+    {
+     "ref": "robot_2",
+     "rel": null,
+     "summary": "to None (135539 lines)",
+     "type": "safety_stop_span"
+    },
+    {
+     "ref": "robot_5",
+     "rel": null,
+     "summary": "to None (134934 lines)",
+     "type": "safety_stop_span"
+    }
+   ],
+   "v1_input": {
+    "a33_matched_positive_analyses": 0,
+    "lone_stall_positive_naming_robot": null
+   },
+   "x2_input": [
+    {
+     "duration_s": 551.2,
+     "from_rel": 19.47,
+     "robot": "robot_2",
+     "safety_stop_cover_fraction": 0.0,
+     "to_censor": true,
+     "to_rel": 570.67
+    },
+    {
+     "duration_s": 551.2,
+     "from_rel": 19.47,
+     "robot": "robot_3",
+     "safety_stop_cover_fraction": 0.0,
+     "to_censor": true,
+     "to_rel": 570.67
+    },
+    {
+     "duration_s": 548.8,
+     "from_rel": 21.87,
+     "robot": "robot_5",
+     "safety_stop_cover_fraction": 0.0,
+     "to_censor": true,
+     "to_rel": 570.67
+    }
+   ],
+   "x3_gt": [
+    {
+     "close_and_stopped_from_rel": 19.77,
+     "pair": [
+      "robot_2",
+      "robot_3"
+     ],
+     "until_rel": 570.67
+    },
+    {
+     "close_and_stopped_from_rel": 22.07,
+     "pair": [
+      "robot_2",
+      "robot_5"
+     ],
+     "until_rel": 570.67
+    }
+   ]
+  }
+ ]
+}

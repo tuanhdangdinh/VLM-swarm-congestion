@@ -1,0 +1,470 @@
+{
+ "censor": {
+  "t_end_rel": 570.14
+ },
+ "contacts": {
+  "declared_boxes": [
+   "obstacle_1",
+   "obstacle_2",
+   "obstacle_3",
+   "obstacle_4",
+   "obstacle_5",
+   "obstacle_6"
+  ],
+  "recompute_events": [
+   {
+    "category": "rack",
+    "class": "sustained_contact",
+    "end_rel": 33.34,
+    "end_sim_s": 63.2,
+    "max_gap_m": 0.00406,
+    "max_speed_mps": 0.1479,
+    "median_gap_m": -0.00138,
+    "min_gap_m": -0.00148,
+    "min_gap_sim_s": 59.5,
+    "n_rows": 50,
+    "pair": "robot_2|rack/NW_north",
+    "pair_verdict": "sustained_contact",
+    "row_resolution_m": 0.0148,
+    "span_s": 5.0,
+    "speed_at_min_mps": 0.0046,
+    "start_rel": 28.44,
+    "start_sim_s": 58.3
+   }
+  ],
+  "recompute_min_robot_robot_gap": {
+   "min_gap_m": 0.18116,
+   "robot_ids": [
+    "robot_2",
+    "robot_4"
+   ],
+   "sim_s": 41.5
+  },
+  "recompute_robot_min_static_gap": {
+   "robot_1": {
+    "category": "static_obstacle",
+    "min_gap_m": 0.05857,
+    "obstacle_id": "obstacle_1",
+    "sim_s": 39.8
+   },
+   "robot_2": {
+    "category": "rack",
+    "min_gap_m": -0.00148,
+    "obstacle_id": "rack/NW_north",
+    "sim_s": 59.5
+   },
+   "robot_3": {
+    "category": "rack",
+    "min_gap_m": 0.09789,
+    "obstacle_id": "rack/SW_west",
+    "sim_s": 22.0
+   },
+   "robot_4": {
+    "category": "static_obstacle",
+    "min_gap_m": 0.0525,
+    "obstacle_id": "obstacle_1",
+    "sim_s": 67.5
+   },
+   "robot_5": {
+    "category": "static_obstacle",
+    "min_gap_m": 0.0402,
+    "obstacle_id": "obstacle_2",
+    "sim_s": 51.0
+   }
+  },
+  "recompute_verdicts": {
+   "robot_robot": "clear",
+   "static": "sustained_contact"
+  },
+  "spans_within_0.05m_rel": {
+   "robot_2|box:rack/NW_north": [
+    {
+     "contact": true,
+     "from_rel": 27.24,
+     "min_gap_m": -0.0015,
+     "to_rel": 33.94
+    }
+   ],
+   "robot_5|box:obstacle_2": [
+    {
+     "contact": false,
+     "from_rel": 20.74,
+     "min_gap_m": 0.0402,
+     "to_rel": 21.54
+    }
+   ]
+  },
+  "undeclared_builder_boxes": [
+   "wall/north",
+   "wall/south",
+   "wall/east",
+   "wall/west",
+   "rack/NE_east",
+   "rack/NE_north",
+   "rack/NW_west",
+   "rack/NW_north",
+   "rack/SE_east",
+   "rack/SE_south",
+   "rack/SW_west",
+   "rack/SW_south"
+  ]
+ },
+ "t2": {
+  "FU1": {
+   "t0": {
+    "footprint": "URDF chassis box (v7m)",
+    "per_robot": {
+     "robot_1": {
+      "headings": {
+       "0": {
+        "blocked_by": null,
+        "distance_m": 0.02,
+        "feasible": true
+       },
+       "135": {
+        "blocked_by": "robot:robot_3@0.24",
+        "distance_m": null,
+        "feasible": false
+       },
+       "180": {
+        "blocked_by": "robot:robot_3@0.15",
+        "distance_m": null,
+        "feasible": false
+       },
+       "225": {
+        "blocked_by": null,
+        "distance_m": 0.58,
+        "feasible": true
+       },
+       "270": {
+        "blocked_by": null,
+        "distance_m": 0.08,
+        "feasible": true
+       },
+       "315": {
+        "blocked_by": null,
+        "distance_m": 0.02,
+        "feasible": true
+       },
+       "45": {
+        "blocked_by": null,
+        "distance_m": 0.03,
+        "feasible": true
+       },
+       "90": {
+        "blocked_by": null,
+        "distance_m": 0.16,
+        "feasible": true
+       }
+      },
+      "start_gap_robot_m": 0.2832,
+      "start_gap_static_m": 0.1621,
+      "start_within_required_clearance": false
+     },
+     "robot_3": {
+      "headings": {
+       "0": {
+        "blocked_by": "robot:robot_1@0.15",
+        "distance_m": null,
+        "feasible": false
+       },
+       "135": {
+        "blocked_by": null,
+        "distance_m": 0.02,
+        "feasible": true
+       },
+       "180": {
+        "blocked_by": null,
+        "distance_m": 0.02,
+        "feasible": true
+       },
+       "225": {
+        "blocked_by": null,
+        "distance_m": 0.03,
+        "feasible": true
+       },
+       "270": {
+        "blocked_by": null,
+        "distance_m": 0.16,
+        "feasible": true
+       },
+       "315": {
+        "blocked_by": "robot:robot_1@0.24",
+        "distance_m": null,
+        "feasible": false
+       },
+       "45": {
+        "blocked_by": null,
+        "distance_m": 0.58,
+        "feasible": true
+       },
+       "90": {
+        "blocked_by": null,
+        "distance_m": 0.08,
+        "feasible": true
+       }
+      },
+      "start_gap_robot_m": 0.2832,
+      "start_gap_static_m": 0.4759,
+      "start_within_required_clearance": false
+     },
+     "robot_5": {
+      "headings": {
+       "0": {
+        "blocked_by": null,
+        "distance_m": 0.01,
+        "feasible": true
+       },
+       "135": {
+        "blocked_by": null,
+        "distance_m": 0.01,
+        "feasible": true
+       },
+       "180": {
+        "blocked_by": null,
+        "distance_m": 0.01,
+        "feasible": true
+       },
+       "225": {
+        "blocked_by": null,
+        "distance_m": 0.01,
+        "feasible": true
+       },
+       "270": {
+        "blocked_by": null,
+        "distance_m": 0.01,
+        "feasible": true
+       },
+       "315": {
+        "blocked_by": null,
+        "distance_m": 0.01,
+        "feasible": true
+       },
+       "45": {
+        "blocked_by": null,
+        "distance_m": 0.01,
+        "feasible": true
+       },
+       "90": {
+        "blocked_by": null,
+        "distance_m": 0.01,
+        "feasible": true
+       }
+      },
+      "start_gap_robot_m": 2.8514,
+      "start_gap_static_m": 0.5823,
+      "start_within_required_clearance": false
+     }
+    },
+    "required_gap_m": 0.14,
+    "result": true,
+    "shortest": {
+     "distance_m": 0.01,
+     "heading_deg": 0,
+     "robot": "robot_5"
+    },
+    "snapshot_rel": 12.833
+   }
+  },
+  "FU2": {
+   "t0": {
+    "footprint": "URDF chassis box (v7m)",
+    "per_robot": {
+     "robot_2": {
+      "headings": {
+       "0": {
+        "blocked_by": null,
+        "distance_m": 0.13,
+        "feasible": true
+       },
+       "135": {
+        "blocked_by": null,
+        "distance_m": 0.03,
+        "feasible": true
+       },
+       "180": {
+        "blocked_by": null,
+        "distance_m": 0.14,
+        "feasible": true
+       },
+       "225": {
+        "blocked_by": null,
+        "distance_m": 0.65,
+        "feasible": true
+       },
+       "270": {
+        "blocked_by": "robot:robot_4@0.15",
+        "distance_m": null,
+        "feasible": false
+       },
+       "315": {
+        "blocked_by": "robot:robot_4@0.23",
+        "distance_m": null,
+        "feasible": false
+       },
+       "45": {
+        "blocked_by": null,
+        "distance_m": 0.03,
+        "feasible": true
+       },
+       "90": {
+        "blocked_by": null,
+        "distance_m": 0.02,
+        "feasible": true
+       }
+      },
+      "start_gap_robot_m": 0.2895,
+      "start_gap_static_m": 0.2227,
+      "start_within_required_clearance": false
+     },
+     "robot_4": {
+      "headings": {
+       "0": {
+        "blocked_by": "box:obstacle_1@0.00",
+        "distance_m": null,
+        "feasible": false
+       },
+       "135": {
+        "blocked_by": "box:obstacle_1@0.00",
+        "distance_m": null,
+        "feasible": false
+       },
+       "180": {
+        "blocked_by": "box:obstacle_1@0.00",
+        "distance_m": null,
+        "feasible": false
+       },
+       "225": {
+        "blocked_by": "box:obstacle_1@0.00",
+        "distance_m": null,
+        "feasible": false
+       },
+       "270": {
+        "blocked_by": "box:obstacle_1@0.00",
+        "distance_m": null,
+        "feasible": false
+       },
+       "315": {
+        "blocked_by": "box:obstacle_1@0.00",
+        "distance_m": null,
+        "feasible": false
+       },
+       "45": {
+        "blocked_by": "box:obstacle_1@0.00",
+        "distance_m": null,
+        "feasible": false
+       },
+       "90": {
+        "blocked_by": "box:obstacle_1@0.00",
+        "distance_m": null,
+        "feasible": false
+       }
+      },
+      "start_gap_robot_m": 0.2895,
+      "start_gap_static_m": 0.0993,
+      "start_within_required_clearance": true
+     }
+    },
+    "required_gap_m": 0.14,
+    "result": true,
+    "shortest": {
+     "distance_m": 0.02,
+     "heading_deg": 90,
+     "robot": "robot_2"
+    },
+    "snapshot_rel": 40.767
+   }
+  }
+ },
+ "units": [
+  {
+   "end_rel": 570.14,
+   "excluded": false,
+   "flags": [],
+   "fu": "FU1",
+   "gt_contacts": {
+    "robot_5|box:obstacle_2": [
+     {
+      "contact": false,
+      "from_rel": 20.74,
+      "min_gap_m": 0.0402,
+      "to_rel": 21.54
+     }
+    ]
+   },
+   "kind": "conflict",
+   "pairs": [
+    [
+     "robot_1",
+     "robot_3"
+    ],
+    [
+     "robot_1",
+     "robot_5"
+    ]
+   ],
+   "robots": [
+    "robot_1",
+    "robot_3",
+    "robot_5"
+   ],
+   "t0_rel": 12.74,
+   "x3_gt": [
+    {
+     "close_and_stopped_from_rel": 12.94,
+     "pair": [
+      "robot_1",
+      "robot_3"
+     ],
+     "until_rel": 570.14
+    },
+    {
+     "close_and_stopped_from_rel": 89.64,
+     "pair": [
+      "robot_1",
+      "robot_5"
+     ],
+     "until_rel": 570.14
+    }
+   ]
+  },
+  {
+   "end_rel": 570.14,
+   "excluded": false,
+   "flags": [],
+   "fu": "FU2",
+   "gt_contacts": {
+    "robot_2|box:rack/NW_north": [
+     {
+      "contact": true,
+      "from_rel": 27.24,
+      "min_gap_m": -0.0015,
+      "to_rel": 33.94
+     }
+    ]
+   },
+   "kind": "conflict",
+   "pairs": [
+    [
+     "robot_2",
+     "robot_4"
+    ]
+   ],
+   "robots": [
+    "robot_2",
+    "robot_4"
+   ],
+   "t0_rel": 40.44,
+   "x3_gt": [
+    {
+     "close_and_stopped_from_rel": 40.94,
+     "pair": [
+      "robot_2",
+      "robot_4"
+     ],
+     "until_rel": 570.14
+    }
+   ]
+  }
+ ]
+}

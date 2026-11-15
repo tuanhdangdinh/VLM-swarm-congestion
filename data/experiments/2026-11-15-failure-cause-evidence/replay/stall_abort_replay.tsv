@@ -1,0 +1,100 @@
+s1b_E6_seed6_er2_a3	83baf2e4-yield	robot_2	backup	79.5-96.6	live=COMPLETED	gt_moved=1.332	gt_stop=94.4	held=2	odom=gt	start=handover_sim_t	replay=COMPLETED@94.3	-		min_ratio=linear:0.90
+s1b_E6_seed6_er2_a3	83baf2e4-yield	robot_2	pull_off	94.3-110.1	live=COMPLETED	gt_moved=0.376	gt_stop=103.3	held=2	odom=gt	start=chained_backup	replay=COMPLETED@108.0	-		min_ratio=angular:0.65
+s1b_E6_seed6_er2_a3	93100ae3-reverse	robot_1	backup	36.0-71.6	live=FAILED	gt_moved=1.175	gt_stop=49.0	held=3	odom=gt	start=handover_sim_t	replay=running	-		min_ratio=linear:0.91
+s1b_E6_seed6_er2_a3	93100ae3-reverse	robot_3	backup	36.0-71.6	live=FAILED	gt_moved=0.784	gt_stop=46.3	held=3	odom=gt	start=handover_sim_t	replay=FAILED@47.1	FIRED	stall_abort: commanded 0.100 m/s for 3.0 s, measured 0.067 m (expected >= 0.075 m)	min_ratio=linear:0.22
+s1b_E6_seed6_er2_a3	a3bbc017-reverse	robot_3	backup	158.6-195.3	live=FAILED	gt_moved=1.012	gt_stop=171.0	held=3	odom=gt	start=handover_sim_t	replay=FAILED@171.4	FIRED	stall_abort: commanded 0.100 m/s for 3.0 s, measured 0.068 m (expected >= 0.075 m)	min_ratio=linear:0.23
+s1b_E6_seed6_er2_a3	a3bbc017-reverse	robot_5	backup	158.6-174.9	live=COMPLETED	gt_moved=1.310	gt_stop=-	held=2	odom=gt	start=handover_sim_t	replay=COMPLETED@173.3	-		min_ratio=linear:0.90
+s1b_E6_seed6_er2_a3	83baf2e4-yield	robot_4	escort	108.1-136.5	live=COMPLETED	gt_moved=2.609	gt_stop=-	held=2	odom=gt	start=exact	replay=COMPLETED@134.6	-		min_ratio=linear:0.90
+s1b_E7_seed7_er2_a1	c7aeaac1-reverse	robot_1	backup	39.2-54.5	live=COMPLETED	gt_moved=1.315	gt_stop=-	held=2	odom=gt	start=handover_sim_t	replay=COMPLETED@53.6	-		min_ratio=linear:0.90
+s1b_E7_seed7_er2_a1	c7aeaac1-reverse	robot_2	backup	39.2-54.4	live=COMPLETED	gt_moved=1.311	gt_stop=-	held=2	odom=gt	start=handover_sim_t	replay=COMPLETED@53.6	-		min_ratio=linear:0.90
+s1b_E7_seed7_er2_a1	c7aeaac1-reverse	robot_3	backup	39.2-54.4	live=COMPLETED	gt_moved=1.306	gt_stop=-	held=2	odom=gt	start=handover_sim_t	replay=COMPLETED@53.6	-		min_ratio=linear:0.91
+s1b_E7_seed7_er2_a1	c7aeaac1-reverse	robot_4	backup	39.2-80.4	live=FAILED	gt_moved=0.642	gt_stop=46.3	held=2	odom=gt	start=handover_sim_t	replay=FAILED@48.6	FIRED	stall_abort: commanded 0.100 m/s for 3.0 s, measured 0.071 m (expected >= 0.075 m)	min_ratio=linear:0.24
+s1b_E8_seed8_er2_a1	f06c33b3-reverse	robot_2	backup	43.3-59.3	live=COMPLETED	gt_moved=1.307	gt_stop=-	held=2	odom=gt	start=handover_sim_t	replay=COMPLETED@57.9	-		min_ratio=linear:0.91
+s1b_E8_seed8_er2_a1	f06c33b3-reverse	robot_4	backup	43.3-76.1	live=FAILED	gt_moved=0.529	gt_stop=49.3	held=2	odom=gt	start=handover_sim_t	replay=running	-		min_ratio=linear:0.91
+s1b_E10_seed10_er2_a1	63f8d1ce-yield	robot_1	backup	41.0-80.6	live=FAILED	gt_moved=1.023	gt_stop=52.7	held=2	odom=gt	start=handover_sim_t	replay=running	-		min_ratio=linear:0.91
+s1b_E10_seed10_er2_a1	d5541ff0-reverse	robot_2	backup	85.8-120.7	live=FAILED	gt_moved=0.596	gt_stop=92.7	held=4	odom=gt	start=handover_sim_t	replay=running	-		min_ratio=linear:0.82
+s1b_E11_seed11_er2_b1	7a47f2f7-yield	robot_4	backup	63.1-102.1	live=FAILED	gt_moved=0.862	gt_stop=89.7	held=4	odom=gt	start=handover_sim_t	replay=FAILED@73.6	FIRED	stall_abort: commanded 0.100 m/s for 3.0 s, measured 0.069 m (expected >= 0.075 m)	min_ratio=linear:0.23
+s1b_E11_seed11_er2_b1	c417cbff-reverse	robot_1	backup	107.3-123.6	live=COMPLETED	gt_moved=1.316	gt_stop=-	held=2	odom=gt	start=handover_sim_t	replay=COMPLETED@121.9	-		min_ratio=linear:0.91
+s1b_E11_seed11_er2_b1	c417cbff-reverse	robot_5	backup	107.3-123.7	live=COMPLETED	gt_moved=1.319	gt_stop=-	held=3	odom=gt	start=handover_sim_t	replay=COMPLETED@122.0	-		min_ratio=linear:0.90
+s1b_E12_seed12_er2_c1	d374802a-reverse	robot_2	backup	45.2-64.6	live=COMPLETED	gt_moved=1.301	gt_stop=61.3	held=2	odom=gt	start=handover_sim_t	replay=FAILED@61.8	FIRED	stall_abort: commanded 0.100 m/s for 3.0 s, measured 0.071 m (expected >= 0.075 m)	min_ratio=linear:0.24
+s1b_E12_seed12_er2_c1	d374802a-reverse	robot_4	backup	45.2-61.4	live=COMPLETED	gt_moved=1.307	gt_stop=-	held=2	odom=gt	start=handover_sim_t	replay=COMPLETED@59.6	-		min_ratio=linear:0.91
+s1b_E13_seed13_er2_c1	652ac9ac-reverse	robot_5	backup	84.0-102.6	live=COMPLETED	gt_moved=1.314	gt_stop=89.0	held=4	odom=gt	start=handover_sim_t	replay=COMPLETED@102.4	-		min_ratio=linear:0.88
+s1b_E13_seed13_er2_c1	984e3bdf-yield	robot_1	backup	44.7-79.1	live=FAILED	gt_moved=0.901	gt_stop=54.8	held=3	odom=gt	start=handover_sim_t	replay=running	-		min_ratio=linear:0.91
+s1b_E13_seed13_er2_c1	ea23b1a7-reverse	robot_1	backup	92.1-126.3	live=FAILED	gt_moved=0.588	gt_stop=98.7	held=3	odom=gt	start=handover_sim_t	replay=running	-		min_ratio=linear:0.90
+s1b_E13_seed13_er2_c1	ea23b1a7-reverse	robot_3	backup	92.1-106.5	live=COMPLETED	gt_moved=1.287	gt_stop=-	held=2	odom=gt	start=handover_sim_t	replay=running	-		min_ratio=linear:0.91
+s1b_E13_seed13_er2_c1	ea23b1a7-reverse	robot_4	backup	92.1-106.5	live=COMPLETED	gt_moved=1.280	gt_stop=-	held=5	odom=gt	start=handover_sim_t	replay=running	-		min_ratio=linear:0.91
+s1b_E14_seed14_er2_c1	c5a5e687-yield	robot_1	backup	46.5-64.9	live=COMPLETED	gt_moved=1.415	gt_stop=62.5	held=2	odom=gt	start=handover_sim_t	replay=COMPLETED@62.5	-		min_ratio=linear:0.90
+s1b_E14_seed14_er2_c1	c5a5e687-yield	robot_1	pull_off	62.5-99.1	live=FAILED	gt_moved=0.737	gt_stop=75.2	held=2	odom=gt	start=chained_backup	replay=running	-		min_ratio=angular:0.44,linear:0.91
+s1b_E15_seed15_er2_c1	8066f542-yield	robot_2	backup	47.5-65.5	live=COMPLETED	gt_moved=1.449	gt_stop=-	held=2	odom=gt	start=handover_sim_t	replay=COMPLETED@63.6	-		min_ratio=linear:0.90
+s1b_E15_seed15_er2_c1	8066f542-yield	robot_2	pull_off	63.6-83.1	live=COMPLETED	gt_moved=0.731	gt_stop=76.4	held=2	odom=gt	start=chained_backup	replay=COMPLETED@81.2	-		min_ratio=angular:0.65,linear:0.91
+s1b_E15_seed15_er2_c1	8066f542-yield	robot_5	escort	81.1-201.1	live=no terminal line	gt_moved=0.000	gt_stop=-	held=2	odom=gt	start=exact	replay=running	-		min_ratio=-
+s1b_E16_seed16_er2_c1	eafbb338-yield	robot_1	backup	112.3-129.9	live=COMPLETED	gt_moved=1.400	gt_stop=127.8	held=2	odom=gt	start=handover_sim_t	replay=COMPLETED@127.9	-		min_ratio=linear:0.90
+s1b_E16_seed16_er2_c1	eafbb338-yield	robot_1	pull_off	127.9-147.5	live=COMPLETED	gt_moved=0.736	gt_stop=140.7	held=2	odom=gt	start=chained_backup	replay=COMPLETED@145.5	-		min_ratio=angular:0.65,linear:0.91
+s1b_E16_seed16_er2_c1	ede6d209-reverse	robot_3	backup	45.3-80.1	live=FAILED	gt_moved=0.660	gt_stop=52.8	held=2	odom=gt	start=handover_sim_t	replay=running	-		min_ratio=linear:0.91
+s1b_E16_seed16_er2_c1	ede6d209-reverse	robot_4	backup	45.3-80.1	live=FAILED	gt_moved=0.345	gt_stop=49.3	held=3	odom=gt	start=handover_sim_t	replay=running	-		min_ratio=-
+s1b_E17_seed17_er2_c1	150b95a6-reverse	robot_3	backup	102.3-136.0	live=FAILED	gt_moved=0.456	gt_stop=107.5	held=3	odom=gt	start=handover_sim_t	replay=running	-		min_ratio=linear:0.91
+s1b_E17_seed17_er2_c1	6745a136-yield	robot_3	backup	141.0-177.1	live=FAILED	gt_moved=1.239	gt_stop=155.4	held=3	odom=gt	start=handover_sim_t	replay=FAILED@156.5	FIRED	stall_abort: commanded 0.100 m/s for 3.0 s, measured 0.074 m (expected >= 0.075 m)	min_ratio=linear:0.25
+s1b_E17_seed17_er2_c1	6d37a549-yield	robot_1	backup	249.8-266.6	live=COMPLETED	gt_moved=1.321	gt_stop=-	held=3	odom=gt	start=handover_sim_t	replay=COMPLETED@264.6	-		min_ratio=linear:0.89
+s1b_E17_seed17_er2_c1	6d37a549-yield	robot_1	pull_off	264.6-293.2	live=FAILED	gt_moved=0.371	gt_stop=273.5	held=3	odom=gt	start=chained_backup	replay=running	-		min_ratio=angular:0.66
+s1b_E17_seed17_er2_c1	9cf93ebe-reverse	robot_2	backup	207.9-244.6	live=FAILED	gt_moved=0.620	gt_stop=215.8	held=2	odom=gt	start=handover_sim_t	replay=FAILED@217.0	FIRED	stall_abort: commanded 0.100 m/s for 3.0 s, measured 0.072 m (expected >= 0.075 m)	min_ratio=linear:0.24
+s1b_E17_seed17_er2_c1	9cf93ebe-reverse	robot_3	backup	207.9-221.7	live=COMPLETED	gt_moved=1.233	gt_stop=-	held=3	odom=gt	start=handover_sim_t	replay=running	-		min_ratio=linear:0.90
+s1b_E17_seed17_er2_c1	9cf93ebe-reverse	robot_4	backup	207.9-221.6	live=COMPLETED	gt_moved=1.228	gt_stop=-	held=4	odom=gt	start=handover_sim_t	replay=running	-		min_ratio=linear:0.91
+s1b_E17_seed17_er2_c1	9cf93ebe-reverse	robot_5	backup	207.9-221.7	live=COMPLETED	gt_moved=1.237	gt_stop=-	held=2	odom=gt	start=handover_sim_t	replay=running	-		min_ratio=linear:0.91
+s1b_E18_seed18_er2_d1	1feb2c4e-yield	robot_5	backup	217.7-234.1	live=COMPLETED	gt_moved=1.305	gt_stop=232.2	held=3	odom=gt	start=handover_sim_t	replay=COMPLETED@232.2	-		min_ratio=linear:0.91
+s1b_E18_seed18_er2_d1	1feb2c4e-yield	robot_5	pull_off	232.2-247.8	live=COMPLETED	gt_moved=0.378	gt_stop=241.0	held=3	odom=gt	start=chained_backup	replay=COMPLETED@245.7	-		min_ratio=angular:0.65
+s1b_E18_seed18_er2_d1	56b599af-yield	robot_2	backup	50.7-68.7	live=COMPLETED	gt_moved=1.424	gt_stop=66.7	held=2	odom=gt	start=handover_sim_t	replay=COMPLETED@66.8	-		min_ratio=linear:0.90
+s1b_E18_seed18_er2_d1	56b599af-yield	robot_2	pull_off	66.8-86.2	live=COMPLETED	gt_moved=0.732	gt_stop=79.4	held=2	odom=gt	start=chained_backup	replay=COMPLETED@84.2	-		min_ratio=angular:0.64,linear:0.91
+s1b_E18_seed18_er2_d1	8bf906be-reverse	robot_4	backup	134.3-149.8	live=COMPLETED	gt_moved=1.315	gt_stop=-	held=2	odom=gt	start=handover_sim_t	replay=COMPLETED@148.8	-		min_ratio=linear:0.91
+s1b_E18_seed18_er2_d1	8bf906be-reverse	robot_5	backup	134.3-169.6	live=FAILED	gt_moved=1.225	gt_stop=-	held=3	odom=gt	start=handover_sim_t	replay=FAILED@148.1	FIRED	stall_abort: commanded 0.100 m/s for 3.0 s, measured 0.074 m (expected >= 0.075 m)	min_ratio=linear:0.25
+s1b_E18_seed18_er2_d1	56b599af-yield	robot_3	escort	84.2-149.3	live=FAILED	gt_moved=1.163	gt_stop=98.0	held=2	odom=gt	start=exact	replay=running	-		min_ratio=linear:0.90
+s1b_E18_seed18_er2_d1	1feb2c4e-yield	robot_2	escort	245.8-365.8	live=no terminal line	gt_moved=0.001	gt_stop=-	held=2	odom=gt	start=exact	replay=running	-		min_ratio=-
+s1b_E19_seed19_er2_d1	09647748-reverse	robot_3	backup	46.5-48.1	live=FAILED	gt_moved=0.106	gt_stop=-	held=2	odom=gt	start=handover_sim_t	replay=running	-		min_ratio=-
+s1b_E19_seed19_er2_d1	09647748-reverse	robot_4	backup	46.5-62.8	live=COMPLETED	gt_moved=1.310	gt_stop=-	held=2	odom=gt	start=handover_sim_t	replay=COMPLETED@61.0	-		min_ratio=linear:0.91
+s1b_E20_seed20_er2_d1	6cf402ed-yield	robot_1	backup	205.3-222.8	live=COMPLETED	gt_moved=1.389	gt_stop=220.8	held=3	odom=gt	start=handover_sim_t	replay=COMPLETED@220.7	-		min_ratio=linear:0.91
+s1b_E20_seed20_er2_d1	6cf402ed-yield	robot_1	pull_off	220.7-236.4	live=COMPLETED	gt_moved=0.373	gt_stop=229.5	held=3	odom=gt	start=chained_backup	replay=COMPLETED@234.3	-		min_ratio=angular:0.65
+s1b_E20_seed20_er2_d1	c18ade97-yield	robot_2	backup	125.4-142.0	live=COMPLETED	gt_moved=1.299	gt_stop=140.1	held=3	odom=gt	start=handover_sim_t	replay=COMPLETED@140.0	-		min_ratio=linear:0.90
+s1b_E20_seed20_er2_d1	c18ade97-yield	robot_2	pull_off	140.0-155.7	live=COMPLETED	gt_moved=0.380	gt_stop=148.9	held=3	odom=gt	start=chained_backup	replay=COMPLETED@153.6	-		min_ratio=angular:0.65
+s1b_E20_seed20_er2_d1	f269ab37-yield	robot_4	backup	45.4-63.5	live=COMPLETED	gt_moved=1.451	gt_stop=-	held=2	odom=gt	start=handover_sim_t	replay=COMPLETED@61.5	-		min_ratio=linear:0.90
+s1b_E20_seed20_er2_d1	f269ab37-yield	robot_4	pull_off	61.5-77.0	live=COMPLETED	gt_moved=0.372	gt_stop=70.5	held=2	odom=gt	start=chained_backup	replay=COMPLETED@75.0	-		min_ratio=angular:0.64
+s1b_E20_seed20_er2_d1	f269ab37-yield	robot_2	escort	75.0-104.0	live=COMPLETED	gt_moved=2.569	gt_stop=-	held=3	odom=gt	start=exact	replay=COMPLETED@102.0	-		min_ratio=linear:0.90
+s1b_E20_seed20_er2_d1	6cf402ed-yield	robot_3	escort	234.4-265.4	live=COMPLETED	gt_moved=1.845	gt_stop=263.1	held=2	odom=gt	start=exact	replay=FAILED@255.3	FIRED	stall_abort: commanded 0.100 m/s for 3.0 s, measured 0.068 m (expected >= 0.075 m)	min_ratio=linear:0.23
+s1b_E21_seed21_er2_e1	04457772-yield	robot_1	backup	45.5-63.5	live=COMPLETED	gt_moved=1.440	gt_stop=61.5	held=3	odom=gt	start=handover_sim_t	replay=COMPLETED@61.4	-		min_ratio=linear:0.91
+s1b_E21_seed21_er2_e1	04457772-yield	robot_1	pull_off	61.4-81.3	live=COMPLETED	gt_moved=0.738	gt_stop=74.4	held=3	odom=gt	start=chained_backup	replay=COMPLETED@79.2	-		min_ratio=angular:0.66,linear:0.91
+s1b_E21_seed21_er2_e1	04457772-yield	robot_4	escort	79.3-100.2	live=COMPLETED	gt_moved=1.753	gt_stop=-	held=3	odom=gt	start=exact	replay=COMPLETED@98.2	-		min_ratio=linear:0.90
+s1b_E22_seed22_er2_e2	07da775d-yield	robot_2	backup	45.3-62.8	live=COMPLETED	gt_moved=1.402	gt_stop=-	held=3	odom=gt	start=handover_sim_t	replay=COMPLETED@61.0	-		min_ratio=linear:0.90
+s1b_E22_seed22_er2_e2	07da775d-yield	robot_2	pull_off	61.0-80.6	live=COMPLETED	gt_moved=0.736	gt_stop=74.0	held=3	odom=gt	start=chained_backup	replay=COMPLETED@78.6	-		min_ratio=angular:0.66,linear:0.91
+s1b_E22_seed22_er2_e2	07da775d-yield	robot_5	escort	78.6-198.6	live=no terminal line	gt_moved=0.000	gt_stop=-	held=1	odom=gt	start=exact	replay=running	-		min_ratio=-
+s1b_E23_seed23_er2_e1	9803bd34-yield	robot_5	backup	63.9-80.8	live=COMPLETED	gt_moved=1.334	gt_stop=78.7	held=1	odom=gt	start=handover_sim_t	replay=COMPLETED@78.7	-		min_ratio=linear:0.91
+s1b_E23_seed23_er2_e1	9803bd34-yield	robot_5	pull_off	78.7-98.2	live=COMPLETED	gt_moved=0.734	gt_stop=91.7	held=1	odom=gt	start=chained_backup	replay=COMPLETED@96.2	-		min_ratio=angular:0.66,linear:0.90
+s1b_E23_seed23_er2_e1	9803bd34-yield	robot_1	escort	96.2-125.1	live=COMPLETED	gt_moved=2.517	gt_stop=-	held=1	odom=gt	start=exact	replay=COMPLETED@123.1	-		min_ratio=linear:0.90
+s1b_E24_seed24_er2_f2	dfb33b91-yield	robot_3	backup	73.9-90.7	live=COMPLETED	gt_moved=1.336	gt_stop=-	held=1	odom=gt	start=handover_sim_t	replay=COMPLETED@88.7	-		min_ratio=linear:0.91
+s1b_E24_seed24_er2_f2	dfb33b91-yield	robot_3	pull_off	88.7-108.4	live=COMPLETED	gt_moved=0.736	gt_stop=101.6	held=1	odom=gt	start=chained_backup	replay=COMPLETED@106.4	-		min_ratio=angular:0.65,linear:0.91
+s1b_E24_seed24_er2_f2	dfb33b91-yield	robot_4	escort	106.4-130.2	live=COMPLETED	gt_moved=1.840	gt_stop=-	held=1	odom=gt	start=exact	replay=COMPLETED@128.3	-		min_ratio=linear:0.90
+s1b_E25_seed25_er2_f2	c1fd8b36-yield	robot_1	backup	45.5-63.0	live=COMPLETED	gt_moved=1.377	gt_stop=60.8	held=2	odom=gt	start=handover_sim_t	replay=COMPLETED@60.8	-		min_ratio=linear:0.90
+s1b_E25_seed25_er2_f2	c1fd8b36-yield	robot_1	pull_off	60.8-76.2	live=COMPLETED	gt_moved=0.376	gt_stop=69.6	held=2	odom=gt	start=chained_backup	replay=COMPLETED@74.2	-		min_ratio=angular:0.66
+s1b_E25_seed25_er2_f2	c1fd8b36-yield	robot_5	escort	74.2-90.9	live=COMPLETED	gt_moved=1.456	gt_stop=-	held=1	odom=gt	start=exact	replay=COMPLETED@88.9	-		min_ratio=linear:0.91
+s1b_E26_seed26_er2_f1	cf77ca65-yield	robot_5	backup	69.5-86.7	live=COMPLETED	gt_moved=1.372	gt_stop=84.6	held=2	odom=gt	start=handover_sim_t	replay=COMPLETED@84.6	-		min_ratio=linear:0.91
+s1b_E26_seed26_er2_f1	cf77ca65-yield	robot_5	pull_off	84.6-100.1	live=COMPLETED	gt_moved=0.372	gt_stop=93.4	held=2	odom=gt	start=chained_backup	replay=COMPLETED@98.2	-		min_ratio=angular:0.66
+s1b_E26_seed26_er2_f1	cf77ca65-yield	robot_1	escort	98.1-111.2	live=COMPLETED	gt_moved=0.937	gt_stop=-	held=2	odom=gt	start=exact	replay=COMPLETED@109.3	-		min_ratio=linear:0.90
+s1b_E28_seed2_armA_er2_confT1_a1	3c234140-yield	robot_1	backup	50.7-68.5	live=COMPLETED	gt_moved=1.405	gt_stop=-	held=2	odom=gt	start=handover_sim_t	replay=COMPLETED@66.8	-		min_ratio=linear:0.85
+s1b_E28_seed2_armA_er2_confT1_a1	3c234140-yield	robot_1	pull_off	66.8-82.3	live=COMPLETED	gt_moved=0.372	gt_stop=75.7	held=2	odom=gt	start=chained_backup	replay=COMPLETED@80.3	-		min_ratio=angular:0.66
+s1b_E28_seed2_armA_er2_confT1_a1	3c234140-yield	robot_5	escort	80.3-105.6	live=COMPLETED	gt_moved=2.126	gt_stop=-	held=2	odom=gt	start=exact	replay=COMPLETED@103.7	-		min_ratio=linear:0.90
+s1b_E29_seed3_armA_er2_confT1_a1	14aefebe-yield	robot_1	backup	55.6-74.1	live=COMPLETED	gt_moved=1.499	gt_stop=-	held=2	odom=gt	start=handover_sim_t	replay=COMPLETED@72.1	-		min_ratio=linear:0.91
+s1b_E29_seed3_armA_er2_confT1_a1	14aefebe-yield	robot_1	pull_off	72.1-87.7	live=COMPLETED	gt_moved=0.370	gt_stop=81.0	held=2	odom=gt	start=chained_backup	replay=COMPLETED@85.7	-		min_ratio=angular:0.66
+s1b_E29_seed3_armA_er2_confT1_a1	5622ed9c-yield	robot_3	backup	107.9-124.4	live=COMPLETED	gt_moved=1.297	gt_stop=122.3	held=2	odom=gt	start=handover_sim_t	replay=COMPLETED@122.3	-		min_ratio=linear:0.90
+s1b_E29_seed3_armA_er2_confT1_a1	5622ed9c-yield	robot_3	pull_off	122.3-138.0	live=COMPLETED	gt_moved=0.377	gt_stop=131.2	held=2	odom=gt	start=chained_backup	replay=COMPLETED@135.9	-		min_ratio=angular:0.64
+s1b_E29_seed3_armA_er2_confT1_a1	14aefebe-yield	robot_4	escort	85.7-104.7	live=COMPLETED	gt_moved=1.606	gt_stop=-	held=2	odom=gt	start=exact	replay=COMPLETED@102.8	-		min_ratio=linear:0.91
+s1b_E31_seed5_armA_er2_confT1_a1	60afd0c1-yield	robot_3	backup	50.2-67.5	live=COMPLETED	gt_moved=1.367	gt_stop=65.4	held=2	odom=gt	start=handover_sim_t	replay=COMPLETED@65.4	-		min_ratio=linear:0.91
+s1b_E31_seed5_armA_er2_confT1_a1	60afd0c1-yield	robot_3	pull_off	65.4-80.8	live=COMPLETED	gt_moved=0.375	gt_stop=74.2	held=2	odom=gt	start=chained_backup	replay=COMPLETED@78.9	-		min_ratio=angular:0.66
+s1b_E31_seed5_armA_er2_confT1_a1	60afd0c1-yield	robot_4	escort	78.8-97.1	live=COMPLETED	gt_moved=1.364	gt_stop=95.1	held=2	odom=gt	start=exact	replay=COMPLETED@95.2	-		min_ratio=linear:0.91
+m5D_t01_a1	03bba450-yield	robot_1	backup	46.3-65.0	live=COMPLETED	gt_moved=1.523	gt_stop=-	held=2	odom=gt	start=handover_sim_t	replay=COMPLETED@63.2	-		min_ratio=linear:0.90
+m5D_t01_a1	03bba450-yield	robot_1	pull_off	63.2-82.7	live=COMPLETED	gt_moved=0.735	gt_stop=76.0	held=2	odom=gt	start=chained_backup	replay=COMPLETED@80.7	-		min_ratio=angular:0.66,linear:0.91
+m5D_t01_a1	a15f3fc5-yield	robot_2	backup	105.3-123.2	live=COMPLETED	gt_moved=1.417	gt_stop=121.1	held=2	odom=gt	start=handover_sim_t	replay=COMPLETED@121.1	-		min_ratio=linear:0.91
+m5D_t01_a1	a15f3fc5-yield	robot_2	pull_off	121.1-140.7	live=COMPLETED	gt_moved=0.737	gt_stop=134.1	held=2	odom=gt	start=chained_backup	replay=COMPLETED@138.7	-		min_ratio=angular:0.66,linear:0.91
+m5D_t01_a1	03bba450-yield	robot_4	escort	80.7-101.9	live=COMPLETED	gt_moved=1.735	gt_stop=-	held=2	odom=gt	start=exact	replay=COMPLETED@99.9	-		min_ratio=linear:0.90
+m5D_t01_a1	a15f3fc5-yield	robot_3	escort	138.7-203.3	live=FAILED	gt_moved=0.516	gt_stop=147.3	held=2	odom=gt	start=exact	replay=FAILED@149.6	FIRED	stall_abort: commanded 0.100 m/s for 3.0 s, measured 0.068 m (expected >= 0.075 m)	min_ratio=linear:0.23
+m5V_t01_a1	95066420-reverse	robot_4	backup	77.2-93.9	live=COMPLETED	gt_moved=1.312	gt_stop=-	held=3	odom=gt	start=handover_sim_t	replay=COMPLETED@92.0	-		min_ratio=linear:0.90
+m5V_t01_a1	95066420-reverse	robot_5	backup	77.2-93.7	live=COMPLETED	gt_moved=1.306	gt_stop=-	held=2	odom=gt	start=handover_sim_t	replay=COMPLETED@91.9	-		min_ratio=linear:0.91
+m5V_t01_a1	b07a700f-reverse	robot_1	backup	58.5-74.1	live=COMPLETED	gt_moved=1.314	gt_stop=-	held=2	odom=gt	start=handover_sim_t	replay=COMPLETED@73.1	-		min_ratio=linear:0.91
+m5V_t01_a1	b07a700f-reverse	robot_2	backup	58.5-74.0	live=COMPLETED	gt_moved=1.311	gt_stop=-	held=2	odom=gt	start=handover_sim_t	replay=COMPLETED@73.0	-		min_ratio=linear:0.91
+m5V_t01_a1	b07a700f-reverse	robot_3	backup	58.6-74.1	live=COMPLETED	gt_moved=1.309	gt_stop=-	held=2	odom=gt	start=handover_sim_t	replay=COMPLETED@73.2	-		min_ratio=linear:0.90

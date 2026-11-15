@@ -1,0 +1,339 @@
+{
+ "E10": {
+  "censor_reason": "stop_flag",
+  "source": "[O] batch5/agg_b5.json gridlock.tasks_completed, gridlock.gt_end_rel_s; censor [P] batch6/s1_scoring_pilots.jsonl",
+  "t_end_rel": 210.1,
+  "tasks_completed": 1,
+  "tasks_total": 25
+ },
+ "E11": {
+  "censor_reason": "horizon",
+  "source": "[O] batch5/agg_b5.json gridlock.tasks_completed, gridlock.gt_end_rel_s; censor [P] batch6/s1_scoring_pilots.jsonl",
+  "t_end_rel": 571.2,
+  "tasks_completed": 6,
+  "tasks_total": 25
+ },
+ "E12": {
+  "censor_reason": "horizon",
+  "source": "[O] batch5/agg_b5.json gridlock.tasks_completed, gridlock.gt_end_rel_s; censor [P] batch6/s1_scoring_pilots.jsonl",
+  "t_end_rel": 570.1,
+  "tasks_completed": 3,
+  "tasks_total": 25
+ },
+ "E13": {
+  "censor_reason": "horizon",
+  "source": "[O] batch5/agg_b5.json gridlock.tasks_completed, gridlock.gt_end_rel_s; censor [P] batch6/s1_scoring_pilots.jsonl",
+  "t_end_rel": 569.8,
+  "tasks_completed": 1,
+  "tasks_total": 25
+ },
+ "E14": {
+  "censor_reason": "horizon",
+  "source": "[O] batch5/agg_b5.json gridlock.tasks_completed, gridlock.gt_end_rel_s; censor [P] batch6/s1_scoring_pilots.jsonl",
+  "t_end_rel": 572.1,
+  "tasks_completed": 1,
+  "tasks_total": 25
+ },
+ "E15": {
+  "censor_reason": "horizon",
+  "source": "[O] batch5/agg_b5.json gridlock.tasks_completed, gridlock.gt_end_rel_s; censor [P] batch6/s1_scoring_pilots.jsonl",
+  "t_end_rel": 571.4,
+  "tasks_completed": 1,
+  "tasks_total": 25
+ },
+ "E16": {
+  "censor_reason": "horizon",
+  "source": "[O] batch5/agg_b5.json gridlock.tasks_completed, gridlock.gt_end_rel_s; censor [P] batch6/s1_scoring_pilots.jsonl",
+  "t_end_rel": 570.1,
+  "tasks_completed": 3,
+  "tasks_total": 25
+ },
+ "E17": {
+  "censor_reason": "stop_flag",
+  "source": "[O] batch5/agg_b5.json gridlock.tasks_completed, gridlock.gt_end_rel_s; censor [P] batch6/s1_scoring_pilots.jsonl",
+  "t_end_rel": 269.0,
+  "tasks_completed": 9,
+  "tasks_total": 25
+ },
+ "E18": {
+  "censor_reason": "horizon",
+  "source": "[O] batch5/agg_b5.json gridlock.tasks_completed, gridlock.gt_end_rel_s; censor [P] batch6/s1_scoring_pilots.jsonl",
+  "t_end_rel": 568.2,
+  "tasks_completed": 1,
+  "tasks_total": 25
+ },
+ "E19": {
+  "censor_reason": "horizon",
+  "source": "[O] batch5/agg_b5.json gridlock.tasks_completed, gridlock.gt_end_rel_s; censor [P] batch6/s1_scoring_pilots.jsonl",
+  "t_end_rel": 569.9,
+  "tasks_completed": 3,
+  "tasks_total": 25
+ },
+ "E20": {
+  "censor_reason": "horizon",
+  "source": "[O] batch5/agg_b5.json gridlock.tasks_completed, gridlock.gt_end_rel_s; censor [P] batch6/s1_scoring_pilots.jsonl",
+  "t_end_rel": 570.9,
+  "tasks_completed": 8,
+  "tasks_total": 25
+ },
+ "E21": {
+  "censor_reason": "horizon",
+  "source": "[O] batch5/agg_b5.json gridlock.tasks_completed, gridlock.gt_end_rel_s; censor [P] batch6/s1_scoring_pilots.jsonl",
+  "t_end_rel": 570.5,
+  "tasks_completed": 1,
+  "tasks_total": 25
+ },
+ "E22": {
+  "censor_reason": "horizon",
+  "source": "[O] batch5/agg_b5.json gridlock.tasks_completed, gridlock.gt_end_rel_s; censor [P] batch6/s1_scoring_pilots.jsonl",
+  "t_end_rel": 572.7,
+  "tasks_completed": 3,
+  "tasks_total": 25
+ },
+ "E23": {
+  "censor_reason": "stop_flag",
+  "source": "[O] batch5/agg_b5.json gridlock.tasks_completed, gridlock.gt_end_rel_s; censor [P] batch6/s1_scoring_pilots.jsonl",
+  "t_end_rel": 170.9,
+  "tasks_completed": 6,
+  "tasks_total": 25
+ },
+ "E24": {
+  "censor_reason": "stop_flag",
+  "source": "[O] batch5/agg_b5.json gridlock.tasks_completed, gridlock.gt_end_rel_s; censor [P] batch6/s1_scoring_pilots.jsonl",
+  "t_end_rel": 108.8,
+  "tasks_completed": 6,
+  "tasks_total": 25
+ },
+ "E25": {
+  "censor_reason": "stop_flag",
+  "source": "[O] batch5/agg_b5.json gridlock.tasks_completed, gridlock.gt_end_rel_s; censor [P] batch6/s1_scoring_pilots.jsonl",
+  "t_end_rel": 144.3,
+  "tasks_completed": 4,
+  "tasks_total": 25
+ },
+ "E26": {
+  "censor_reason": "stop_flag",
+  "source": "[O] batch5/agg_b5.json gridlock.tasks_completed, gridlock.gt_end_rel_s; censor [P] batch6/s1_scoring_pilots.jsonl",
+  "t_end_rel": 102.3,
+  "tasks_completed": 1,
+  "tasks_total": 25
+ },
+ "E27A": {
+  "a33_involved_f1": [
+   0.6666666666666666
+  ],
+  "a33_n_conflicts": 1,
+  "a33_n_detected": 1,
+  "a33_type_correct": [
+   false
+  ],
+  "censor_reason": "horizon",
+  "completeness_status": "failed",
+  "source": "[T] batch6/scores_t1/s1_scoring.jsonl",
+  "t_end_rel": 570.673333334,
+  "tasks_completed": 8,
+  "tasks_total": 25
+ },
+ "E27B": {
+  "a33_involved_f1": [
+   null,
+   null
+  ],
+  "a33_n_conflicts": 2,
+  "a33_n_detected": 0,
+  "a33_type_correct": [
+   null,
+   null
+  ],
+  "censor_reason": "horizon",
+  "completeness_status": "failed",
+  "source": "[T] batch6/scores_t1/s1_scoring.jsonl",
+  "t_end_rel": 571.073333334,
+  "tasks_completed": 5,
+  "tasks_total": 25
+ },
+ "E28A": {
+  "a33_involved_f1": [
+   1.0,
+   0.5714285714285714
+  ],
+  "a33_n_conflicts": 2,
+  "a33_n_detected": 2,
+  "a33_type_correct": [
+   true,
+   true
+  ],
+  "censor_reason": "horizon",
+  "completeness_status": "failed",
+  "source": "[T] batch6/scores_t1/s1_scoring.jsonl",
+  "t_end_rel": 568.803333334,
+  "tasks_completed": 2,
+  "tasks_total": 25
+ },
+ "E28B": {
+  "a33_involved_f1": [
+   null,
+   null
+  ],
+  "a33_n_conflicts": 2,
+  "a33_n_detected": 0,
+  "a33_type_correct": [
+   null,
+   null
+  ],
+  "censor_reason": "horizon",
+  "completeness_status": "failed",
+  "source": "[T] batch6/scores_t1/s1_scoring.jsonl",
+  "t_end_rel": 570.37,
+  "tasks_completed": 1,
+  "tasks_total": 25
+ },
+ "E29A": {
+  "a33_involved_f1": [
+   1.0,
+   1.0,
+   null
+  ],
+  "a33_n_conflicts": 3,
+  "a33_n_detected": 2,
+  "a33_type_correct": [
+   true,
+   true,
+   null
+  ],
+  "censor_reason": "horizon",
+  "completeness_status": "failed",
+  "source": "[T] batch6/scores_t1/s1_scoring.jsonl",
+  "t_end_rel": 570.073333334,
+  "tasks_completed": 0,
+  "tasks_total": 25
+ },
+ "E29B": {
+  "a33_involved_f1": [
+   null,
+   null
+  ],
+  "a33_n_conflicts": 2,
+  "a33_n_detected": 0,
+  "a33_type_correct": [
+   null,
+   null
+  ],
+  "censor_reason": "horizon",
+  "completeness_status": "failed",
+  "source": "[T] batch6/scores_t1/s1_scoring.jsonl",
+  "t_end_rel": 570.67,
+  "tasks_completed": 0,
+  "tasks_total": 25
+ },
+ "E30A": {
+  "a33_involved_f1": [
+   1.0,
+   null
+  ],
+  "a33_n_conflicts": 2,
+  "a33_n_detected": 1,
+  "a33_type_correct": [
+   true,
+   null
+  ],
+  "censor_reason": "horizon",
+  "completeness_status": "failed",
+  "source": "[T] batch6/scores_t1/s1_scoring.jsonl",
+  "t_end_rel": 570.67,
+  "tasks_completed": 5,
+  "tasks_total": 25
+ },
+ "E30B": {
+  "a33_involved_f1": [
+   null,
+   null
+  ],
+  "a33_n_conflicts": 2,
+  "a33_n_detected": 0,
+  "a33_type_correct": [
+   null,
+   null
+  ],
+  "censor_reason": "horizon",
+  "completeness_status": "failed",
+  "source": "[T] batch6/scores_t1/s1_scoring.jsonl",
+  "t_end_rel": 571.97,
+  "tasks_completed": 6,
+  "tasks_total": 25
+ },
+ "E31A": {
+  "a33_involved_f1": [
+   1.0,
+   1.0,
+   1.0
+  ],
+  "a33_n_conflicts": 3,
+  "a33_n_detected": 3,
+  "a33_type_correct": [
+   false,
+   true,
+   true
+  ],
+  "censor_reason": "horizon",
+  "completeness_status": "failed",
+  "source": "[T] batch6/scores_t1/s1_scoring.jsonl",
+  "t_end_rel": 569.203333334,
+  "tasks_completed": 1,
+  "tasks_total": 25
+ },
+ "E31B": {
+  "a33_involved_f1": [
+   null,
+   null
+  ],
+  "a33_n_conflicts": 2,
+  "a33_n_detected": 0,
+  "a33_type_correct": [
+   null,
+   null
+  ],
+  "censor_reason": "horizon",
+  "completeness_status": "failed",
+  "source": "[T] batch6/scores_t1/s1_scoring.jsonl",
+  "t_end_rel": 571.173333334,
+  "tasks_completed": 0,
+  "tasks_total": 25
+ },
+ "E6": {
+  "censor_reason": "horizon",
+  "source": "[O] batch5/agg_b5.json gridlock.tasks_completed, gridlock.gt_end_rel_s; censor [P] batch6/s1_scoring_pilots.jsonl",
+  "t_end_rel": 577.4,
+  "tasks_completed": 4,
+  "tasks_total": 25
+ },
+ "E7": {
+  "censor_reason": "horizon",
+  "source": "[O] batch5/agg_b5.json gridlock.tasks_completed, gridlock.gt_end_rel_s; censor [P] batch6/s1_scoring_pilots.jsonl",
+  "t_end_rel": 576.7,
+  "tasks_completed": 0,
+  "tasks_total": 25
+ },
+ "E8": {
+  "censor_reason": "horizon",
+  "source": "[O] batch5/agg_b5.json gridlock.tasks_completed, gridlock.gt_end_rel_s; censor [P] batch6/s1_scoring_pilots.jsonl",
+  "t_end_rel": 577.3,
+  "tasks_completed": 3,
+  "tasks_total": 25
+ },
+ "E9": {
+  "censor_reason": "horizon",
+  "source": "[O] batch5/agg_b5.json gridlock.tasks_completed, gridlock.gt_end_rel_s; censor [P] batch6/s1_scoring_pilots.jsonl",
+  "t_end_rel": 569.7,
+  "tasks_completed": 4,
+  "tasks_total": 25
+ },
+ "m5D_t01_a1": {
+  "source": "[R] rubric 5.3 row (demo report figure)",
+  "text": "1 of 5 arrived (GT 0.3 m), tasks 1/25, 600 sim-s horizon"
+ },
+ "m5V_t01_a1": {
+  "source": "[R] rubric 5.3 row (validation report figure)",
+  "text": "2 of 5 arrived (GT 0.3 m), unresolved at 600 sim-s"
+ }
+}

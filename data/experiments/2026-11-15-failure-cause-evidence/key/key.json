@@ -1,0 +1,498 @@
+{
+ "E10": {
+  "arm": "A",
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/live_batch/s1b_E10_seed10_er2_a1",
+  "decision_ids": {
+   "D1": "63f8d1ce9b56455a980765427f04500d",
+   "D10": "c56a595b56b149f485079c25c267fe0f",
+   "D11": "e34cdc3271b74208b4964a12b5cd645e",
+   "D12": "606ce9d35b6941a094085cfac4d982e7",
+   "D13": "6dd737b0828a4afba54bb2a1a32579e4",
+   "D14": "6e08e9e5c74845df9a344bd96e0f19e2",
+   "D15": "45059268f4a84d0ba93bfb3ea1c2c437",
+   "D16": "bbe5a21cb64e49ab853486e89ba143b0",
+   "D17": "5d0d2b5aa7cd4addae02db3c8a3decf3",
+   "D18": "628540fccfe544f6ac2cf586b47d6ca0",
+   "D19": "c4d1a2fe4d7840529969fec5895dc0b9",
+   "D2": "d5541ff049c3407b975a81835c246aa8",
+   "D20": "7e63295eaac04eaba71671d0fab80d45",
+   "D21": "e5ca9f213d7b4e4397f00ce4d67cf316",
+   "D22": "6b4ef7d7054b41faa721918e0f6df841",
+   "D23": "d234e0954960456e8ebc7dda5484d16e",
+   "D24": "db80646c286c44dcb9b6261694b52065",
+   "D25": "8ae5d739dbd949a684758b0a2df959f2",
+   "D26": "2ceeb0718454479b8d6707d518e3a384",
+   "D27": "b7e96ad3167d4023864ace9ac6f47e55",
+   "D28": "bb3c2090177742658b89c35d79705da2",
+   "D29": "e9a14b362ec248f6adc16fe3c7bcda96",
+   "D3": "3a70abe261d64bccb7fed17613de20c4",
+   "D30": "a281052ab33f455884fc67e6a38adc24",
+   "D31": "408ee8a2b0ac401eb80949d4dc2f0972",
+   "D32": "6897dc8f987544358998b4b9cfececa3",
+   "D33": "0ebfeae82b3c49fdac3019a752e65fae",
+   "D34": "7e1a2be063784114ab720a6305a0c736",
+   "D35": "dc226a66cfc446fb8b9b5416d18e78b5",
+   "D36": "d539b7a4a6f54cefa275e688b6238da5",
+   "D37": "1d77133378a04d5d83c859019d56297b",
+   "D38": "51711e952137461990dab19bce2d18bd",
+   "D39": "be869cad9d4c40a7a45f087c0a526008",
+   "D4": "bbf6c51d73784d9c84b4013f5c7eecc1",
+   "D40": "c746b92ca4584235a2d7defef68db80d",
+   "D5": "947ddb112b594c0d94f29a482ab3e1ae",
+   "D6": "772bdb6feafc47bfacdb6ef1dd39664d",
+   "D7": "4c056f53069c4797a88851b75a24d641",
+   "D8": "affb04b24c664e0ca9f6280ef674a402",
+   "D9": "c2696af6f45b4bf49e5efe61fabed9cb"
+  },
+  "events_id": "EV-e0f9cf",
+  "gt_id": "GT-5cb09c",
+  "stratum": "pilot_er2"
+ },
+ "E11": {
+  "arm": "A",
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/resume/s1b_E11_seed11_er2_b1",
+  "decision_ids": {
+   "D1": "d26091af7b4046c4a00966f85d8820cd",
+   "D2": "7a47f2f7373a41378feeddd025c09696",
+   "D3": "c417cbffd76841dbbbdbefe6ec14fb63",
+   "D4": "124528555d944ac89b0eb64a0eb584ef",
+   "D5": "e6052a2294f24288850f5a7e4c79f9eb",
+   "D6": "fd4ea72fa142489da7a206672b3f31c9",
+   "D7": "0923295dba3c4fc285fb40ff62c96a9e",
+   "D8": "2317de22820d4b4d841b13079b75056c",
+   "D9": "fe7ce5d2d9a34b3a923d5f0061e430f4"
+  },
+  "events_id": "EV-37a70e",
+  "gt_id": "GT-c34011",
+  "stratum": "pilot_er2"
+ },
+ "E12": {
+  "arm": "A",
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch2/s1b_E12_seed12_er2_c1",
+  "decision_ids": {
+   "D1": "d374802aa0394e63a4d436010f48f04e",
+   "D2": "3d294b6d96174da893c318656d80dbe1",
+   "D3": "551d3132d3984dcd837ef0247c301a6e",
+   "D4": "604733ebb02b4a13be799f3fc563eb31",
+   "D5": "26964ab0e5964387818d30716b7c3062",
+   "D6": "8e8d9a2fe0894e14b59e7d0569730ce4",
+   "D7": "b035a168a1ca44478af55b66d1abc1d1"
+  },
+  "events_id": "EV-2c719b",
+  "gt_id": "GT-354e83",
+  "stratum": "pilot_er2"
+ },
+ "E13": {
+  "arm": "A",
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch2/s1b_E13_seed13_er2_c1",
+  "decision_ids": {
+   "D1": "984e3bdf9d8642e584ed70b6e482ed5b",
+   "D2": "652ac9ac585d465fbc4e99832517c4eb",
+   "D3": "ea23b1a79f564a25a375dd7af8c32d93",
+   "D4": "f2a4c4037a254500bd27bbf7f72c9953"
+  },
+  "events_id": "EV-62b8d0",
+  "gt_id": "GT-00408f",
+  "stratum": "pilot_er2"
+ },
+ "E14": {
+  "arm": "A",
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch2/s1b_E14_seed14_er2_c1",
+  "decision_ids": {
+   "D1": "c5a5e6876e804b9ea9367d0c1575535a",
+   "D2": "25db404d8b8f4c36bc82956b95e38314",
+   "D3": "8e1e9b74a16a4046a5e5eb51a50c233e",
+   "D4": "1a77463db2a448c2afd0da0b9966a0d1"
+  },
+  "events_id": "EV-359e3d",
+  "gt_id": "GT-595e94",
+  "stratum": "pilot_er2"
+ },
+ "E15": {
+  "arm": "A",
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch2/s1b_E15_seed15_er2_c1",
+  "decision_ids": {
+   "D1": "8066f542d8a246159889ed08f382beed",
+   "D2": "1f5a43637ea24e488e33330c0513cfbd",
+   "D3": "1d5cc5902ad74696ad73251fbe369341"
+  },
+  "events_id": "EV-072a17",
+  "gt_id": "GT-a1575e",
+  "stratum": "pilot_er2"
+ },
+ "E16": {
+  "arm": "A",
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch2/s1b_E16_seed16_er2_c1",
+  "decision_ids": {
+   "D1": "ede6d209821e49b6998cd4feb7ecc7a1",
+   "D2": "df2ed72f21c04b9492900561f68248f5",
+   "D3": "eafbb338892b4ca5aa0f181f4a987711",
+   "D4": "ef117f2f7faa4067b0377d2957796fdc"
+  },
+  "events_id": "EV-41a9d4",
+  "gt_id": "GT-4e2591",
+  "stratum": "pilot_er2"
+ },
+ "E17": {
+  "arm": "A",
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch2/s1b_E17_seed17_er2_c1",
+  "decision_ids": {
+   "D1": "023ae8e783e349d6abba9dc3ee67a2cc",
+   "D10": "68ddd1d7ad5b41d7a23fd4b6a0f42386",
+   "D11": "21ce6358b83d4d7c9bd374cf51f90185",
+   "D12": "9cf93ebe0149404392cd8b264710c25c",
+   "D13": "6d37a549469c4d6680c06100b7bd91a8",
+   "D14": "599619fb11cb4ceab20243cb9d9022fc",
+   "D2": "ce33c3db74014420ac25eafe2e026f22",
+   "D3": "1964feb1381a400e84d2b3d1d7b8075a",
+   "D4": "fc52c0ed841a4faf90446209c3a5bf0c",
+   "D5": "0f26edcc7b4c40d9b5a4ed51ef0d202d",
+   "D6": "c694543bb3c840198083af63da1996e3",
+   "D7": "150b95a61e46411f9c295f770c006aa9",
+   "D8": "6745a1362818416281da9aafbc3c1968",
+   "D9": "5dfe6dad65344fee9f5354e1452d709a"
+  },
+  "events_id": "EV-344706",
+  "gt_id": "GT-669c5b",
+  "stratum": "pilot_er2"
+ },
+ "E18": {
+  "arm": "A",
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch3/s1b_E18_seed18_er2_d1",
+  "decision_ids": {
+   "D1": "56b599af99df47818a3ee630579caff7",
+   "D2": "8bf906bef38f4fcba208fe2fe0783ffa",
+   "D3": "68d9ee92fe784ebab056c02c28331e64",
+   "D4": "13f12b184e0d405597f22a3243cd05e5",
+   "D5": "fa4d839f4de4426982f0a6a2bb5de94e",
+   "D6": "1feb2c4e86924ffe87a75ad92264e293",
+   "D7": "fa2588ebc7a34152be4db8f2c7398106",
+   "D8": "2a441372ce45429481d57a57812c2fdb",
+   "D9": "e4b2e38f6d8a4f6d810e4f41b1f3c11c"
+  },
+  "events_id": "EV-295a3e",
+  "gt_id": "GT-9c8ad7",
+  "stratum": "pilot_er2"
+ },
+ "E19": {
+  "arm": "A",
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch3/s1b_E19_seed19_er2_d1",
+  "decision_ids": {
+   "D1": "0964774833854df5b80814dfa250ac09",
+   "D2": "705f73402fbf486fa5f687207f575370",
+   "D3": "79af7cd6085c4df7b76a98766b65a1bc",
+   "D4": "5663c66ff3de4d2391eeea54a349a3d5",
+   "D5": "73e4445cc73b4339802f807a65930d80",
+   "D6": "0e1666502c57481aba04a71f84ff4ee4"
+  },
+  "events_id": "EV-b13ac7",
+  "gt_id": "GT-adc295",
+  "stratum": "pilot_er2"
+ },
+ "E20": {
+  "arm": "A",
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch3/s1b_E20_seed20_er2_d1",
+  "decision_ids": {
+   "D1": "f269ab37466c4bdaa3e035c376400bd5",
+   "D2": "696c4d4900774a7b9b9665c9e63a9def",
+   "D3": "591a25ba39b5482e89adbab014062c08",
+   "D4": "c18ade9714d144849bc16b1dc1e97027",
+   "D5": "6cf402ed34bb48d58e0c46aff3384ef4",
+   "D6": "079074e572e24e6f8817dbd12d8d2286",
+   "D7": "9e05cd70ec6a48aea19f7dfc56199efe"
+  },
+  "events_id": "EV-ef4e73",
+  "gt_id": "GT-190651",
+  "stratum": "pilot_er2"
+ },
+ "E21": {
+  "arm": "A",
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch4/s1b_E21_seed21_er2_e1",
+  "decision_ids": {
+   "D1": "04457772745340d0bf06220974097d38",
+   "D2": "6c2457dd9af14239930d27b5f4d960d3",
+   "D3": "567baa5320c94b9495b0e20728f676de",
+   "D4": "cb5d518ffa6b4d49873ff75fae211e95"
+  },
+  "events_id": "EV-a6761e",
+  "gt_id": "GT-0daa00",
+  "stratum": "pilot_er2"
+ },
+ "E22": {
+  "arm": "A",
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch4/s1b_E22_seed22_er2_e2",
+  "decision_ids": {
+   "D1": "07da775dfad2459f8a92b673a2111d3d",
+   "D2": "8cceeef1f2c14c09bde56e6a6bc9c69f",
+   "D3": "42fac00973ed4baf8332059fa0bd0d25",
+   "D4": "64fc01e623924cc59031ea42e7d39cc3"
+  },
+  "events_id": "EV-52a0c3",
+  "gt_id": "GT-b3d4ec",
+  "stratum": "pilot_er2"
+ },
+ "E23": {
+  "arm": "A",
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch4/s1b_E23_seed23_er2_e1",
+  "decision_ids": {
+   "D1": "a81e5925acdb48a7a861037ea0c6c61a",
+   "D2": "9803bd34c5e249ad9e2d097a82c4ef37",
+   "D3": "21d78102cc704db288683f1caf2db334",
+   "D4": "0c4ad5c8eb084af49f919c930f4d4ca9",
+   "D5": "5f9603fbccb543799ff0fa942a7d1cbc",
+   "D6": "40636339c4ef49d39dbbe96d12d95ab9"
+  },
+  "events_id": "EV-478db7",
+  "gt_id": "GT-d23005",
+  "stratum": "pilot_er2"
+ },
+ "E24": {
+  "arm": "A",
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch5/s1b_E24_seed24_er2_f2",
+  "decision_ids": {
+   "D1": "70040cfa3b6c4e799e6bd300f1780621",
+   "D2": "24480b9dd04a4b859685879ee82a7aaf",
+   "D3": "6a169512b1a14b2fa27729470a7dddb1",
+   "D4": "dfb33b91c73d4a3fbba0f4512b37162c",
+   "D5": "8fcaa7dc0ab346b7b48e05779d0d9af8",
+   "D6": "76f1b238f13f4501b136b2e1958f2027"
+  },
+  "events_id": "EV-e26384",
+  "gt_id": "GT-352840",
+  "stratum": "pilot_er2"
+ },
+ "E25": {
+  "arm": "A",
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch5/s1b_E25_seed25_er2_f2",
+  "decision_ids": {
+   "D1": "c1fd8b36076741cfb20ecd382943370e",
+   "D2": "0bcca47bdf7c45ff8ef674fde9eef40f",
+   "D3": "40dd043befa6405e88f7d5d5ff0b70de",
+   "D4": "c66823cd87d84b9892abfdb304ba6146",
+   "D5": "5f2cc8d293474a5d98f92c53fd41e885",
+   "D6": "377f6e6d62124e10a328e142551a0a25"
+  },
+  "events_id": "EV-f7ab58",
+  "gt_id": "GT-7a7c8e",
+  "stratum": "pilot_er2"
+ },
+ "E26": {
+  "arm": "A",
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch5/s1b_E26_seed26_er2_f1",
+  "decision_ids": {
+   "D1": "96e3c13cbc834244ae8813174be0485d",
+   "D2": "f36969f33160452b816e42213627ad58",
+   "D3": "cf77ca659e8b4376bd42b83b3b37822b",
+   "D4": "ef961be396f64b828fede8991c0b8bc9",
+   "D5": "38c64ab0da4640b485612950939fa570",
+   "D6": "35a161adbee94350b6ad30ccb46f1b82"
+  },
+  "events_id": "EV-7bda3f",
+  "gt_id": "GT-3f6ad9",
+  "stratum": "pilot_er2"
+ },
+ "E27A": {
+  "arm": "A",
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch6/s1b_E27_seed1_armA_er2_confT1_a1",
+  "decision_ids": {
+   "D1": "a8b5600dc5b143f7a668027da26a7a27",
+   "D10": "b1d25d98fd2140579b5748f54119fa62",
+   "D11": "c882ce6c77cd41999b27c573cbe5f795",
+   "D2": "409cfdf83fbf4c69adfde3005129ed0b",
+   "D3": "d70129ed15e54b65865e5b8bb35311e3",
+   "D4": "d16aefe1458b4344a75d11c78a447753",
+   "D5": "69b1d9d65d9e42d68ec6b5dbecce4595",
+   "D6": "12a36853d9a241d19c11145352ae8de2",
+   "D7": "8eb0d9081ea5485ba9ea042a8d34e08d",
+   "D8": "07a43e5d7c0147e08a7a423f363b7e3b",
+   "D9": "61136b87034a4af69c2eed6e5e484102"
+  },
+  "events_id": "EV-35eb04",
+  "gt_id": "GT-162c10",
+  "stratum": "prereg_v3_tranche1"
+ },
+ "E27B": {
+  "arm": "B",
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch6/s1b_E27_seed1_armB_l2off_confT1_a2",
+  "decision_ids": {},
+  "events_id": "EV-c49058",
+  "gt_id": "GT-72693e",
+  "stratum": "prereg_v3_tranche1"
+ },
+ "E28A": {
+  "arm": "A",
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch6/s1b_E28_seed2_armA_er2_confT1_a1",
+  "decision_ids": {
+   "D1": "3c23414004754087ae63990e318246d2",
+   "D2": "7a5721d0bda540c381870508ed492387",
+   "D3": "64d5ef0a80484818acc254a5bbc9f741",
+   "D4": "5e989dc86c9d422782f6faea160f7c48"
+  },
+  "events_id": "EV-830943",
+  "gt_id": "GT-14b9fe",
+  "stratum": "prereg_v3_tranche1"
+ },
+ "E28B": {
+  "arm": "B",
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch6/s1b_E28_seed2_armB_l2off_confT1_a1",
+  "decision_ids": {},
+  "events_id": "EV-3e6d9b",
+  "gt_id": "GT-9d2219",
+  "stratum": "prereg_v3_tranche1"
+ },
+ "E29A": {
+  "arm": "A",
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch6/s1b_E29_seed3_armA_er2_confT1_a1",
+  "decision_ids": {
+   "D1": "988fd4c5b5bc4c9aa2c58a2231d5fe55",
+   "D2": "14aefebe6c4b472d85194ae4c093d2b2",
+   "D3": "5622ed9cf4cd44e89ec752f4b9d49ca6",
+   "D4": "40b4c0c975cc4005a065dc1fbcf8e0f7",
+   "D5": "ca3aecdfc6fa4aac8bcfac58cae0c725"
+  },
+  "events_id": "EV-298037",
+  "gt_id": "GT-8cec64",
+  "stratum": "prereg_v3_tranche1"
+ },
+ "E29B": {
+  "arm": "B",
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch6/s1b_E29_seed3_armB_l2off_confT1_a1",
+  "decision_ids": {},
+  "events_id": "EV-69a2ea",
+  "gt_id": "GT-a2db01",
+  "stratum": "prereg_v3_tranche1"
+ },
+ "E30A": {
+  "arm": "A",
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch6/s1b_E30_seed4_armA_er2_confT1_a1",
+  "decision_ids": {
+   "D1": "651feb0ee5e04954830570fd04309198",
+   "D2": "b5c5d710d87a481cbeac86bfcea33fc3",
+   "D3": "45b9bfe4676f45cdb8a21a8aa22c0da9",
+   "D4": "d854ae924b344563b81c4c1e7fe9c546",
+   "D5": "4ec0e90e27894ced96b34e2bf5f0fa33"
+  },
+  "events_id": "EV-7e1fa5",
+  "gt_id": "GT-b92f93",
+  "stratum": "prereg_v3_tranche1"
+ },
+ "E30B": {
+  "arm": "B",
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch6/s1b_E30_seed4_armB_l2off_confT1_a1",
+  "decision_ids": {},
+  "events_id": "EV-133a4a",
+  "gt_id": "GT-4f524f",
+  "stratum": "prereg_v3_tranche1"
+ },
+ "E31A": {
+  "arm": "A",
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch6/s1b_E31_seed5_armA_er2_confT1_a1",
+  "decision_ids": {
+   "D1": "60afd0c1a7c14327a33dccc851e86152",
+   "D2": "e8b7894543cd44d884b9d33eacf4ea26",
+   "D3": "14053fdbb54e4ad89f0c262cc1383cd5"
+  },
+  "events_id": "EV-7bf1e2",
+  "gt_id": "GT-d27635",
+  "stratum": "prereg_v3_tranche1"
+ },
+ "E31B": {
+  "arm": "B",
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/batch6/s1b_E31_seed5_armB_l2off_confT1_a1",
+  "decision_ids": {},
+  "events_id": "EV-3233e2",
+  "gt_id": "GT-96b59e",
+  "stratum": "prereg_v3_tranche1"
+ },
+ "E6": {
+  "arm": "A",
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/churn_wave/s1b_E6_seed6_er2_a3",
+  "decision_ids": {
+   "D1": "93100ae393f14e569f402d23d1d66c75",
+   "D2": "83baf2e4df384c23981aac33f791dfdc",
+   "D3": "7ac8f48298d04b528868a1ee432b8c19",
+   "D4": "a3bbc01725a04c0f92f705f23c30ef59",
+   "D5": "72dc672d3c13462e9ea446894ba6e788"
+  },
+  "events_id": "EV-80fb2a",
+  "gt_id": "GT-36197b",
+  "stratum": "pilot_er2"
+ },
+ "E7": {
+  "arm": "A",
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/live_batch/s1b_E7_seed7_er2_a1",
+  "decision_ids": {
+   "D1": "c7aeaac1fe334d008fce9cd567f54ebd",
+   "D2": "c7d81b130eca4d8a8893f4c389d2c6e6",
+   "D3": "d6272bf300034f36af77e0bb8d996920",
+   "D4": "ca36d29854d7492ca96fa0e0079fa263"
+  },
+  "events_id": "EV-cb3996",
+  "gt_id": "GT-a3cdae",
+  "stratum": "pilot_er2"
+ },
+ "E8": {
+  "arm": "A",
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/live_batch/s1b_E8_seed8_er2_a1",
+  "decision_ids": {
+   "D1": "7003517d426b40e3a54db03aa3be3b04",
+   "D2": "f06c33b31fde441f9cb6a899fbfa73ba",
+   "D3": "1c801c6ebf4f46699a6c27cb759e26a1",
+   "D4": "7cdb641af1234f38a106008faa425877"
+  },
+  "events_id": "EV-a2cfc5",
+  "gt_id": "GT-f5063e",
+  "stratum": "pilot_er2"
+ },
+ "E9": {
+  "arm": "A",
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v3/data/logs/vm_runs/resume/s1b_E9_seed9_er2_b1",
+  "decision_ids": {
+   "D1": "399ef79a766d41faa236c791b879eda4",
+   "D2": "3dc4c5d73f09418390db8eba1b7aa0d9",
+   "D3": "4e0f9898ba6544b3b935dc854b06bf9a",
+   "D4": "487c7ebf98724151a3456861fcbc250f",
+   "D5": "77a423cb55bf46cfb021ae535dfd38b6",
+   "D6": "0312d9149bab44469aeb4f8e38aca036",
+   "D7": "dfa5d6d9d4934a02807db0afa926fcd9"
+  },
+  "events_id": "EV-6f1277",
+  "gt_id": "GT-bc975c",
+  "stratum": "pilot_er2"
+ },
+ "m5D_t01_a1": {
+  "arm": "A",
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7j/data/logs/vm_runs/demo_campaign/m5/runs/m5D_t01_a1",
+  "decision_ids": {
+   "D1": "03bba450201447b78f13d94589a1ade5",
+   "D2": "a15f3fc588d94f018454b3e719bc7c0a",
+   "D3": "c2f7094bf1254fa9a39aff04a69b72f3",
+   "D4": "28865c062e2a4cc88799910d8c4e47ad",
+   "D5": "f53de03829224cbf99cb54773d4dd012",
+   "D6": "cc6332da407c4e7280746fadef75bd6d",
+   "D7": "596b794bf536495a8aed6c11121842b0",
+   "D8": "704fab63ce1e4c59b2f5c8383bd2fe73"
+  },
+  "events_id": "EV-0bdad6",
+  "gt_id": "GT-a74755",
+  "stratum": "nov_2026_takes"
+ },
+ "m5V_t01_a1": {
+  "arm": "A",
+  "bundle": "/Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7j/data/logs/vm_runs/demo_campaign/m5v/runs/m5V_t01_a1",
+  "decision_ids": {
+   "D1": "2461ee6bf74647828d201c02e8446d23",
+   "D2": "597e224f49f44265b8b4c55ae8d6a5c3",
+   "D3": "b07a700f441b4745a6be81f3899668ed",
+   "D4": "95066420efa54188962f5c4f68806a4c",
+   "D5": "6a621c29c66549009e2cffb40d4b20f6",
+   "D6": "45f50dce9933404181d94b0332b2d8ed",
+   "D7": "929335f4a4774da5b32f3f1f8c60c56d",
+   "D8": "2acc6130567a488eb03f234447dbe2da",
+   "D9": "6e4c8849a89a41c4820fa86606f59391"
+  },
+  "events_id": "EV-db0df6",
+  "gt_id": "GT-83c441",
+  "stratum": "nov_2026_takes"
+ }
+}

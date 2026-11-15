@@ -1,0 +1,486 @@
+{
+ "censor": {
+  "t_end_rel": 568.17
+ },
+ "contacts": {
+  "declared_boxes": [
+   "obstacle_1",
+   "obstacle_2",
+   "obstacle_3",
+   "obstacle_4",
+   "obstacle_5",
+   "obstacle_6"
+  ],
+  "recompute_events": [
+   {
+    "category": "static_obstacle",
+    "class": "brief_graze",
+    "end_rel": 156.57,
+    "end_sim_s": 188.4,
+    "max_gap_m": 0.0043,
+    "max_speed_mps": 0.1636,
+    "median_gap_m": 0.00343,
+    "min_gap_m": 0.00316,
+    "min_gap_sim_s": 188.2,
+    "n_rows": 5,
+    "pair": "robot_5|obstacle_1",
+    "pair_verdict": "brief_graze",
+    "row_resolution_m": 0.0164,
+    "span_s": 0.5,
+    "speed_at_min_mps": 0.1456,
+    "start_rel": 156.17,
+    "start_sim_s": 188.0
+   },
+   {
+    "category": "rack",
+    "class": "sustained_contact",
+    "end_rel": 138.87,
+    "end_sim_s": 170.7,
+    "max_gap_m": 0.00124,
+    "max_speed_mps": 0.1128,
+    "median_gap_m": -0.00138,
+    "min_gap_m": -0.00174,
+    "min_gap_sim_s": 166.5,
+    "n_rows": 264,
+    "pair": "robot_5|rack/SW_west",
+    "pair_verdict": "sustained_contact",
+    "row_resolution_m": 0.0113,
+    "span_s": 26.4,
+    "speed_at_min_mps": 0.0152,
+    "start_rel": 112.57,
+    "start_sim_s": 144.4
+   }
+  ],
+  "recompute_min_robot_robot_gap": {
+   "min_gap_m": 0.07953,
+   "robot_ids": [
+    "robot_1",
+    "robot_2"
+   ],
+   "sim_s": 63.3
+  },
+  "recompute_robot_min_static_gap": {
+   "robot_1": {
+    "category": "static_obstacle",
+    "min_gap_m": 0.04671,
+    "obstacle_id": "obstacle_2",
+    "sim_s": 44.5
+   },
+   "robot_2": {
+    "category": "static_obstacle",
+    "min_gap_m": 0.0943,
+    "obstacle_id": "obstacle_1",
+    "sim_s": 133.2
+   },
+   "robot_3": {
+    "category": "static_obstacle",
+    "min_gap_m": 0.3703,
+    "obstacle_id": "obstacle_2",
+    "sim_s": 44.2
+   },
+   "robot_4": {
+    "category": "static_obstacle",
+    "min_gap_m": 0.06615,
+    "obstacle_id": "obstacle_1",
+    "sim_s": 163.1
+   },
+   "robot_5": {
+    "category": "rack",
+    "min_gap_m": -0.00174,
+    "obstacle_id": "rack/SW_west",
+    "sim_s": 166.5
+   }
+  },
+  "recompute_verdicts": {
+   "robot_robot": "clear",
+   "static": "sustained_contact"
+  },
+  "spans_within_0.05m_rel": {
+   "robot_1|box:obstacle_2": [
+    {
+     "contact": false,
+     "from_rel": 12.27,
+     "min_gap_m": 0.0467,
+     "to_rel": 12.97
+    }
+   ],
+   "robot_5|box:obstacle_1": [
+    {
+     "contact": true,
+     "from_rel": 155.67,
+     "min_gap_m": 0.0032,
+     "to_rel": 157.97
+    }
+   ],
+   "robot_5|box:rack/SW_west": [
+    {
+     "contact": true,
+     "from_rel": 111.37,
+     "min_gap_m": -0.0017,
+     "to_rel": 139.47
+    }
+   ]
+  },
+  "undeclared_builder_boxes": [
+   "wall/north",
+   "wall/south",
+   "wall/east",
+   "wall/west",
+   "rack/NE_east",
+   "rack/NE_north",
+   "rack/NW_west",
+   "rack/NW_north",
+   "rack/SE_east",
+   "rack/SE_south",
+   "rack/SW_west",
+   "rack/SW_south"
+  ]
+ },
+ "t2": {
+  "FU1": {
+   "t0": {
+    "footprint": "URDF chassis box (v7m)",
+    "per_robot": {
+     "robot_1": {
+      "headings": {
+       "0": {
+        "blocked_by": null,
+        "distance_m": 0.05,
+        "feasible": true
+       },
+       "135": {
+        "blocked_by": "robot:robot_3@0.17",
+        "distance_m": null,
+        "feasible": false
+       },
+       "180": {
+        "blocked_by": null,
+        "distance_m": 0.47,
+        "feasible": true
+       },
+       "225": {
+        "blocked_by": null,
+        "distance_m": 0.08,
+        "feasible": true
+       },
+       "270": {
+        "blocked_by": null,
+        "distance_m": 0.03,
+        "feasible": true
+       },
+       "315": {
+        "blocked_by": null,
+        "distance_m": 0.03,
+        "feasible": true
+       },
+       "45": {
+        "blocked_by": "box:obstacle_2@0.14",
+        "distance_m": null,
+        "feasible": false
+       },
+       "90": {
+        "blocked_by": "robot:robot_3@0.17",
+        "distance_m": null,
+        "feasible": false
+       }
+      },
+      "start_gap_robot_m": 0.2898,
+      "start_gap_static_m": 0.2754,
+      "start_within_required_clearance": false
+     },
+     "robot_2": {
+      "headings": {
+       "0": {
+        "blocked_by": null,
+        "distance_m": 0.01,
+        "feasible": true
+       },
+       "135": {
+        "blocked_by": null,
+        "distance_m": 0.01,
+        "feasible": true
+       },
+       "180": {
+        "blocked_by": null,
+        "distance_m": 0.01,
+        "feasible": true
+       },
+       "225": {
+        "blocked_by": null,
+        "distance_m": 0.01,
+        "feasible": true
+       },
+       "270": {
+        "blocked_by": null,
+        "distance_m": 0.01,
+        "feasible": true
+       },
+       "315": {
+        "blocked_by": null,
+        "distance_m": 0.01,
+        "feasible": true
+       },
+       "45": {
+        "blocked_by": null,
+        "distance_m": 0.01,
+        "feasible": true
+       },
+       "90": {
+        "blocked_by": null,
+        "distance_m": 0.01,
+        "feasible": true
+       }
+      },
+      "start_gap_robot_m": 0.7851,
+      "start_gap_static_m": 0.2984,
+      "start_within_required_clearance": false
+     },
+     "robot_3": {
+      "headings": {
+       "0": {
+        "blocked_by": "box:obstacle_2@0.27",
+        "distance_m": null,
+        "feasible": false
+       },
+       "135": {
+        "blocked_by": null,
+        "distance_m": 0.03,
+        "feasible": true
+       },
+       "180": {
+        "blocked_by": null,
+        "distance_m": 0.05,
+        "feasible": true
+       },
+       "225": {
+        "blocked_by": null,
+        "distance_m": 0.3,
+        "feasible": true
+       },
+       "270": {
+        "blocked_by": "robot:robot_1@0.17",
+        "distance_m": null,
+        "feasible": false
+       },
+       "315": {
+        "blocked_by": "robot:robot_1@0.17",
+        "distance_m": null,
+        "feasible": false
+       },
+       "45": {
+        "blocked_by": null,
+        "distance_m": 0.08,
+        "feasible": true
+       },
+       "90": {
+        "blocked_by": null,
+        "distance_m": 0.03,
+        "feasible": true
+       }
+      },
+      "start_gap_robot_m": 0.2898,
+      "start_gap_static_m": 0.4001,
+      "start_within_required_clearance": false
+     },
+     "robot_4": {
+      "headings": {
+       "0": {
+        "blocked_by": null,
+        "distance_m": 0.16,
+        "feasible": true
+       },
+       "135": {
+        "blocked_by": null,
+        "distance_m": 0.13,
+        "feasible": true
+       },
+       "180": {
+        "blocked_by": null,
+        "distance_m": 0.38,
+        "feasible": true
+       },
+       "225": {
+        "blocked_by": "robot:robot_5@0.14",
+        "distance_m": null,
+        "feasible": false
+       },
+       "270": {
+        "blocked_by": "robot:robot_5@0.14",
+        "distance_m": null,
+        "feasible": false
+       },
+       "315": {
+        "blocked_by": null,
+        "distance_m": 0.49,
+        "feasible": true
+       },
+       "45": {
+        "blocked_by": null,
+        "distance_m": 0.08,
+        "feasible": true
+       },
+       "90": {
+        "blocked_by": null,
+        "distance_m": 0.08,
+        "feasible": true
+       }
+      },
+      "start_gap_robot_m": 0.2589,
+      "start_gap_static_m": 0.4954,
+      "start_within_required_clearance": false
+     },
+     "robot_5": {
+      "headings": {
+       "0": {
+        "blocked_by": null,
+        "distance_m": 0.38,
+        "feasible": true
+       },
+       "135": {
+        "blocked_by": null,
+        "distance_m": 0.49,
+        "feasible": true
+       },
+       "180": {
+        "blocked_by": null,
+        "distance_m": 0.16,
+        "feasible": true
+       },
+       "225": {
+        "blocked_by": null,
+        "distance_m": 0.08,
+        "feasible": true
+       },
+       "270": {
+        "blocked_by": null,
+        "distance_m": 0.08,
+        "feasible": true
+       },
+       "315": {
+        "blocked_by": null,
+        "distance_m": 0.13,
+        "feasible": true
+       },
+       "45": {
+        "blocked_by": "robot:robot_4@0.14",
+        "distance_m": null,
+        "feasible": false
+       },
+       "90": {
+        "blocked_by": "robot:robot_4@0.14",
+        "distance_m": null,
+        "feasible": false
+       }
+      },
+      "start_gap_robot_m": 0.2589,
+      "start_gap_static_m": 0.4451,
+      "start_within_required_clearance": false
+     }
+    },
+    "required_gap_m": 0.14,
+    "result": true,
+    "shortest": {
+     "distance_m": 0.01,
+     "heading_deg": 0,
+     "robot": "robot_2"
+    },
+    "snapshot_rel": 65.367
+   }
+  }
+ },
+ "units": [
+  {
+   "end_rel": 568.17,
+   "excluded": false,
+   "flags": [],
+   "fu": "FU1",
+   "gt_contacts": {
+    "robot_1|box:obstacle_2": [
+     {
+      "contact": false,
+      "from_rel": 12.27,
+      "min_gap_m": 0.0467,
+      "to_rel": 12.97
+     }
+    ],
+    "robot_5|box:obstacle_1": [
+     {
+      "contact": true,
+      "from_rel": 155.67,
+      "min_gap_m": 0.0032,
+      "to_rel": 157.97
+     }
+    ],
+    "robot_5|box:rack/SW_west": [
+     {
+      "contact": true,
+      "from_rel": 111.37,
+      "min_gap_m": -0.0017,
+      "to_rel": 139.47
+     }
+    ]
+   },
+   "kind": "conflict",
+   "pairs": [
+    [
+     "robot_1",
+     "robot_3"
+    ],
+    [
+     "robot_2",
+     "robot_3"
+    ],
+    [
+     "robot_2",
+     "robot_4"
+    ],
+    [
+     "robot_3",
+     "robot_5"
+    ]
+   ],
+   "robots": [
+    "robot_1",
+    "robot_2",
+    "robot_3",
+    "robot_4",
+    "robot_5"
+   ],
+   "t0_rel": 65.07,
+   "x3_gt": [
+    {
+     "close_and_stopped_from_rel": 65.67,
+     "pair": [
+      "robot_1",
+      "robot_3"
+     ],
+     "until_rel": 568.17
+    },
+    {
+     "close_and_stopped_from_rel": 100.97,
+     "pair": [
+      "robot_2",
+      "robot_3"
+     ],
+     "until_rel": 568.17
+    },
+    {
+     "close_and_stopped_from_rel": 133.57,
+     "pair": [
+      "robot_2",
+      "robot_4"
+     ],
+     "until_rel": 568.17
+    },
+    {
+     "close_and_stopped_from_rel": 267.07,
+     "pair": [
+      "robot_3",
+      "robot_5"
+     ],
+     "until_rel": 568.17
+    }
+   ]
+  }
+ ]
+}
