@@ -5,6 +5,7 @@
 **Revision history:**
 
 - Initial version (pre-declaration): written and committed before the round-2 evidence was generated and before any round-2 coding. It fixes the purpose, the evidence to be added and how, the clock-mapping method and its acceptance tolerance, the scope rule, the instruction to raters and sensitivity S3. Results (counts, validation numbers, the in-scope unit list) are added in a later dated revision line; nothing in this version is changed by that revision except where a revision line says so.
+- Rev 1 (2026-11-15, after the evidence was generated, before any round-2 coding): adds the section "Round-2 Results". The clock mapping failed the acceptance criterion declared in the initial version and is **not applied**; criterion (c) is therefore empty and the 10 units on the no-decision sheets stay `U:no_m4_clock_anchor`. The criterion is not changed. Correction to the tolerance rationale: "the rubric's own reference fit already has residuals up to 1.9 s" is wrong; the round-1 sheets record m4-fit residuals up to 4.934 s (4 of 28 bundles above 1.9 s). The round-1 facts listed below were verified against both raters' JSON files and hold as stated.
 
 ---
 
@@ -81,3 +82,33 @@ The list is produced mechanically from the addendum and both raters' recorded wa
 - EV sheets carry epoch wall times that date the runs (already disclosed in the methods note).
 - Rater B ran one grep across all EV sheets before coding.
 - **Round 2 itself.** Round 2 happens after round-1 codes were seen. The planning session saw rater B's codes; the session that generated the addendum read rater B's ambiguity log and events records to find the missing evidence before generating it. Rater A's output was not read before the addendum was generated; it was read afterwards, with the coordinator's permission, only to build the in-scope list and to verify the facts above. The evidence code reads no rating file.
+
+## Round-2 Results (Rev 1)
+
+All numbers below were produced by running `scripts/failure_cause_evidence.py` (`round2` per bundle, one bundle at a time, then `round2-render`) and `scripts/failure_cause_round2_scope.py`. Aggregates only; per-episode tables are in `full_round2/summary.json` and `full_round2/scope_detail.json` (reconciliation only).
+
+**Regression (same code, same parameters).** For every one of the 33 bundles, the recomputed fidelity rows equal the round-1 sheet's, and one recomputed round-1 T1 row (all three variants' motion sets, and T2) equals the round-1 row (33/33).
+
+**Item 1, T1 at decision snapshots.**
+
+- 50 new T1 rows at positive analyses on a unit's timeline (30 units), plus 23 rows at analyses before the unit's timeline start, supplied for completeness and marked as off the walk (the frozen chain rule does not reach them).
+- Gate on the 50 on-timeline rows: as written 37 `pass`, 13 `U:T1_fidelity`; under S3, 49 `pass`, 1 `U:T1_fidelity`.
+- T1 as written is non-empty at all 73 new snapshots. T2 is true at 71 and false at 2.
+- Every unit whose round-1 walk started at a chain-start decision without a T1 row now has a row at that decision. Of the 18 such units coded `U:T1_not_run` by one rater, the walk-start row is `pass` as written in 8 and `U:T1_fidelity` as written in 10 (9 of these pass under S3). So round 2 replaces `U:T1_not_run` by an as-written T1 result in all 18, but in 10 of them that result is itself `U:T1_fidelity`.
+
+**Item 2, T1 fidelity at onset both ways.** 18 units on 12 sheets have onset T1 `U:T1_fidelity` as written (episode gate). Under S3 the episode gate passes for 15 of them and stays `U:T1_fidelity` for 3. The as-written status is unchanged and governs the primary.
+
+**Item 3, clock anchor.**
+
+- Offset (monotonic to epoch): 10 to 37 matched task-stream events per bundle, spread at most 0.150 s.
+- Validation on the 28 bundles with m4 `sim_t=` anchors (649 anchors):
+  - scene-log map against the m4 single fit: max 4.681 s, median of per-bundle median absolute differences 0.269 s. **5 of 28 bundles exceed 2.0 s, so the declared criterion is not met.** The mapping is not applied.
+  - Post-hoc diagnostic, not a criterion: against the raw m4 `sim_t=` anchor values, the scene-log map's maximum error is 0.452 s over all 28 bundles (median of per-bundle medians 0.069 s), and the signed median is negative in all 28 (the scene stamp lags). In each failing bundle the excess over 2.0 s matches the m4 fit's own maximum residual (up to 4.934 s), so the failure comes from the reference fit, not from the map. On the 5 bundles of the same kit as the no-decision sheets, the map is within 1.23 s of the fit and 0.362 s of the anchors. A single line fitted to the scene anchors is much worse (up to 19.5 s against the anchors) and is not a candidate.
+  - Whether to apply the map anyway is a ruling for the planning session, as a dated revision of this note before any re-coding. The mapped spans, Nav2 times and X2 inputs exist in `full_round2/` only; `round2-render --with-clock` would add them to the addenda and `--with-clock` on the scope script would fill criterion (c). Without that ruling, raters see "not supplied" on those sheets.
+- The rater addenda for the 5 no-decision sheets therefore state that no mapping is supplied and that `U:no_m4_clock_anchor` stands.
+
+**Scope.** 34 of 58 tool units are in scope (`rater_round2/in_scope_units.json`): (a) only 16, (a) and (b) 14, (b) only 4, (c) none. The 24 out of scope include the 10 no-decision units and the 3 parked lone stalls. Every unit either rater coded `U` in round 1 is in scope except the 10 `U:no_m4_clock_anchor` units. The in-scope set contains all 14 of one rater's G4 primaries and all 18 of the other's `U:T1_not_run` primaries. Rater-named decisions without a new row: 202 already had a round-1 row, 15 lie before the unit's timeline (rows supplied, off the walk), 6 are negative analyses (no T1 needed).
+
+**Leak check.** 33 addenda (JSON and Markdown) and the in-scope list: zero hits with the round-1 patterns plus every request id (full and 8-character prefix), labels, bundle names, seeds, run and session ids (`rater_round2/leak_check.json`). No epoch or monotonic time appears in a rater-facing file.
+
+**Pre-existing files.** md5 lists of all 214 files under `rater/`, `rater_gt/`, `key/`, `full/`, `interception/`, `replay/`, `inputs/` and the two top-level JSON files were taken before the run and after it, and are identical (`full_round2/md5_preexisting_{before,after}.txt`). No rating file was written.
