@@ -18,6 +18,7 @@
 - Rev 11 (2026-11-15): added section 12, convoy takes 4–5 with the M3 queued-robot hold (both Unresolved failure: the model chose robot_1 as yielder both times, the latch the scene file names; the grounder held robot_3 and robot_4 as designed), and the simulator-only test (pytest installed beside Isaac's Python; the `pxr` test SKIPPED: no `pxr` in a bare `python.sh`). Updated the final summary's convoy rows, the three-way count and the archive index.
 - Rev 12 (2026-11-15): added section 13, a presentation cut of the five demo videos and a combined presentation video for an audience (offline, renderer profile `presentation`); the engineering cuts stay the record and are unchanged.
 - Rev 13 (2026-11-15): added section 14, the convoy rerun with the queued-robot hold and the counterflow yielder correction (kit `cvy`, one demonstration take): resolved 4/4, labelled "Resolved — grounder held the queued robots; model chose strategy and yielder" (the model named robot_2 itself; the correction was armed and did not fire). Updated the final summary's convoy row, ledger note, "What This Does and Does Not Show" and the archive index. The five earlier convoy takes stay reported as they were.
+- Rev 14 (2026-11-15): rendered the convoy rerun's engineering and presentation videos and combined presentation video v2 with the rerun as two new excerpts after the older convoy excerpts (those two were shortened); the previous combined set is kept with a `_v1` suffix. Added section 14.9 (Videos) and updated the final summary's video table and section 14.6.
 ---
 
 ## Final Summary (Campaign Closed, 2026-11-15)
@@ -30,11 +31,12 @@ Every take is an illustrative demo, not controlled experimental evidence. No tak
 |---|---|---|---|---|
 | 4-robot intersection (`ib`, ER-2, B3; sections 1, 7) | 5 (1) | take 1 Unresolved failure (3/4 arrived); takes 2, 3, 4 M3-default resolution; take 5 VLM-driven execution (all 4/4) | take 5, **VLM-driven execution** (chosen for its label; disclosed) | `ibD_t05_a1_panel.mp4`, `fdf07a82fcb657b738c44a89bfbe3dae` |
 | Convoy counterflow (`cv`, ER-2, legacy grounding; sections 5, 12) | 5 (1) | takes 1–3 Unresolved failure, 0/4 arrived in each; takes 4–5 (queued-robot hold, Rev 11) Unresolved failure, 1/4 arrived in each | take 1, **Unresolved failure** (selected take) | `cvD_t01_a1_panel.mp4`, `824319447d05aaef6623158d00d2818f`; a `_small` copy, `b78cff5b3db4b25f6b8e218111656a42` |
-| Four-robot convoy counterflow scene, rerun (`cvy`, ER-2, legacy grounding, queued-robot hold + counterflow yielder correction; section 14, Rev 13) | 1 (1) | demonstration take 1 resolved, 4/4 arrived (GT) | take 1 (`cvY_t01_a2`), **Resolved — grounder held the queued robots; model chose strategy and yielder** | not rendered yet (candidate: `cvY_t01_a2`, section 14.6) |
+| Four-robot convoy counterflow scene, rerun (`cvy`, ER-2, legacy grounding, queued-robot hold + counterflow yielder correction; section 14, Rev 13) | 1 (1) | demonstration take 1 resolved, 4/4 arrived (GT) | take 1 (`cvY_t01_a2`), **Resolved — grounder held the queued robots; model chose strategy and yielder** | `cvY_t01_a2_panel.mp4`, `92fc06a855ae0527479d1bfe49af2fbc`; presentation cut `presentation/cvY_t01_a2_presentation.mp4`, `60c4ee7c46e9f6ded4f8f3496589e1e0` (Rev 14, section 14.9) |
 | Head-on with obstacle (`ho`, ER-2, prompt v2; section 6) | 1 (0) | take 1 resolved 2/2 | take 1, **M3-default resolution** (grounder-corrected) | `hoD_t01_a1_panel.mp4`, `2aa6534ad508d3440e51822fdcd3f0f0` |
 | Five robots, seed position 21 (`m5`, ER-2; section 8) | 1 (0) | take 1 unresolved, 1/5 arrived | take 1, **Unresolved failure** (limitation demonstration) | `m5D_t01_a1_panel.mp4`, `33e9f5eedd7fb56edd007d8b728ea8c0` (Rev 7; v1 kept as `m5D_t01_a1_panel_v1.mp4`, `75bf99e64c7ebea10573f08eb62440c3`) |
 | Head-on with obstacle, earlier run ER2LIVE (2026-09-30, not part of the campaign; section 11) | — | 1 run, 2/2 arrived | **VLM-driven execution** (model's yielder kept by the gate; escort and Nav2 recovery are the system's) | `ER2LIVE_20260930_panel.mp4`, `93cbfe7108e6a9ca9a71fc4c7c79bd47` (Rev 10) |
 | All four, excerpts, plus the ER2LIVE excerpt (section 9) | — | — | — | `demo_campaign_combined.mp4`, `de8cb6ed07e42008b8acb3f9274352db` (Rev 10, v3; Rev 7 kept as `demo_campaign_combined_v2.mp4`, `1e0fd52025624da723766701ec412131`; v1 kept as `demo_campaign_combined_v1.mp4`, `ace3cc0d765a504441a29d54e74ac3df`) |
+| Presentation combined (sections 13.4, 14.9) | — | — | — | `presentation/presentation_combined.mp4`, `3d45c8d850952f9b7013bd154957034a` (Rev 14, v2, with the convoy rerun; Rev 12 kept as `presentation_combined_v1.mp4`, `ce8f4101b16e544372b2798cf2ce3c20`) |
 
 ### Ledger Totals (`ledger_dmc.py status`, After the Last Invocation)
 
@@ -1137,7 +1139,7 @@ Manifest `presentation_combined_manifest.json` (md5 `da190783a2b2343362a55de927d
 7. m5 19.6–99.0 s (decisions 1 and 2, with the escort into the island; v3's excerpts 5 and 5b are contiguous here);
 8. m5 241.8–281.9 s, then an outcome card.
 
-Each take's excerpts contain the call, the answer, the check, the dispatch (for m5's last excerpt, the withheld refusal) and the outcome. Total 6 min 31 s, about 30 s over the 6 min target: each shown decision now holds about 11 s.
+Each take's excerpts contain the call, the answer, the check, the dispatch (for m5's last excerpt, the withheld refusal) and the outcome. Total 6 min 31 s, about 30 s over the 6 min target: each shown decision now holds about 11 s. (Rev 14: this set is now `presentation_combined_v1.*`; the current `presentation_combined.mp4` adds the convoy rerun, section 14.9.)
 
 ### 13.5 Known Limits
 
@@ -1222,7 +1224,7 @@ Each take's excerpts contain the call, the answer, the check, the dispatch (for 
 
 ### 14.6 Video
 
-Not rendered here (another agent owns the renderer).
+Not rendered in Rev 13 (another agent owns the renderer); rendered in Rev 14, see section 14.9.
 
 - **Candidate.** `cvY_t01_a2` (the only valid take): annotated 5 segments / 1334 frames, raw 7 / 1824, frame maps written by video verify.
 - **Caption facts.** Label "Resolved — grounder held the queued robots; model chose strategy and yielder". The model named only robot_1 and robot_2 and chose robot_2 to yield; the grounder added robot_3 and robot_4 to the crossing order and held them (queued-robot hold); the yielder correction was armed and did not fire; crossing order robot_1 → robot_3 → robot_4, then robot_2 returned; arrivals 75.3 / 116.4 / 158.1 / 180.1 sim-s; closest non-exempt pair 0.497 m; robot_2 passed 0.0185 m from the south barrier on its return (no contact by recompute); one later analysis answered "no congestion" and dispatched nothing. Demonstration take 1 of 1 of the rerun, after five unresolved convoy takes.
@@ -1244,3 +1246,54 @@ Not rendered here (another agent owns the renderer).
 | Sim times of the dispatch (≈ 31.4 s) and M5's release line (≈ 51.7 s); RTF ≈ 0.30 | inferred (interpolation from M4 anchors) |
 | `robot_35` is a start-up perception ghost id, not a robot | inferred (only before sim motion; also in `cvH_t05_a1`'s m4 log) |
 | The VLM resolves convoy congestion | not shown (n = 1; the model's yielder choice varied across takes) |
+
+### 14.9 Videos (Added 2026-11-15, Rev 14)
+
+Offline post-processing on the Mac: no VM, no API call; the bundle was read, never written. Renderer v7g `feat/demo-panel-renderer` at `3a0d464` (commits `8061279`: the presentation check block prints the robots the queued-robot hold added, and both profiles accept this section's label; `9664249`, `3a0d464`: the script `config/demo_presentation/cvY_t01_a2.json`, md5 `9dc87503d3b0c85c40d9133a5905d3be`). Unit tests `test_demo_panel.py` 88 passed, `test_demo_combine.py` 22 passed; ruff clean. Camera pane: the annotated stream, 5 segments, with `rec/annotated_framemap.json` (1334 frames, sim 16.57–260.47 s); time map: log-to-sim alignment within 0.31 sim-s at 21 anchors. Files in v7g `data/demo/campaign/` (git-ignored); no `_small` copy was needed (all under 28 MB).
+
+| File | md5 | Size | ffprobe (H.264, yuv420p, 24 fps) |
+|---|---|---|---|
+| `cvY_t01_a2_panel.mp4` (engineering cut, the record) | `92fc06a855ae0527479d1bfe49af2fbc` | 8.0 MB | 1920x1080, 1790 frames, 74.58 s; the full take, uncut |
+| `presentation/cvY_t01_a2_presentation.mp4` | `60c4ee7c46e9f6ded4f8f3496589e1e0` | 6.5 MB | 1920x1080, 2510 frames, 104.58 s (13 s intro, full take, 10 s outro) |
+| `presentation/presentation_combined.mp4` (v2) | `3d45c8d850952f9b7013bd154957034a` | 26.1 MB | 1920x1124, 10063 frames, 419.29 s (6 min 59 s) |
+
+Beside each: transcript JSON, stills and a `.md5` file (`cvY_t01_a2_panel.md5`, `cvY_t01_a2_presentation.md5`; combined: `presentation_combined.md5` with manifest `cbce7e0b05967af13aa195ac19b2d83c` and sidecar `eb49b9cd7fe056ef8b56afad658d44ad`).
+
+**Engineering cut, captions as rendered** (under the camera pane; the first highlighted):
+
+1. "Resolved — grounder held the queued robots; model chose strategy and yielder"
+2. "VLM: gemini-robotics-er-2-preview · 4 of 4 robots arrived."
+3. "Model: chose yield with robot_2 as yielder and named only the two robots in the standoff."
+4. "Grounder (system): held the two queued robots (queued-robot hold) and sequenced them through the gate; the yielder correction was armed and did not fire."
+5. "Rerun take, after five unresolved convoy takes. Illustrative demo, not controlled experimental evidence; not evidence that the VLM resolves convoy congestion."
+
+**Presentation cut.** Header "Convoy counterflow rerun · take 1 of 1 · VLM: Gemini Robotics-ER 2" (shortened from the reader-facing scene name because the full name overlapped the disclosure); the intro title and the combined title cards use "Four-robot convoy counterflow scene". Every text is in the script file above. In short:
+
+- **Intro card.** The scene (robot_1 meets robot_2 in the gate; robot_3 and robot_4 queue behind robot_1 with goals east of the gate); the coordination layer's trigger and check; what failed in the five earlier takes (takes 1–3: the queued robots released without a command; takes 4–5: the model chose robot_1 as yielder); robots 4, model, rerun take 1 of 1. Watch for: (1) the model's answer involves only robot_1 and robot_2, the queued robots are left on 'continue'; (2) the 'Check' stage shows the grounder adding robot_3 and robot_4; (3) the robots pass the gate one at a time.
+- **Captions** (each from its own log line, none ahead of its event): the approach; the trigger; the model's plan; the check ("Check: the grounder's queued-robot hold added robot_3 and robot_4 to the crossing order and holds them until the gate admits each one (plan repaired, 2 edits: 'continue' became 'cross'). The yielder correction was armed and did not fire: with robot_2 yielding, every robot that crosses starts on the opposite side."); the dispatch; each `gate_admit` (robot_1, robot_3, robot_4); the `gate_release` (robot_2 drives back and passes 0.0185 m from the south barrier, no contact by the offline recompute); the second trigger and its "no congestion" answer. The outcome line ("Outcome: Resolved — grounder held the queued robots; model chose strategy and yielder. 4 of 4 robots arrived.") appears at robot_2's `arrived at base goal` line.
+- **Terminal.** The check block now ends with `$ jq -r '"robots added by the grounder: \(.grounding_queued_crossers_added | join(", "))"' decisions/cfaabdc5*.json`, whose real output is `robots added by the grounder: robot_3, robot_4`; the 4 s check hold follows it. The artifact's `crossing_order=augmented:…` degradation tags and the two `substitute` edits are not printed; the caption states the edits.
+- **Zoom.** ×3.0 inset of the gate (crop 520, 390, 256, 192) from the trigger to robot_1's `gate_admit`.
+- **Outro card.** Title: the label. Lines: 4 of 4 arrived in the order robot_1, robot_3, robot_4, then robot_2 (GT 75.3, 116.4, 158.1, 180.1 sim-s), rerun take 1 of 1 after five unresolved takes; the model's (yield, robot_2 as yielder, robot_1 as passer; named only robot_1 and robot_2); the system's (when to ask; the queued-robot hold, plan repaired, 2 edits; park point and distances; M4's gate admissions and escorts; robot_2's drive home, Nav2); caveats (n = 1; the yielder correction did not fire, so it is untested live; closest non-exempted pair 0.497 m against a 0.45 m safety distance; not evidence that the VLM resolves convoy congestion). No "collision-free".
+
+**Checks (verified).**
+
+- Engineering transcript: 35 log lines, each equal to its `m5.log`/`m4.log` source line and in the displayed filter's output; 11 `$` commands re-run on the bundle print exactly the shown output.
+- Presentation transcript: the same 35 log lines (by source, same order, none added or removed; 3 = 3 collapse markers), each equal to the `sed` stage applied to its source line; 13 commands re-run give the shown output.
+- Stills looked at: intro, trigger, response (plan line), check (the hold's line), dispatch, mid (robot_4 admitted after robot_3), outcome, outro; engineering decision, dispatch, mid and end.
+
+**Combined presentation video v2.** The Rev 12 set was renamed to `presentation_combined_v1.{mp4,md5}`, `_v1_manifest.json`, `_v1_sources.json` (names inside the md5 file fixed; contents unchanged, md5s as in section 13.1). The manifest is the same, plus two excerpts of the rerun placed right after the older convoy excerpts and their outcome card, with the outcome revealed on a card after the second:
+
+1. ib 35.8–116.4 s (unchanged);
+2. cv 26.5–54.0 s (was 17.9–55.0; starts during the model wait, the trigger line stays on screen; keeps the verbatim yield, dispatch, `gate_admit` and the caption on the uncommanded queued robots);
+3. cv 348.0–368.9 s (was 339.8–368.9; keeps the last answer, its `yield refused` and the 8 s wait), then the outcome card;
+4. rerun 26.8–43.3 s, title card "Four-robot convoy counterflow scene — rerun with the queued-robot hold": artifact written (the trigger caption and line still on screen), response, check with the hold's line, dispatch;
+5. rerun 47.8–68.8 s ("…, gate crossings", 8x sim time): the three `gate_admit`s, `gate_release`, the arrivals of robot_1, robot_3 and robot_4; then an outcome card with robot_2's return and arrival at 180.1 s, what was the model's and the grounder's, and the caveats;
+6.–10. ho, ER2LIVE ×2, m5 ×2 (unchanged).
+
+Trims show on the caption bar (for example `excerpt 26.8-43.3 s of 104.6 s`). Stills looked at: the rerun title card, the check frame, a gate-crossing frame (robot_3 admitted, robot_4 held) and the rerun outcome card, plus the two shortened cv excerpts (decision and refusal).
+
+**Known limits.**
+
+- The two older cv excerpts still say "take 1 of 3" (their burned-in header and the unchanged manifest titles); the campaign has five such takes (section 12).
+- The rerun outcome card in the combined video carries about 80 words on a 3 s card; pause there.
+- The combined video does not show robot_2's own return drive; its outcome card states it.
