@@ -1,0 +1,199 @@
+{
+  "_fixture_source": "v3 batch2/s1b_E16_seed16_er2_c1/decisions/df2ed72f21c04b9492900561f68248f5.json",
+  "decision": {
+    "blocker_kind": "robot",
+    "congestion_detected": true,
+    "crossing_order": null,
+    "involved_robots": [
+      "robot_1",
+      "robot_2",
+      "robot_3",
+      "robot_4"
+    ],
+    "justification": "Since reversing has failed, we must reroute robot_4 and robot_3 to use alternative paths to clear the area.",
+    "proposed_plan": [
+      {
+        "action": "reroute",
+        "robot_id": "robot_3"
+      },
+      {
+        "action": "reroute",
+        "robot_id": "robot_4"
+      },
+      {
+        "action": "wait",
+        "robot_id": "robot_1"
+      },
+      {
+        "action": "wait",
+        "robot_id": "robot_2"
+      },
+      {
+        "action": "continue",
+        "robot_id": "robot_5"
+      }
+    ],
+    "reasoning": "The previous attempt to reverse robot_3 and robot_4 failed after 196 seconds, indicating they are still blocked or unable to execute that maneuver. Robot 1 and robot 4 are in very close proximity (0.41 m), causing a bottleneck or deadlock, while robot 2 and robot 3 are also very close (0.42 m). We will change the strategy to rerouting to clear the deadlock.",
+    "root_cause": "Robots 1 and 4, and robots 2 and 3, are in close physical conflict and unable to resolve via simple reversing.",
+    "strategy": "reroute",
+    "type": "deadlock",
+    "yield_robot": null
+  },
+  "dispatch_dropped_robot_ids": [],
+  "dispatched_command": {
+    "actions": [
+      {
+        "action": "reroute",
+        "parameters": {
+          "plan_id": 2,
+          "waypoints": []
+        },
+        "robot_id": "robot_1"
+      },
+      {
+        "action": "temporary_wait",
+        "parameters": {
+          "duration_sec": 15.0,
+          "plan_id": 2
+        },
+        "robot_id": "robot_2"
+      },
+      {
+        "action": "temporary_wait",
+        "parameters": {
+          "duration_sec": 15.0,
+          "plan_id": 2
+        },
+        "robot_id": "robot_3"
+      },
+      {
+        "action": "temporary_wait",
+        "parameters": {
+          "duration_sec": 15.0,
+          "plan_id": 2
+        },
+        "robot_id": "robot_4"
+      }
+    ],
+    "command_id": "df2ed72f21c04b9492900561f68248f5-reroute",
+    "degradations": [],
+    "expected_resolution_time_sec": 8.0,
+    "fallback": "stop"
+  },
+  "dispatched_robot_ids": [
+    "robot_1",
+    "robot_2",
+    "robot_3",
+    "robot_4"
+  ],
+  "grounding_degradations": [],
+  "plan": {
+    "cancel_order": [
+      "robot_2",
+      "robot_1"
+    ],
+    "dispatch_matches_plan": false,
+    "edits": [],
+    "legs": [
+      {
+        "action": "reroute",
+        "robot_id": "robot_3",
+        "status": "pending"
+      },
+      {
+        "action": "reroute",
+        "robot_id": "robot_4",
+        "status": "pending"
+      },
+      {
+        "action": "wait",
+        "robot_id": "robot_1",
+        "status": "pending"
+      },
+      {
+        "action": "wait",
+        "robot_id": "robot_2",
+        "status": "pending"
+      },
+      {
+        "action": "continue",
+        "robot_id": "robot_5",
+        "status": "pending"
+      }
+    ],
+    "order_equivalent": false,
+    "plan_held": false,
+    "plan_id": 2,
+    "provenance": "vlm_verbatim",
+    "rejection_reason": null,
+    "superseded_plan_id": 1
+  },
+  "plan_state": {
+    "changed_robot_ids": [],
+    "legs": [
+      {
+        "action": "reverse",
+        "robot_id": "robot_3",
+        "status": "failed"
+      },
+      {
+        "action": "reverse",
+        "robot_id": "robot_4",
+        "status": "failed"
+      },
+      {
+        "action": "continue",
+        "robot_id": "robot_1",
+        "status": "pending"
+      },
+      {
+        "action": "continue",
+        "robot_id": "robot_2",
+        "status": "pending"
+      },
+      {
+        "action": "continue",
+        "robot_id": "robot_5",
+        "status": "pending"
+      }
+    ],
+    "plan_id": 1
+  },
+  "request_id": "df2ed72f21c04b9492900561f68248f5",
+  "run_id": "20261011_162753",
+  "scene": {
+    "robots": [
+      {
+        "robot_id": "robot_4",
+        "theta": -3.0466424485917574,
+        "x": -0.5818377322131438,
+        "y": 1.2333892056297708
+      },
+      {
+        "robot_id": "robot_2",
+        "theta": 2.0564249865338238,
+        "x": -1.9296528534634416,
+        "y": 0.8411452886450381
+      },
+      {
+        "robot_id": "robot_3",
+        "theta": -0.04874107719571535,
+        "x": -1.866456994908456,
+        "y": 1.2530014014790074
+      },
+      {
+        "robot_id": "robot_5",
+        "theta": -2.622453391660417,
+        "x": 1.9666987015818822,
+        "y": -0.3443029937977099
+      },
+      {
+        "robot_id": "robot_1",
+        "theta": -3.092851576394079,
+        "x": -0.2734855258155413,
+        "y": 0.9653558623568701
+      }
+    ],
+    "stamp": 83.533333333
+  }
+}

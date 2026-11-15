@@ -1,0 +1,223 @@
+{
+  "_fixture_source": "v7j demo_campaign/m5v/runs/m5V_t01_a1/decisions/b07a700f441b4745a6be81f3899668ed.json",
+  "decision": {
+    "blocker_kind": "robot",
+    "congestion_detected": true,
+    "crossing_order": [
+      "robot_1",
+      "robot_2",
+      "robot_3",
+      "robot_4"
+    ],
+    "involved_robots": [
+      "robot_1",
+      "robot_2",
+      "robot_3",
+      "robot_4"
+    ],
+    "justification": "Having the robots on one side of each pair (robot_4 and robot_3) reverse will quickly resolve both head-on standoffs.",
+    "proposed_plan": [
+      {
+        "action": "reverse",
+        "robot_id": "robot_4"
+      },
+      {
+        "action": "reverse",
+        "robot_id": "robot_3"
+      },
+      {
+        "action": "cross",
+        "robot_id": "robot_1"
+      },
+      {
+        "action": "cross",
+        "robot_id": "robot_2"
+      },
+      {
+        "action": "continue",
+        "robot_id": "robot_5"
+      }
+    ],
+    "reasoning": "There are two separate head-on deadlocks in the scene: robot_1 and robot_4 are within 0.32m facing each other, and robot_2 and robot_3 are within 0.40m facing each other. The active plan leaves them waiting or continuing into each other, which cannot resolve the deadlock. I will propose a plan where robot_4 and robot_3 reverse to clear the deadlocks.",
+    "root_cause": "Two separate pairs of robots (robot_1/robot_4 and robot_2/robot_3) are in head-on deadlocks within close proximity.",
+    "strategy": "reverse",
+    "type": "deadlock",
+    "yield_robot": null
+  },
+  "dispatch_dropped_robot_ids": [],
+  "dispatched_command": {
+    "actions": [
+      {
+        "action": "reverse",
+        "parameters": {
+          "backup_distance_m": 1.3,
+          "backup_line_hold": true,
+          "fresh_latch_fast_fail": true,
+          "plan_id": 2
+        },
+        "robot_id": "robot_1"
+      },
+      {
+        "action": "reverse",
+        "parameters": {
+          "backup_distance_m": 1.3,
+          "backup_line_hold": true,
+          "fresh_latch_fast_fail": true,
+          "plan_id": 2
+        },
+        "robot_id": "robot_2"
+      },
+      {
+        "action": "reverse",
+        "parameters": {
+          "backup_distance_m": 1.3,
+          "backup_line_hold": true,
+          "fresh_latch_fast_fail": true,
+          "plan_id": 2
+        },
+        "robot_id": "robot_3"
+      }
+    ],
+    "command_id": "b07a700f441b4745a6be81f3899668ed-reverse",
+    "degradations": [
+      "grounding=node_handoff:robot_1->robot_4",
+      "grounding=dynamic_arms:ambiguous"
+    ],
+    "expected_resolution_time_sec": 8.0,
+    "fallback": "stop"
+  },
+  "dispatched_robot_ids": [
+    "robot_1",
+    "robot_2",
+    "robot_3"
+  ],
+  "grounding_degradations": [
+    "grounding=node_handoff:robot_1->robot_4",
+    "grounding=dynamic_arms:ambiguous"
+  ],
+  "plan": {
+    "cancel_order": [
+      "robot_3",
+      "robot_2",
+      "robot_4"
+    ],
+    "dispatch_matches_plan": false,
+    "edits": [
+      {
+        "op": "substitute",
+        "reason": "robot_1: cross infeasible: cross leg has no preceding yield leg to release it; substituted to wait toward M3's derived plan",
+        "robot_ids": [
+          "robot_1"
+        ]
+      },
+      {
+        "op": "substitute",
+        "reason": "robot_2: cross infeasible: cross leg has no preceding yield leg to release it; substituted to wait toward M3's derived plan",
+        "robot_ids": [
+          "robot_2"
+        ]
+      }
+    ],
+    "legs": [
+      {
+        "action": "reverse",
+        "robot_id": "robot_4",
+        "status": "pending"
+      },
+      {
+        "action": "reverse",
+        "robot_id": "robot_3",
+        "status": "pending"
+      },
+      {
+        "action": "wait",
+        "robot_id": "robot_1",
+        "status": "pending"
+      },
+      {
+        "action": "wait",
+        "robot_id": "robot_2",
+        "status": "pending"
+      },
+      {
+        "action": "continue",
+        "robot_id": "robot_5",
+        "status": "pending"
+      }
+    ],
+    "order_equivalent": false,
+    "plan_held": false,
+    "plan_id": 2,
+    "provenance": "repaired",
+    "rejection_reason": null,
+    "superseded_plan_id": 1
+  },
+  "plan_state": {
+    "changed_robot_ids": [],
+    "legs": [
+      {
+        "action": "wait",
+        "robot_id": "robot_1",
+        "status": "pending"
+      },
+      {
+        "action": "wait",
+        "robot_id": "robot_4",
+        "status": "pending"
+      },
+      {
+        "action": "continue",
+        "robot_id": "robot_2",
+        "status": "pending"
+      },
+      {
+        "action": "continue",
+        "robot_id": "robot_5",
+        "status": "pending"
+      },
+      {
+        "action": "continue",
+        "robot_id": "robot_3",
+        "status": "pending"
+      }
+    ],
+    "plan_id": 1
+  },
+  "request_id": "b07a700f441b4745a6be81f3899668ed",
+  "run_id": "20261115_083119",
+  "scene": {
+    "robots": [
+      {
+        "robot_id": "robot_1",
+        "theta": -0.07485866135124278,
+        "x": -0.8476961716513594,
+        "y": -1.3565102129055342
+      },
+      {
+        "robot_id": "robot_2",
+        "theta": -0.35298522770823376,
+        "x": 1.0503587525345899,
+        "y": 0.8019208969465648
+      },
+      {
+        "robot_id": "robot_5",
+        "theta": -2.2848948982831208,
+        "x": -0.36174181103888325,
+        "y": 1.2333892056297708
+      },
+      {
+        "robot_id": "robot_3",
+        "theta": 2.39067152590983,
+        "x": 1.3619797102367606,
+        "y": 0.5578580152671755
+      },
+      {
+        "robot_id": "robot_4",
+        "theta": -3.068553246022637,
+        "x": -0.6265106667089095,
+        "y": -1.1320595270753815
+      }
+    ],
+    "stamp": 56.9
+  }
+}

@@ -1,0 +1,208 @@
+{
+  "_fixture_source": "v7j demo_campaign/m5/runs/m5D_t01_a1/decisions/03bba450201447b78f13d94589a1ade5.json",
+  "decision": {
+    "blocker_kind": "robot",
+    "congestion_detected": true,
+    "crossing_order": [
+      "robot_4",
+      "robot_1"
+    ],
+    "involved_robots": [
+      "robot_1",
+      "robot_4"
+    ],
+    "justification": "robot_1 is closer to a wider area to step aside, so robot_1 should yield and allow robot_4 to pass.",
+    "proposed_plan": [
+      {
+        "action": "yield",
+        "robot_id": "robot_1"
+      },
+      {
+        "action": "cross",
+        "robot_id": "robot_4"
+      },
+      {
+        "action": "continue",
+        "robot_id": "robot_2"
+      },
+      {
+        "action": "continue",
+        "robot_id": "robot_3"
+      },
+      {
+        "action": "continue",
+        "robot_id": "robot_5"
+      }
+    ],
+    "reasoning": "robot_1 and robot_4 are in very close proximity (0.26 m) and directly face each other, with robot_4 stopped and robot_1 slow, creating a head-on deadlock. robot_1 should yield (step aside/back up) to let robot_4 proceed to its goal.",
+    "root_cause": "robot_1 and robot_4 are in a head-on standoff in a narrow lane, blocking each other's progress.",
+    "strategy": "yield",
+    "type": "deadlock",
+    "yield_robot": "robot_1"
+  },
+  "dispatch_dropped_robot_ids": [],
+  "dispatched_command": {
+    "actions": [
+      {
+        "action": "yield",
+        "parameters": {
+          "backup_distance_m": 1.514,
+          "backup_facing_rad": 0.0,
+          "backup_line_hold": true,
+          "backup_reference_yaw_rad": -0.25732,
+          "crossing_order": [
+            "robot_4"
+          ],
+          "fresh_latch_fast_fail": true,
+          "hold_sec": 45.0,
+          "passer_clear_m": 1.671,
+          "passer_escort_distance_m": 1.671,
+          "passer_escort_heading_rad": 3.141593,
+          "passer_escort_reference_yaw_rad": 2.963999,
+          "passer_robot_id": "robot_4",
+          "plan_id": 1,
+          "pull_off_lateral_m": 0.72,
+          "reason": "robot_1 and robot_4 are in a head-on standoff in a narrow lane, blocking each other's progress.",
+          "retreat_choice": "A",
+          "retreat_x_m": -2.329,
+          "retreat_y_m": -0.603
+        },
+        "robot_id": "robot_1"
+      },
+      {
+        "action": "temporary_wait",
+        "parameters": {
+          "duration_sec": 120.0,
+          "linked_position": 0,
+          "plan_id": 1
+        },
+        "robot_id": "robot_4"
+      },
+      {
+        "action": "temporary_wait",
+        "parameters": {
+          "duration_sec": 120.0,
+          "plan_id": 1,
+          "reason": "retreat shield: intent crosses robot_1's retreat",
+          "requested_strategy": "yield",
+          "retreat_shield_hold": true
+        },
+        "robot_id": "robot_5"
+      },
+      {
+        "action": "temporary_wait",
+        "parameters": {
+          "duration_sec": 120.0,
+          "plan_id": 1,
+          "reason": "retreat shield: intent crosses robot_1's retreat",
+          "requested_strategy": "yield",
+          "retreat_shield_hold": true
+        },
+        "robot_id": "robot_3"
+      }
+    ],
+    "command_id": "03bba450201447b78f13d94589a1ade5-yield",
+    "degradations": [
+      "retreat=escort_park_filtered:A:robot_4:0.178",
+      "retreat=default:no_choice",
+      "grounding=node_handoff:robot_1->robot_4",
+      "grounding=dynamic_arms:lane:x",
+      "grounding=escort_turn_cap:robot_4:2.35->1.671",
+      "grounding=retreat_shield:robot_5",
+      "grounding=retreat_shield:robot_3"
+    ],
+    "expected_resolution_time_sec": 150.0,
+    "fallback": "stop"
+  },
+  "dispatched_robot_ids": [
+    "robot_1",
+    "robot_4",
+    "robot_5",
+    "robot_3"
+  ],
+  "grounding_degradations": [
+    "retreat=escort_park_filtered:A:robot_4:0.178",
+    "retreat=default:no_choice",
+    "grounding=node_handoff:robot_1->robot_4",
+    "grounding=dynamic_arms:lane:x",
+    "grounding=escort_turn_cap:robot_4:2.35->1.671",
+    "grounding=retreat_shield:robot_5",
+    "grounding=retreat_shield:robot_3"
+  ],
+  "plan": {
+    "cancel_order": [],
+    "dispatch_matches_plan": false,
+    "edits": [],
+    "legs": [
+      {
+        "action": "yield",
+        "robot_id": "robot_1",
+        "status": "pending"
+      },
+      {
+        "action": "cross",
+        "robot_id": "robot_4",
+        "status": "pending"
+      },
+      {
+        "action": "continue",
+        "robot_id": "robot_2",
+        "status": "pending"
+      },
+      {
+        "action": "continue",
+        "robot_id": "robot_3",
+        "status": "pending"
+      },
+      {
+        "action": "continue",
+        "robot_id": "robot_5",
+        "status": "pending"
+      }
+    ],
+    "order_equivalent": false,
+    "plan_held": false,
+    "plan_id": 1,
+    "provenance": "vlm_verbatim",
+    "rejection_reason": null,
+    "superseded_plan_id": null
+  },
+  "plan_state": null,
+  "request_id": "03bba450201447b78f13d94589a1ade5",
+  "run_id": "20261115_042322",
+  "scene": {
+    "robots": [
+      {
+        "robot_id": "robot_4",
+        "theta": 2.96399925231977,
+        "x": -0.6286898342452883,
+        "y": -1.1385969256917936
+      },
+      {
+        "robot_id": "robot_1",
+        "theta": -0.2573198000065894,
+        "x": -0.8150086586056771,
+        "y": -1.3227336533874043
+      },
+      {
+        "robot_id": "robot_2",
+        "theta": -0.2984944603944541,
+        "x": 1.0645233415210522,
+        "y": 0.8476826872614502
+      },
+      {
+        "robot_id": "robot_5",
+        "theta": 0.04995760235021031,
+        "x": -2.0113716360776475,
+        "y": 1.3837493738072517
+      },
+      {
+        "robot_id": "robot_3",
+        "theta": 2.268706981549002,
+        "x": 1.353263040091245,
+        "y": 0.6090676377624045
+      }
+    ],
+    "stamp": 44.466666666
+  }
+}

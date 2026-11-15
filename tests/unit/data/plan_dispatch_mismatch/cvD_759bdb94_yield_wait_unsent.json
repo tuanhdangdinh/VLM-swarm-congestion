@@ -1,0 +1,139 @@
+{
+  "_fixture_source": "v7j demo_campaign/cv/runs/cvD_t02_a1/decisions/759bdb9490c34c96ba85100a630a0f50.json",
+  "decision": {
+    "blocker_kind": "robot",
+    "congestion_detected": true,
+    "crossing_order": null,
+    "involved_robots": [
+      "robot_1",
+      "robot_2"
+    ],
+    "justification": "robot_1 should yield and back up to allow robot_2 to pass, or vice versa, to resolve the close-quarters head-on deadlock.",
+    "proposed_plan": [
+      {
+        "action": "yield",
+        "robot_id": "robot_1"
+      },
+      {
+        "action": "cross",
+        "robot_id": "robot_2"
+      },
+      {
+        "action": "wait",
+        "robot_id": "robot_3"
+      },
+      {
+        "action": "wait",
+        "robot_id": "robot_4"
+      }
+    ],
+    "reasoning": "robot_1 and robot_2 are within 0.27 m of each other in a narrow aisle, both facing each other and stopped. This constitutes a head-on deadlock that requires one robot to yield or reverse to resolve.",
+    "root_cause": "robot_1 and robot_2 are stopped face-to-face in a narrow aisle block.",
+    "strategy": "yield",
+    "type": "deadlock",
+    "yield_robot": "robot_1"
+  },
+  "dispatch_dropped_robot_ids": [],
+  "dispatched_command": {
+    "actions": [
+      {
+        "action": "yield",
+        "parameters": {
+          "backup_distance_m": 0.993,
+          "hold_sec": 45.0,
+          "park_axis": "x",
+          "park_coord_m": -1.124,
+          "park_x_m": -1.124,
+          "passer_clear_m": 1.904,
+          "passer_escort_distance_m": 1.904,
+          "passer_robot_id": "robot_2",
+          "plan_id": 1,
+          "pull_off_lateral_m": 0.36,
+          "reason": "robot_1 and robot_2 are stopped face-to-face in a narrow aisle block."
+        },
+        "robot_id": "robot_1"
+      },
+      {
+        "action": "temporary_wait",
+        "parameters": {
+          "duration_sec": 120.0,
+          "plan_id": 1
+        },
+        "robot_id": "robot_2"
+      }
+    ],
+    "command_id": "759bdb9490c34c96ba85100a630a0f50-yield",
+    "expected_resolution_time_sec": 150.0,
+    "fallback": "stop"
+  },
+  "dispatched_robot_ids": [
+    "robot_1",
+    "robot_2"
+  ],
+  "grounding_degradations": null,
+  "plan": {
+    "cancel_order": [],
+    "dispatch_matches_plan": false,
+    "edits": [],
+    "legs": [
+      {
+        "action": "yield",
+        "robot_id": "robot_1",
+        "status": "pending"
+      },
+      {
+        "action": "cross",
+        "robot_id": "robot_2",
+        "status": "pending"
+      },
+      {
+        "action": "wait",
+        "robot_id": "robot_3",
+        "status": "pending"
+      },
+      {
+        "action": "wait",
+        "robot_id": "robot_4",
+        "status": "pending"
+      }
+    ],
+    "order_equivalent": false,
+    "plan_held": false,
+    "plan_id": 1,
+    "provenance": "vlm_verbatim",
+    "rejection_reason": null,
+    "superseded_plan_id": null
+  },
+  "plan_state": null,
+  "request_id": "759bdb9490c34c96ba85100a630a0f50",
+  "run_id": "20261115_011738",
+  "scene": {
+    "robots": [
+      {
+        "robot_id": "robot_3",
+        "theta": 0.0,
+        "x": -1.908950761867843,
+        "y": 0.002179132872137446
+      },
+      {
+        "robot_id": "robot_2",
+        "theta": 3.141592653589793,
+        "x": 0.1296604684145397,
+        "y": 0.03922439169847314
+      },
+      {
+        "robot_id": "robot_4",
+        "theta": 0.0,
+        "x": -2.4820718239354718,
+        "y": 0.002179132872137446
+      },
+      {
+        "robot_id": "robot_1",
+        "theta": -0.09966707753026485,
+        "x": -0.13075005218272873,
+        "y": -0.013074797232824453
+      }
+    ],
+    "stamp": 28.866666666
+  }
+}
