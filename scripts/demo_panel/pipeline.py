@@ -114,14 +114,20 @@ def gt_scene(b: Bundle) -> GroundTruthScene:
 
 
 def run_caption(b: Bundle) -> str:
-    """Top caption: run label, scenario, arm, backend, start date (UTC)."""
+    """Top caption: run label, scenario, arm, backend, start date (UTC).
+
+    Older `CONDITION.txt` files name the scenario `variant=` and have no arm;
+    a missing arm is left out rather than printed as None.
+    """
     c = b.condition
     started = str(b.manifest.get("started_at_utc", ""))[:16].replace("T", " ")
     layer2_off = any("reasoning_enabled=false" in ln for ln in b.m5)
-    return (
-        f"{c.get('label', b.name)}  |  {c.get('scenario')}  |  arm {c.get('arm')}  |  "
-        f"{'Layer 2 OFF' if layer2_off else 'backend ' + str(c.get('backend'))}  |  {started} UTC"
-    )
+    parts = [c.get("label", b.name), str(c.get("scenario", c.get("variant")))]
+    if "arm" in c:
+        parts.append(f"arm {c['arm']}")
+    parts.append("Layer 2 OFF" if layer2_off else f"backend {c.get('backend')}")
+    parts.append(f"{started} UTC")
+    return "  |  ".join(parts)
 
 
 def timeline_items(t: Transcript, pane: TerminalPane) -> list[TimelineItem]:

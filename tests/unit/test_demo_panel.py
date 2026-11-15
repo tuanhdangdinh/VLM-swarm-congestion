@@ -21,7 +21,7 @@ import pytest
 
 from scripts.demo_panel import logparse as lp
 from scripts.demo_panel.bundle import build_time_map, fallback_anchor, load_bundle, load_gt
-from scripts.demo_panel.pipeline import load_clip_map
+from scripts.demo_panel.pipeline import load_clip_map, run_caption
 from scripts.demo_panel.render import wrap_text
 from scripts.demo_panel.scene import CameraClipScene
 from scripts.demo_panel.terminal import (
@@ -438,3 +438,18 @@ def test_compositor_draws_captions_under_scene_and_leaves_terminal_unchanged(tmp
 
     assert caption_pixels(img) > 50
     assert caption_pixels(plain) == 0
+
+
+def test_run_caption_uses_variant_and_omits_missing_arm(tmp_path):
+    root = make_bundle(tmp_path)
+    (root / "CONDITION.txt").write_text(
+        "variant=head_on_x side=west label=ER2LIVE backend=gemini\n"
+    )
+    cap = run_caption(load_bundle(root))
+    assert cap.startswith("ER2LIVE  |  head_on_x  |  backend gemini")
+    assert "None" not in cap and "arm" not in cap
+
+
+def test_run_caption_keeps_scenario_and_arm(tmp_path):
+    cap = run_caption(load_bundle(make_bundle(tmp_path)))
+    assert "arm A" in cap and "backend gemini" in cap
