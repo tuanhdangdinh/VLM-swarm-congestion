@@ -1,0 +1,1490 @@
+[
+ {
+  "request": "53264de9",
+  "side": "west",
+  "raw": false,
+  "robot_px": {
+   "robot_1": [
+    609,
+    482
+   ],
+   "robot_2": [
+    667,
+    480
+   ]
+  },
+  "robot_sep_px": 58,
+  "marker_white_wh_px": [
+   [
+    30,
+    30
+   ],
+   [
+    29,
+    29
+   ]
+  ],
+  "label_rows": [
+   444,
+   457
+  ],
+  "label_strip_h": 14,
+  "x_height_px": 8,
+  "label_gap_px": 3,
+  "label_floor_rgb": [
+   56.0,
+   55.0,
+   48.0
+  ],
+  "label_contrast": 1.97,
+  "obstacle_top_bbox": [
+   128,
+   204,
+   442,
+   518
+  ],
+  "obstacle_top_wh": [
+   77,
+   77
+  ],
+  "obstacle_rgb": [
+   147.0,
+   147.0,
+   146.0
+  ],
+  "corridor_rgb": [
+   66.0,
+   65.0,
+   59.0
+  ],
+  "obstacle_contrast": 3.33,
+  "near_robot_to_obstacle_px": 405,
+  "set": "original"
+ },
+ {
+  "request": "5e7b5a59",
+  "side": "west",
+  "raw": false,
+  "robot_px": {
+   "robot_1": [
+    612,
+    481
+   ],
+   "robot_2": [
+    669,
+    480
+   ]
+  },
+  "robot_sep_px": 57,
+  "marker_white_wh_px": [
+   [
+    28,
+    29
+   ],
+   [
+    29,
+    30
+   ]
+  ],
+  "label_rows": [
+   444,
+   456
+  ],
+  "label_strip_h": 13,
+  "x_height_px": 8,
+  "label_gap_px": 2,
+  "label_floor_rgb": [
+   56.5,
+   55.0,
+   48.0
+  ],
+  "label_contrast": 1.96,
+  "obstacle_top_bbox": [
+   128,
+   204,
+   442,
+   518
+  ],
+  "obstacle_top_wh": [
+   77,
+   77
+  ],
+  "obstacle_rgb": [
+   147.0,
+   147.0,
+   147.0
+  ],
+  "corridor_rgb": [
+   66.0,
+   65.0,
+   59.0
+  ],
+  "obstacle_contrast": 3.33,
+  "near_robot_to_obstacle_px": 408,
+  "set": "original"
+ },
+ {
+  "request": "2c3fbfa5",
+  "side": "west",
+  "raw": false,
+  "robot_px": {
+   "robot_1": [
+    608,
+    480
+   ],
+   "robot_2": [
+    670,
+    480
+   ]
+  },
+  "robot_sep_px": 62,
+  "marker_white_wh_px": [
+   [
+    29,
+    29
+   ],
+   [
+    29,
+    29
+   ]
+  ],
+  "label_rows": [
+   444,
+   455
+  ],
+  "label_strip_h": 12,
+  "x_height_px": 8,
+  "label_gap_px": 7,
+  "label_floor_rgb": [
+   56.0,
+   54.0,
+   48.0
+  ],
+  "label_contrast": 1.99,
+  "obstacle_top_bbox": [
+   128,
+   204,
+   442,
+   518
+  ],
+  "obstacle_top_wh": [
+   77,
+   77
+  ],
+  "obstacle_rgb": [
+   147.0,
+   147.0,
+   147.0
+  ],
+  "corridor_rgb": [
+   67.0,
+   66.0,
+   60.0
+  ],
+  "obstacle_contrast": 3.28,
+  "near_robot_to_obstacle_px": 404,
+  "set": "original"
+ },
+ {
+  "request": "61119197",
+  "side": "east",
+  "raw": false,
+  "robot_px": {
+   "robot_1": [
+    613,
+    482
+   ],
+   "robot_2": [
+    668,
+    480
+   ]
+  },
+  "robot_sep_px": 55,
+  "marker_white_wh_px": [
+   [
+    28,
+    28
+   ],
+   [
+    29,
+    29
+   ]
+  ],
+  "label_rows": [
+   444,
+   455
+  ],
+  "label_strip_h": 12,
+  "x_height_px": null,
+  "label_gap_px": 0,
+  "label_floor_rgb": [
+   57.0,
+   55.0,
+   48.0
+  ],
+  "label_contrast": 1.96,
+  "obstacle_top_bbox": [
+   1075,
+   1151,
+   442,
+   518
+  ],
+  "obstacle_top_wh": [
+   77,
+   77
+  ],
+  "obstacle_rgb": [
+   147.0,
+   147.0,
+   146.0
+  ],
+  "corridor_rgb": [
+   67.0,
+   65.0,
+   60.0
+  ],
+  "obstacle_contrast": 3.32,
+  "near_robot_to_obstacle_px": 407,
+  "set": "original"
+ },
+ {
+  "request": "d053d0dc",
+  "side": "east",
+  "raw": false,
+  "robot_px": {
+   "robot_1": [
+    609,
+    482
+   ],
+   "robot_2": [
+    669,
+    481
+   ]
+  },
+  "robot_sep_px": 60,
+  "marker_white_wh_px": [
+   [
+    30,
+    30
+   ],
+   [
+    29,
+    29
+   ]
+  ],
+  "label_rows": [
+   445,
+   457
+  ],
+  "label_strip_h": 13,
+  "x_height_px": 8,
+  "label_gap_px": 5,
+  "label_floor_rgb": [
+   57.0,
+   56.0,
+   49.0
+  ],
+  "label_contrast": 1.94,
+  "obstacle_top_bbox": [
+   1075,
+   1151,
+   442,
+   518
+  ],
+  "obstacle_top_wh": [
+   77,
+   77
+  ],
+  "obstacle_rgb": [
+   147.0,
+   147.0,
+   147.0
+  ],
+  "corridor_rgb": [
+   67.0,
+   66.0,
+   60.0
+  ],
+  "obstacle_contrast": 3.28,
+  "near_robot_to_obstacle_px": 406,
+  "set": "original"
+ },
+ {
+  "request": "3120c65f",
+  "side": "east",
+  "raw": false,
+  "robot_px": {
+   "robot_1": [
+    588,
+    483
+   ],
+   "robot_2": [
+    679,
+    479
+   ]
+  },
+  "robot_sep_px": 91,
+  "marker_white_wh_px": [
+   [
+    28,
+    29
+   ],
+   [
+    30,
+    29
+   ]
+  ],
+  "label_rows": [
+   443,
+   457
+  ],
+  "label_strip_h": 15,
+  "x_height_px": 7,
+  "label_gap_px": 36,
+  "label_floor_rgb": [
+   55.0,
+   53.0,
+   46.0
+  ],
+  "label_contrast": 2.02,
+  "obstacle_top_bbox": [
+   1075,
+   1151,
+   442,
+   518
+  ],
+  "obstacle_top_wh": [
+   77,
+   77
+  ],
+  "obstacle_rgb": [
+   147.0,
+   147.0,
+   147.0
+  ],
+  "corridor_rgb": [
+   67.0,
+   66.0,
+   60.0
+  ],
+  "obstacle_contrast": 3.28,
+  "near_robot_to_obstacle_px": 396,
+  "set": "original"
+ },
+ {
+  "request": "810c9104",
+  "side": "west",
+  "raw": true,
+  "robot_px": {
+   "robot_1": [
+    612,
+    484
+   ],
+   "robot_2": [
+    667,
+    480
+   ]
+  },
+  "robot_sep_px": 55,
+  "marker_white_wh_px": [
+   [
+    28,
+    28
+   ],
+   [
+    29,
+    29
+   ]
+  ],
+  "label_rows": [
+   444,
+   458
+  ],
+  "label_strip_h": 15,
+  "x_height_px": 7,
+  "label_gap_px": 0,
+  "label_floor_rgb": [
+   57.0,
+   55.0,
+   48.0
+  ],
+  "label_contrast": 1.96,
+  "obstacle_top_bbox": [
+   128,
+   204,
+   442,
+   518
+  ],
+  "obstacle_top_wh": [
+   77,
+   77
+  ],
+  "obstacle_rgb": [
+   147.0,
+   147.0,
+   147.0
+  ],
+  "corridor_rgb": [
+   66.0,
+   65.0,
+   59.0
+  ],
+  "obstacle_contrast": 3.33,
+  "near_robot_to_obstacle_px": 408,
+  "set": "original"
+ },
+ {
+  "request": "42fb0cb8",
+  "side": "west",
+  "raw": true,
+  "robot_px": {
+   "robot_1": [
+    604,
+    484
+   ],
+   "robot_2": [
+    676,
+    480
+   ]
+  },
+  "robot_sep_px": 72,
+  "marker_white_wh_px": [
+   [
+    29,
+    30
+   ],
+   [
+    28,
+    28
+   ]
+  ],
+  "label_rows": [
+   444,
+   458
+  ],
+  "label_strip_h": 15,
+  "x_height_px": 7,
+  "label_gap_px": 17,
+  "label_floor_rgb": [
+   56.0,
+   55.0,
+   48.0
+  ],
+  "label_contrast": 1.97,
+  "obstacle_top_bbox": [
+   128,
+   204,
+   442,
+   518
+  ],
+  "obstacle_top_wh": [
+   77,
+   77
+  ],
+  "obstacle_rgb": [
+   147.0,
+   147.0,
+   146.0
+  ],
+  "corridor_rgb": [
+   66.0,
+   65.0,
+   60.0
+  ],
+  "obstacle_contrast": 3.33,
+  "near_robot_to_obstacle_px": 400,
+  "set": "original"
+ },
+ {
+  "request": "d4b96fbd",
+  "side": "west",
+  "raw": true,
+  "robot_px": {
+   "robot_1": [
+    615,
+    480
+   ],
+   "robot_2": [
+    667,
+    480
+   ]
+  },
+  "robot_sep_px": 52,
+  "marker_white_wh_px": [
+   [
+    28,
+    28
+   ],
+   [
+    32,
+    32
+   ]
+  ],
+  "label_rows": [
+   444,
+   455
+  ],
+  "label_strip_h": 12,
+  "x_height_px": 8,
+  "label_gap_px": -3,
+  "label_floor_rgb": [
+   57.0,
+   55.0,
+   48.0
+  ],
+  "label_contrast": 1.96,
+  "obstacle_top_bbox": [
+   128,
+   204,
+   442,
+   518
+  ],
+  "obstacle_top_wh": [
+   77,
+   77
+  ],
+  "obstacle_rgb": [
+   147.0,
+   147.0,
+   146.0
+  ],
+  "corridor_rgb": [
+   66.0,
+   65.0,
+   59.0
+  ],
+  "obstacle_contrast": 3.33,
+  "near_robot_to_obstacle_px": 411,
+  "set": "original"
+ },
+ {
+  "request": "189ae2a6",
+  "side": "east",
+  "raw": true,
+  "robot_px": {
+   "robot_1": [
+    614,
+    484
+   ],
+   "robot_2": [
+    667,
+    480
+   ]
+  },
+  "robot_sep_px": 53,
+  "marker_white_wh_px": [
+   [
+    30,
+    31
+   ],
+   [
+    29,
+    30
+   ]
+  ],
+  "label_rows": [
+   444,
+   458
+  ],
+  "label_strip_h": 15,
+  "x_height_px": 7,
+  "label_gap_px": -2,
+  "label_floor_rgb": [
+   56.0,
+   55.0,
+   48.0
+  ],
+  "label_contrast": 1.97,
+  "obstacle_top_bbox": [
+   1075,
+   1151,
+   442,
+   518
+  ],
+  "obstacle_top_wh": [
+   77,
+   77
+  ],
+  "obstacle_rgb": [
+   147.0,
+   147.0,
+   147.0
+  ],
+  "corridor_rgb": [
+   67.0,
+   66.0,
+   60.0
+  ],
+  "obstacle_contrast": 3.28,
+  "near_robot_to_obstacle_px": 408,
+  "set": "original"
+ },
+ {
+  "request": "e4b1bd03",
+  "side": "east",
+  "raw": true,
+  "robot_px": {
+   "robot_1": [
+    610,
+    480
+   ],
+   "robot_2": [
+    667,
+    480
+   ]
+  },
+  "robot_sep_px": 57,
+  "marker_white_wh_px": [
+   [
+    29,
+    29
+   ],
+   [
+    28,
+    28
+   ]
+  ],
+  "label_rows": [
+   444,
+   455
+  ],
+  "label_strip_h": 12,
+  "x_height_px": 8,
+  "label_gap_px": 2,
+  "label_floor_rgb": [
+   57.0,
+   55.0,
+   48.0
+  ],
+  "label_contrast": 1.96,
+  "obstacle_top_bbox": [
+   1075,
+   1151,
+   442,
+   518
+  ],
+  "obstacle_top_wh": [
+   77,
+   77
+  ],
+  "obstacle_rgb": [
+   147.0,
+   147.0,
+   146.0
+  ],
+  "corridor_rgb": [
+   67.0,
+   66.0,
+   60.0
+  ],
+  "obstacle_contrast": 3.28,
+  "near_robot_to_obstacle_px": 408,
+  "set": "original"
+ },
+ {
+  "request": "618a9f29",
+  "side": "east",
+  "raw": true,
+  "robot_px": {
+   "robot_1": [
+    601,
+    485
+   ],
+   "robot_2": [
+    674,
+    479
+   ]
+  },
+  "robot_sep_px": 73,
+  "marker_white_wh_px": [
+   [
+    31,
+    31
+   ],
+   [
+    29,
+    28
+   ]
+  ],
+  "label_rows": [
+   443,
+   457
+  ],
+  "label_strip_h": 15,
+  "x_height_px": 5,
+  "label_gap_px": 18,
+  "label_floor_rgb": [
+   55.0,
+   53.0,
+   46.0
+  ],
+  "label_contrast": 2.02,
+  "obstacle_top_bbox": [
+   1075,
+   1151,
+   442,
+   517
+  ],
+  "obstacle_top_wh": [
+   77,
+   76
+  ],
+  "obstacle_rgb": [
+   147.0,
+   147.0,
+   146.0
+  ],
+  "corridor_rgb": [
+   67.0,
+   66.0,
+   60.0
+  ],
+  "obstacle_contrast": 3.28,
+  "near_robot_to_obstacle_px": 401,
+  "set": "original"
+ },
+ {
+  "request": "710c40e5",
+  "side": "west",
+  "raw": false,
+  "robot_px": {
+   "robot_1": [
+    612,
+    482
+   ],
+   "robot_2": [
+    670,
+    479
+   ]
+  },
+  "robot_sep_px": 58,
+  "marker_white_wh_px": [
+   [
+    30,
+    30
+   ],
+   [
+    29,
+    29
+   ]
+  ],
+  "label_rows": [
+   443,
+   457
+  ],
+  "label_strip_h": 15,
+  "x_height_px": 8,
+  "label_gap_px": 3,
+  "label_floor_rgb": [
+   55.0,
+   53.0,
+   46.0
+  ],
+  "label_contrast": 2.02,
+  "obstacle_top_bbox": [
+   128,
+   204,
+   442,
+   518
+  ],
+  "obstacle_top_wh": [
+   77,
+   77
+  ],
+  "obstacle_rgb": [
+   147.0,
+   147.0,
+   146.0
+  ],
+  "corridor_rgb": [
+   67.0,
+   65.0,
+   60.0
+  ],
+  "obstacle_contrast": 3.32,
+  "near_robot_to_obstacle_px": 408,
+  "set": "extra"
+ },
+ {
+  "request": "7b0fbf9e",
+  "side": "west",
+  "raw": false,
+  "robot_px": {
+   "robot_1": [
+    623,
+    480
+   ],
+   "robot_2": [
+    661,
+    479
+   ]
+  },
+  "robot_sep_px": 38,
+  "marker_white_wh_px": [
+   [
+    29,
+    29
+   ],
+   [
+    32,
+    33
+   ]
+  ],
+  "label_rows": [
+   443,
+   455
+  ],
+  "label_strip_h": 13,
+  "x_height_px": 8,
+  "label_gap_px": -17,
+  "label_floor_rgb": [
+   54.0,
+   53.0,
+   46.0
+  ],
+  "label_contrast": 2.03,
+  "obstacle_top_bbox": [
+   128,
+   204,
+   442,
+   518
+  ],
+  "obstacle_top_wh": [
+   77,
+   77
+  ],
+  "obstacle_rgb": [
+   147.0,
+   147.0,
+   147.0
+  ],
+  "corridor_rgb": [
+   67.0,
+   65.0,
+   60.0
+  ],
+  "obstacle_contrast": 3.32,
+  "near_robot_to_obstacle_px": 419,
+  "set": "extra"
+ },
+ {
+  "request": "ea126abd",
+  "side": "west",
+  "raw": false,
+  "robot_px": {
+   "robot_1": [
+    607,
+    484
+   ],
+   "robot_2": [
+    670,
+    480
+   ]
+  },
+  "robot_sep_px": 63,
+  "marker_white_wh_px": [
+   [
+    30,
+    30
+   ],
+   [
+    29,
+    30
+   ]
+  ],
+  "label_rows": [
+   444,
+   458
+  ],
+  "label_strip_h": 15,
+  "x_height_px": 7,
+  "label_gap_px": 8,
+  "label_floor_rgb": [
+   57.0,
+   55.0,
+   49.0
+  ],
+  "label_contrast": 1.96,
+  "obstacle_top_bbox": [
+   128,
+   204,
+   442,
+   518
+  ],
+  "obstacle_top_wh": [
+   77,
+   77
+  ],
+  "obstacle_rgb": [
+   147.0,
+   147.0,
+   146.0
+  ],
+  "corridor_rgb": [
+   66.0,
+   65.0,
+   59.0
+  ],
+  "obstacle_contrast": 3.33,
+  "near_robot_to_obstacle_px": 403,
+  "set": "extra"
+ },
+ {
+  "request": "bb48067c",
+  "side": "east",
+  "raw": false,
+  "robot_px": {
+   "robot_1": [
+    572,
+    484
+   ],
+   "robot_2": [
+    659,
+    479
+   ]
+  },
+  "robot_sep_px": 87,
+  "marker_white_wh_px": [
+   [
+    28,
+    28
+   ],
+   [
+    29,
+    29
+   ]
+  ],
+  "label_rows": [
+   443,
+   457
+  ],
+  "label_strip_h": 15,
+  "x_height_px": 6,
+  "label_gap_px": 32,
+  "label_floor_rgb": [
+   55.0,
+   53.0,
+   46.0
+  ],
+  "label_contrast": 2.02,
+  "obstacle_top_bbox": [
+   1075,
+   1151,
+   442,
+   517
+  ],
+  "obstacle_top_wh": [
+   77,
+   76
+  ],
+  "obstacle_rgb": [
+   147.0,
+   147.0,
+   147.0
+  ],
+  "corridor_rgb": [
+   67.0,
+   66.0,
+   60.0
+  ],
+  "obstacle_contrast": 3.28,
+  "near_robot_to_obstacle_px": 416,
+  "set": "extra"
+ },
+ {
+  "request": "d592a820",
+  "side": "east",
+  "raw": false,
+  "robot_px": {
+   "robot_1": [
+    603,
+    483
+   ],
+   "robot_2": [
+    673,
+    480
+   ]
+  },
+  "robot_sep_px": 70,
+  "marker_white_wh_px": [
+   [
+    28,
+    29
+   ],
+   [
+    28,
+    29
+   ]
+  ],
+  "label_rows": [
+   444,
+   458
+  ],
+  "label_strip_h": 15,
+  "x_height_px": 8,
+  "label_gap_px": 15,
+  "label_floor_rgb": [
+   56.0,
+   55.0,
+   48.0
+  ],
+  "label_contrast": 1.97,
+  "obstacle_top_bbox": [
+   1075,
+   1151,
+   442,
+   518
+  ],
+  "obstacle_top_wh": [
+   77,
+   77
+  ],
+  "obstacle_rgb": [
+   147.0,
+   147.0,
+   147.0
+  ],
+  "corridor_rgb": [
+   67.0,
+   66.0,
+   60.0
+  ],
+  "obstacle_contrast": 3.28,
+  "near_robot_to_obstacle_px": 402,
+  "set": "extra"
+ },
+ {
+  "request": "32aec602",
+  "side": "east",
+  "raw": false,
+  "robot_px": {
+   "robot_1": [
+    611,
+    482
+   ],
+   "robot_2": [
+    669,
+    480
+   ]
+  },
+  "robot_sep_px": 58,
+  "marker_white_wh_px": [
+   [
+    28,
+    28
+   ],
+   [
+    30,
+    30
+   ]
+  ],
+  "label_rows": [
+   444,
+   457
+  ],
+  "label_strip_h": 14,
+  "x_height_px": 8,
+  "label_gap_px": 3,
+  "label_floor_rgb": [
+   56.0,
+   55.0,
+   48.0
+  ],
+  "label_contrast": 1.97,
+  "obstacle_top_bbox": [
+   1075,
+   1151,
+   442,
+   518
+  ],
+  "obstacle_top_wh": [
+   77,
+   77
+  ],
+  "obstacle_rgb": [
+   147.0,
+   147.0,
+   146.0
+  ],
+  "corridor_rgb": [
+   67.0,
+   65.0,
+   60.0
+  ],
+  "obstacle_contrast": 3.32,
+  "near_robot_to_obstacle_px": 406,
+  "set": "extra"
+ },
+ {
+  "request": "bc56a57a",
+  "side": "west",
+  "raw": true,
+  "robot_px": {
+   "robot_1": [
+    606,
+    482
+   ],
+   "robot_2": [
+    671,
+    480
+   ]
+  },
+  "robot_sep_px": 65,
+  "marker_white_wh_px": [
+   [
+    30,
+    30
+   ],
+   [
+    29,
+    29
+   ]
+  ],
+  "label_rows": [
+   444,
+   457
+  ],
+  "label_strip_h": 14,
+  "x_height_px": 8,
+  "label_gap_px": 10,
+  "label_floor_rgb": [
+   56.0,
+   55.0,
+   48.0
+  ],
+  "label_contrast": 1.97,
+  "obstacle_top_bbox": [
+   128,
+   204,
+   442,
+   518
+  ],
+  "obstacle_top_wh": [
+   77,
+   77
+  ],
+  "obstacle_rgb": [
+   147.0,
+   147.0,
+   147.0
+  ],
+  "corridor_rgb": [
+   67.0,
+   65.0,
+   60.0
+  ],
+  "obstacle_contrast": 3.32,
+  "near_robot_to_obstacle_px": 402,
+  "set": "extra"
+ },
+ {
+  "request": "920ec0d9",
+  "side": "west",
+  "raw": true,
+  "robot_px": {
+   "robot_1": [
+    606,
+    480
+   ],
+   "robot_2": [
+    675,
+    480
+   ]
+  },
+  "robot_sep_px": 69,
+  "marker_white_wh_px": [
+   [
+    29,
+    29
+   ],
+   [
+    30,
+    30
+   ]
+  ],
+  "label_rows": [
+   444,
+   455
+  ],
+  "label_strip_h": 12,
+  "x_height_px": 8,
+  "label_gap_px": 14,
+  "label_floor_rgb": [
+   56.0,
+   55.0,
+   48.0
+  ],
+  "label_contrast": 1.97,
+  "obstacle_top_bbox": [
+   128,
+   204,
+   442,
+   518
+  ],
+  "obstacle_top_wh": [
+   77,
+   77
+  ],
+  "obstacle_rgb": [
+   147.0,
+   147.0,
+   146.0
+  ],
+  "corridor_rgb": [
+   67.0,
+   66.0,
+   60.0
+  ],
+  "obstacle_contrast": 3.28,
+  "near_robot_to_obstacle_px": 402,
+  "set": "extra"
+ },
+ {
+  "request": "8027a8a2",
+  "side": "west",
+  "raw": true,
+  "robot_px": {
+   "robot_1": [
+    612,
+    486
+   ],
+   "robot_2": [
+    668,
+    480
+   ]
+  },
+  "robot_sep_px": 56,
+  "marker_white_wh_px": [
+   [
+    30,
+    29
+   ],
+   [
+    28,
+    28
+   ]
+  ],
+  "label_rows": [
+   444,
+   458
+  ],
+  "label_strip_h": 15,
+  "x_height_px": 5,
+  "label_gap_px": 1,
+  "label_floor_rgb": [
+   56.0,
+   55.0,
+   48.0
+  ],
+  "label_contrast": 1.97,
+  "obstacle_top_bbox": [
+   128,
+   204,
+   442,
+   518
+  ],
+  "obstacle_top_wh": [
+   77,
+   77
+  ],
+  "obstacle_rgb": [
+   147.0,
+   147.0,
+   146.0
+  ],
+  "corridor_rgb": [
+   66.0,
+   65.0,
+   59.0
+  ],
+  "obstacle_contrast": 3.33,
+  "near_robot_to_obstacle_px": 408,
+  "set": "extra"
+ },
+ {
+  "request": "41d72639",
+  "side": "east",
+  "raw": true,
+  "robot_px": {
+   "robot_1": [
+    609,
+    480
+   ],
+   "robot_2": [
+    671,
+    480
+   ]
+  },
+  "robot_sep_px": 62,
+  "marker_white_wh_px": [
+   [
+    30,
+    30
+   ],
+   [
+    28,
+    29
+   ]
+  ],
+  "label_rows": [
+   444,
+   455
+  ],
+  "label_strip_h": 12,
+  "x_height_px": 8,
+  "label_gap_px": 7,
+  "label_floor_rgb": [
+   56.0,
+   55.0,
+   48.0
+  ],
+  "label_contrast": 1.97,
+  "obstacle_top_bbox": [
+   1075,
+   1151,
+   442,
+   517
+  ],
+  "obstacle_top_wh": [
+   77,
+   76
+  ],
+  "obstacle_rgb": [
+   147.0,
+   147.0,
+   146.0
+  ],
+  "corridor_rgb": [
+   67.0,
+   66.0,
+   60.0
+  ],
+  "obstacle_contrast": 3.28,
+  "near_robot_to_obstacle_px": 404,
+  "set": "extra"
+ },
+ {
+  "request": "653be8f3",
+  "side": "east",
+  "raw": true,
+  "robot_px": {
+   "robot_1": [
+    611,
+    482
+   ],
+   "robot_2": [
+    667,
+    480
+   ]
+  },
+  "robot_sep_px": 56,
+  "marker_white_wh_px": [
+   [
+    28,
+    29
+   ],
+   [
+    30,
+    30
+   ]
+  ],
+  "label_rows": [
+   444,
+   457
+  ],
+  "label_strip_h": 14,
+  "x_height_px": 8,
+  "label_gap_px": 1,
+  "label_floor_rgb": [
+   56.0,
+   55.0,
+   48.0
+  ],
+  "label_contrast": 1.97,
+  "obstacle_top_bbox": [
+   1075,
+   1151,
+   442,
+   518
+  ],
+  "obstacle_top_wh": [
+   77,
+   77
+  ],
+  "obstacle_rgb": [
+   147.0,
+   147.0,
+   146.0
+  ],
+  "corridor_rgb": [
+   67.0,
+   66.0,
+   60.0
+  ],
+  "obstacle_contrast": 3.28,
+  "near_robot_to_obstacle_px": 408,
+  "set": "extra"
+ },
+ {
+  "request": "f94cb7ed",
+  "side": "east",
+  "raw": true,
+  "robot_px": {
+   "robot_1": [
+    613,
+    482
+   ],
+   "robot_2": [
+    666,
+    480
+   ]
+  },
+  "robot_sep_px": 53,
+  "marker_white_wh_px": [
+   [
+    29,
+    29
+   ],
+   [
+    29,
+    29
+   ]
+  ],
+  "label_rows": [
+   444,
+   457
+  ],
+  "label_strip_h": 14,
+  "x_height_px": 8,
+  "label_gap_px": -2,
+  "label_floor_rgb": [
+   57.0,
+   55.0,
+   48.0
+  ],
+  "label_contrast": 1.96,
+  "obstacle_top_bbox": [
+   1075,
+   1151,
+   442,
+   518
+  ],
+  "obstacle_top_wh": [
+   77,
+   77
+  ],
+  "obstacle_rgb": [
+   147.0,
+   147.0,
+   146.0
+  ],
+  "corridor_rgb": [
+   67.0,
+   65.0,
+   60.0
+  ],
+  "obstacle_contrast": 3.32,
+  "near_robot_to_obstacle_px": 409,
+  "set": "extra"
+ }
+]
