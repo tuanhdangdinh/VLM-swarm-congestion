@@ -354,7 +354,7 @@ In validation take `m5V_t01_a1` (bundle on v7j, read-only; report `docs/reports/
 | Derived yield: escort | `escort_obstacles` | yes, `escort_obstacle_guard` (exact clip) | unchanged |
 | `junction_clear` recede phases (a `reverse` action per receder) | `_ground_junction_clear_phases` | **none** | unchanged; finding (IB10 declares no boxes, so it is moot there today) |
 | `junction_clear` cross phase and fallback yield | `_ground_derived` | as a derived yield | unchanged |
-| `junction_clear` release phase: hand-built `yield` with backup and pull-off | `_ground_junction_clear_phases` | **none** (not through the candidate sweep) | unchanged; finding |
+| `junction_clear` release phase: hand-built `yield` holds with `backup_distance_m` 0.0 and, for a receder, a raw-cmd_vel pull-off (`release_pull_off_lateral_m`) | `_ground_junction_clear_phases` (`_receder_hold`) | **none** on the pull-off (not through the candidate sweep; verified by code reading) | unchanged; finding |
 | reroute, waits | Nav2 / no motion | Nav2 costmap and collision monitor apply | n/a |
 
 The guard was not extended to any other row. Recommendation: before any scene with declared boxes runs `junction_clear` or a declared-geometry yield, sweep the recede and release legs with `reverse_obstacle_hits`, and the declared-geometry yield's backup and pull-off with `segment_entry_m`. Each needs its own key, test and replay, like this one.
@@ -383,7 +383,7 @@ The guard was not extended to any other row. Recommendation: before any scene wi
 - **One predicate for every reader.** `command_grounder._reverse_obstacle_refusal(robot_ids, snapshot, geometry, params, static_obstacles)` rebuilds each robot's dispatched leg (`_FALLBACK_BACKUP_M` after the tracked-band clamp). Three readers call it:
   - dispatch (`_ground_derived`, only when the legacy template actually produced `reverse` actions);
   - the default plan (`_derive_default_plan`);
-  - the plan audit (`_plan_problems`).
+  - the plan audit (`_plan_problems`), which also serves the candidate-options probe (`derive_candidate_options`), so with the key on a blocked reverse option is flagged there too (not unit-tested).
 - **What a refusal looks like.** It follows the same-side precedent:
   - any blocked leg refuses the whole reverse;
   - every involved robot gets the 8 s `temporary_wait` (`requested_strategy: reverse`, `reason` = the first hit's reason);
@@ -458,10 +458,12 @@ With `--contact-root` pointing at v7m (`b5eaee5`, the GT contact-recompute branc
   - 14 October S1b commands in `batch2`, `batch3`, `churn_wave`, `live_batch` and `resume`. Four of these (`live_batch` E7, E8, E10 and `resume` E11) lie outside the escort replay's globs.
 - **Not replayable:**
   - s6 `s6_live_er2_pilot` `46b0f4dd` declares no boxes, so the guard sees nothing there.
-  - 41 `reverse` decisions in 38 September head-on bundles (main checkout `20260925_*`, `bshort*`, `gshort`, `m4fix`, `simtime_shadow_val`) predate derived grounding. They have no `grounding_mode` or `dispatched_command`, so they are out of scope. Their count matches the audit's "reverse 41" (campaign report §11.4), but the audit's bundle list was not available to confirm they are the same decisions.
+  - 41 `reverse` decisions in 37 September head-on bundles (main checkout `20260925_*`, `bshort*`, `gshort`, `m4fix`, `simtime_shadow_val`) predate derived grounding. They have no `grounding_mode` or `dispatched_command`, so they are out of scope. A leg-only check (snapshot pose, every involved robot 1.3 m backward, against the declared `blocker_west` at margin 0.14) on the 26 that have `orchestrator.yaml.used` finds 2 that the rule would block (`20260925_040539` `668f8830` and `20260925_011246` `7d8a0c07`, robot_1 at 0.881 and 0.722 m); the other 15 have no config to check; no GT was compared. Their count matches the audit's "reverse 41" (campaign report §11.4), but the audit's bundle list was not available to confirm they are the same decisions.
   - The head-on scenes declare `obstacle_1` (`blocker_west`, 0.3 m square at x −1.85) but not the aisle barrier. The guard cannot see the barrier.
   - `junction_clear` recede reverses (ibD ×5) are a different manoeuvre: not covered and not replayed.
 - **Off reproduces live for all 17** (actions and degradations).
+
+**FAILED-leg windows checked.** The script's window is not bounded by M4's terminal status. For every FAILED leg, the FAILED line's wall time was mapped to sim time with a linear fit over every `sim_t=` line in `m4.log` (real-time factor 0.17–0.23). Every contact in the table falls inside its command's window. Those legs failed on the 195 wall-s backup deadline, about 35–45 sim-s after handover, with the robot pinned on the face. `09647748` r3 failed after 1.6 sim-s, having moved 0.065 m. Only `150b95a6` changed: the script's unbounded window had shown 1.297 m.
 
 **Results per command:**
 
@@ -474,7 +476,7 @@ With `--contact-root` pointing at v7m (`b5eaee5`, the GT contact-recompute branc
 | E13 `652ac9ac` | r5 (`obstacle_1`@0.337) | refused | r5 COMPLETED 1.263, **0.0179** | justified (sub-margin graze) |
 | E13 `ea23b1a7` | r1 (`obstacle_3`@0.539); r3, r4 clear | refused | r1 **FAILED** after 0.550, **0.000** (rack/NW_west); r3, r4 COMPLETED | justified (contact, stall) |
 | E16 `ede6d209` | r3 (`obstacle_3`@1.157); r4 clear | refused | r3 FAILED after 0.618, 0.243; r4 FAILED after 0.304 | untested (the leg's end is on the rack face line x −2.50; never reached) |
-| E17 `150b95a6` | r3 (none) | unchanged | r3 FAILED at 1.297 m moved, 0.084 | admit; failure not a box contact |
+| E17 `150b95a6` | r3 (none) | unchanged | r3 FAILED after 0.409 m, 0.368 (window bounded by the FAILED line) | admit; failure not a box contact |
 | E17 `9cf93ebe` | r2 (`obstacle_2`@0.584), r3 (`obstacle_1`@0.696), r5 (`obstacle_4`@0.710); r4 clear | refused | r2 **FAILED** after 0.578, **−0.0001**; r3 COMPLETED, 0.061; r5 COMPLETED, 0.312; r4 COMPLETED | justified by r2 (contact); r3 and r5 are robot-level false positives |
 | E18 `8bf906be` | r5 (`obstacle_3`@0.843); r4 clear | refused | r5 **FAILED** after 1.188, **−0.0017** (rack/SW_west); r4 COMPLETED, 0.075 | justified (contact) |
 | E19 `09647748` | r3 (`obstacle_3`@1.201); r4 clear | refused | r3 FAILED after 0.065 (barely moved); r4 COMPLETED | untested (the leg would end 0.044 m centreline from the rack face) |
@@ -487,7 +489,7 @@ With `--contact-root` pointing at v7m (`b5eaee5`, the GT contact-recompute branc
 
 ### 8.6 False-Positive Assessment
 
-**Criterion, fixed before the GT column was read.** A refusal is a false positive when every blocked leg was driven to completion and its GT footprint gap stayed at or above the 0.05 m margin. It is justified when some blocked leg's gap fell below the margin (the GT contact threshold is 0.005 m). It is untested when no blocked leg was driven far enough to reach the box.
+**Criterion.** Only the 0.05 m threshold (the guard's own margin) was fixed before the GT gaps were printed; the three-way split below was written after. A refusal is a false positive when every blocked leg was driven to completion and its GT footprint gap stayed at or above the 0.05 m margin. It is justified when some blocked leg's gap fell below the margin (the GT contact threshold is 0.005 m). It is untested when no blocked leg was driven far enough to reach the box.
 
 **Command level** (14 of 17 commands refused):
 
@@ -504,6 +506,7 @@ With `--contact-root` pointing at v7m (`b5eaee5`, the GT contact-recompute branc
 
 - Blocked legs that reached contact or a sub-margin graze: 11.
 - Blocked legs never driven far enough to reach the box (untested): 3 (`ede6d209` r3, `09647748` r3, `f06c33b3` r4).
+- Robot-level false-positive rate: 6 of the 17 blocked legs that have a physical answer (35 %).
 - Blocked legs driven to completion with a gap of 0.05 m or more: 6 (`9cf93ebe` r3 0.061 and r5 0.312; `c7aeaac1` r1 0.076 and r3 0.271; `f06c33b3` r2 0.058; `c417cbff` r1 0.077).
 
 **Two causes of the robot-level false positives.** Both are the shared escort/retreat rule, not new to reverse:
@@ -514,7 +517,7 @@ With `--contact-root` pointing at v7m (`b5eaee5`, the GT contact-recompute branc
 **Effect on scenes that resolve through reverse:**
 
 - In the campaign, hoD decision 1 (`4de32642`) is unchanged, and so is `b07a700f`.
-- In October, 10 of the 14 refused commands had at least one reverse leg FAILED live. The deadline was 195 s; most failures were robots pinned on a rack face.
+- In October, 10 of the 14 refused commands had at least one reverse leg FAILED live. Seven of those were pinned on a box face until the 195 wall-s deadline (verified with the bounded windows above). The others failed without reaching a box.
 - With the key on, each would instead hold its robots 8 s and re-analyse. What the scene does next is not shown offline.
 - The September head-on reverses that the audit's 41 most likely counts are legacy-mode and untouched.
 
@@ -532,11 +535,12 @@ With `--contact-root` pointing at v7m (`b5eaee5`, the GT contact-recompute branc
 
 ### 8.8 Limits
 
-- **The leg model is exact only under `backup_line_hold`** (`dynamic_scene_arms` on: every replayed derived reverse had it). Without it, M4 servos toward the odom y = 0 spawn line, so the straight backward leg is an approximation.
+- **The leg model is exact only under `backup_line_hold`** (`dynamic_scene_arms` on). 16 of the 17 replayed reverses had it. hoD `4de32642` did not, so its leg is approximate (M4 servoed toward odom y = 0). Without it, M4 servos toward the odom y = 0 spawn line, so the straight backward leg is an approximation.
 - **Start pose and heading come from the M1 snapshot**, as for escorts. M4 holds its odometry start heading at handover, not the snapshot heading.
 - **Declared boxes only.** The head-on aisle barrier, the IB10 walls, and the open arms behind the declared S1b walls are not modelled as they are.
 - **The refusal dispatches 8 s waits; it does not withhold.** This follows the reverse precedent. Whether the reverse refusal should instead be withheld under `refusal_no_action` (as yields are) is an owner question.
 - **No M4 backstop.** The no-progress abort of section 5 would also bound the 195 s pinned-reverse deadlines seen in October.
+- **Refuse, not shorten.** The escort's reason for refusing (escort length equals `clear_m`) does not carry over to reverse. A reverse could instead be shortened to its clear length. That was not built, because the owner approved the same check (refuse) and a shortened reverse may not open the standoff. It is an open owner option.
 - **Not run live.**
 
 ### 8.9 Kit Instructions (Reverse Guard)
@@ -558,7 +562,7 @@ With `--contact-root` pointing at v7m (`b5eaee5`, the GT contact-recompute branc
   | `ros2_ws/src/swarm_orchestrator/swarm_orchestrator/orchestrator_node.py` (colcon-built: rebuild `swarm_orchestrator`) | `bfb4cefbbb70019e392de97e41a406eb` |
   | `config/grounding/reverse_obstacle_guard.fragment.yaml` (new) | `d063e86c8d2e1a77dc99228ae0a329de` |
 
-  Unchanged since section 6: `escort_clearance.py` `69e3404af67dff2c143305294957045c`, `shadow_classical.py` `24539c25863d1683bf85bad9a0d68fb8`, `escort_obstacle_guard.fragment.yaml` `9a13e6feb34cc0093c87ef3564bb43d2`.
+  Section 6's md5 table is stale at this tip for `escort_obstacles.py`, `command_grounder.py`, `maneuver_geometry.py` and `orchestrator_node.py`; use this table. Unchanged since section 6: `escort_clearance.py` `69e3404af67dff2c143305294957045c`, `shadow_classical.py` `24539c25863d1683bf85bad9a0d68fb8`, `escort_obstacle_guard.fragment.yaml` `9a13e6feb34cc0093c87ef3564bb43d2`.
 
   As in section 6, `demo/campaign-kits` must merge `orchestrator_node.py`, not copy it.
 - **Fail-loud property.** An older tree rejects the unknown key at startup.
@@ -573,6 +577,6 @@ With `--contact-root` pointing at v7m (`b5eaee5`, the GT contact-recompute branc
 | A refused reverse is dispatched as 8 s waits, not withheld | verified (code and live artifacts `929335f4`, `2acc6130`) |
 | `95066420` is refused (0.305 and 0.844 m) | verified (unit test and replay) |
 | Key off is byte-identical; 17 of 17 live reverses reproduce | verified (tests and replay) |
-| 14 of 17 refused; 10 justified, 3 untested, 1 false positive | verified (replay and GT), under the criterion stated in 8.6 |
+| 14 of 17 refused; 10 justified, 3 untested, 1 false positive | verified (replay and GT, FAILED windows bounded by M4 status), under the criterion stated in 8.6 (split written after the GT output) |
 | The refusals would have improved those scenes | inferred, not shown |
 | The uncovered manoeuvres in 8.2 can graze declared boxes | inferred from code; no instance checked |
