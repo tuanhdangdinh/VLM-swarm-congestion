@@ -5,7 +5,7 @@
  "intro_lines": [
   "Recorded 2026-09-30 on an earlier code version; not part of the 2026-11-15 campaign. Same scene as the head-on take: two robots meet nose to nose in a narrow aisle between two barriers, with an obstacle near the west end.",
   "When a robot has been stuck for 12 s, the system asks a vision-language model (VLM) what to do: it sends a text prompt and the current camera image, checks the answer, and executes it.",
-  "Robots: 2  ·  Model: Gemini Robotics-ER 2 (gemini-robotics-er-2-preview)  ·  One run (n = 1), selected because the model's choice was executed without correction.",
+  "Robots: 2  ·  Model: Gemini Robotics-ER 2 (gemini-robotics-er-2-preview)  ·  One run (n = 1); why this run is shown is stated at the end.",
   "Left: real overhead camera of the simulation. Right: the run's own logs, replayed in sync with simulation time."
  ],
  "watch_for": [
@@ -82,7 +82,7 @@
   "2 of 2 robots arrived.",
   "The model's: the congestion call, the strategy 'yield' and the choice of robot_2 as the yielder; the feasibility gate kept the choice.",
   "The system's: when to ask; the back-out distance; robot_1's wait; the escort of robot_1 past robot_2; the return to the normal mission; Nav2's recovery after robot_2 stalled (sim ~97–120 s).",
-  "Caveats: an earlier code version. It predates the current 0.20 m hard floor (on centre distance) and the safety-exemption fix; closest centre distance 0.264 m, body-to-body gap 0.19 m. One run, selected because it qualifies. In the 2026-11-15 take of this scene the model chose the other robot and the gate swapped it."
+  "Caveats: an earlier code version. It predates the current 0.20 m hard floor (on centre distance) and the safety-exemption fix; closest centre distance 0.264 m, body-to-body gap 0.19 m. One run, selected because the model's choice was executed without correction. In the 2026-11-15 take of this scene the model chose the other robot and the gate swapped it."
  ],
  "zooms": [
   {

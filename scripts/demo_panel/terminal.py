@@ -81,7 +81,9 @@ def run_shell(command: str, cwd: Path) -> list[str]:
 
 def _path() -> str:
     dirs = []
-    for tool in ("jq", "grep", "sort", "awk", "bash", "sed", "file"):
+    for tool in ("jq", "grep", "sort", "awk", "bash") + tuple(
+        t for t in ("sed", "file") if shutil.which(t) is not None
+    ):
         found = shutil.which(tool)
         if found is None:
             raise RuntimeError(f"required tool {tool!r} not found on PATH")

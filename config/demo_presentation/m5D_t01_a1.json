@@ -123,7 +123,7 @@
   },
   "text": "Outcome: Unresolved failure: 1 of 5 robots arrived by the end of the take (sim 600 s)."
  },
- "legend": "Legend: yield = back out and pull aside · cross = drive past · continue = keep driving · temporary_wait = hold still · provenance: vlm_verbatim = plan accepted unchanged, repaired = edited by the verifier, m3_default = replaced by the grounding module's default plan · refusal withheld = nothing is sent · 'safety stop … min_distance_violation' (dim) = robots closer than 0.45 m are held still by the safety monitor.",
+ "legend": "Legend: yield = back out and pull aside · cross = drive past · continue = keep driving · temporary_wait = hold still · provenance: vlm_verbatim = plan accepted unchanged, repaired = edited by the verifier, m3_default = replaced by the grounding module's default plan · refusal withheld = nothing is sent · dispatch_order_source=chi = the system's own ordering · 'safety stop … min_distance_violation' (dim) = robots closer than 0.45 m are held still by the safety monitor.",
  "disclosure": "Illustrative demo, not controlled experimental evidence. Seed position 21 (exploratory extension seed).",
  "outro_title": "Outcome: Unresolved failure  ·  take 1 of 1 (limitation demonstration)",
  "outro_lines": [
