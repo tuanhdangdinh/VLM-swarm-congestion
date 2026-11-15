@@ -37,11 +37,19 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-11-15** — **Demo campaign closed (illustrative only): 10 valid takes, 1 bring-up abort, 18 203 s of 43 200 s VM wall, $2.6975 of $10.** Final summary, three-way VLM count and archive index: `docs/reports/2026-11-15-demo-campaign-results.md` (Final Summary, sections 8–9); registration closing note `docs/superpowers/specs/2026-11-15-demo-campaign.md` section 10.8.
+  - Five-robot take `m5D_t01_a1` (seed position 21, ER-2): unresolved, 1 of 5 arrived (robot_5's first task goal; it then left on task 2). 8 analyses: 2 `vlm_verbatim`, both executed as named (yield + escort); 6 withheld by grounding refusals ("no feasible yielder" ×4, "no declared junction", "no shared lane"); no analysis after sim 275.5 s (147 `scene_unchanged` suppressions). Closest pair 0.2582 m at sim 42.6 s, before any command; 0 contacts, 0 floor stops. Manifest `bd7572c4`.
+  - Gotcha: `goal_check_dmc.py` reports `dispatches=8 withheld=0` for this take. m5 dispatched 2 decisions and logged 6 `refusal withheld` lines. Count from `m5.log`, not from `GOAL_SUMMARY`.
+  - Gotcha: robot_3's escort stalled at sim 147 with no neighbour within 1.29 m. It coincides with 456 `camera_localizer … no TF robot_3/odom->robot_3/base_footprint` warnings in `nav2_r3.log`; the cause is not established.
+  - Gotcha: the demo-panel `jq` grounding line prints `dispatch_order=` from `dispatched_robot_ids` even for withheld decisions. On screen, only the absence of `dispatch`/`command received` lines shows the withholding.
+  - Totals over the campaign: 55 of 55 valid VLM responses, 6 accepted plans (`vlm_verbatim`), 1 plan that changed executed behaviour (intersection take 5, a 0.010 m recede-order near-tie).
+  - Videos in v7g `data/demo/campaign/`: `m5D_t01_a1_panel.mp4` (201.6 s, time map 0.32 sim-s) and `demo_campaign_combined.mp4` (excerpts of the four selected takes, made with `combine`). The renderer code is unchanged.
+
 - **2026-11-15** — **Intersection demo takes 4–5 (ER-2, B3; illustrative only): both resolved 4/4; take 4 M3-default (`repaired`), take 5 VLM-driven execution, the first in the campaign.** Details: `docs/reports/2026-11-15-demo-campaign-results.md` section 7; bundles `demo_campaign/ib/runs/ibD_t0{4,5}_a1`.
   - Take 5 (`df397030`): plan `3rev 4rev 1yield 2cross` verified `vlm_verbatim` with 0 edits; `dispatch_order_source=model`; m5/m4/GT show robot_3 backing out first (sim 32.9 s), then robot_4 (41.9 s), then robot_1 yielding. No fallback or stage-2 command. Two other calls answered no congestion. 0 contacts, 0 floor stops, closest pair 0.329 m during the jam.
   - Gotcha: the default (chi) order robot_4 → robot_3 beat the model's order by only 0.010 m of chi (tolerance 0.15). Any accepted order that differs from chi is a near-tie by construction.
   - Gotcha: under `model_when_verified` only the dispatch order of the recede legs follows the model. Pockets, the cross, the release lead and the crossing order stay on chi (`ground_junction_clear_phases`), so the model's `crossing_order` (2,1,3,4) was not used (executed 2,4,3,1).
-  - Takes 4–5 ran on the ER-2 kit instead of the Sonnet arm planned in registration 10.5; the registration does not record that choice. Wall shares were amended first (registration 10.7: `ib` 12600 s, `ho` 1800 s).
+  - Takes 4–5 ran on the ER-2 kit instead of the Sonnet arm planned in registration 10.5; the registration does not record that choice (superseded by the 2026-11-15 campaign-closing entry: now recorded in registration 10.8). Wall shares were amended first (registration 10.7: `ib` 12600 s, `ho` 1800 s).
   - Panel video rendered in v7g (`data/demo/campaign/ibD_t05_a1_panel.mp4`).
 
 - **2026-11-15** — **Head-on with obstacle demo take 1 (ER-2, normal config; illustrative only, n = 1): resolved 2/2, label M3-default resolution (grounder-corrected), not VLM-driven.** Details: `docs/reports/2026-11-15-demo-campaign-results.md` section 6. Verified:

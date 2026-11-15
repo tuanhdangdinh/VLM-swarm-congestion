@@ -7,6 +7,7 @@
 - Initial draft: registration of the owner-approved demo-video campaign (four scenarios, one VM, 12 VM-hours, $10), written offline before any VM use. The kits are prepared and dry-tested only; nothing has run.
 - Rev 2 (2026-11-15): section 10 filled (go for the intersection under B3, the options-block check and caption, the demo runtime delta in two directories, the take classifier, the budget split); sub-caps `ho` 1.5 h and `m5` 4 h; kit md5s in section 9 re-recorded. Still offline; nothing has run.
 - Rev 3 (2026-11-15): section 10.7, the per-scenario wall shares reallocated (`ib` 3.5 h, `ho` 0.5 h; `cv`, `m5` and every campaign total unchanged).
+- Rev 4 (2026-11-15): section 10.8, closing note: intersection takes 4–5 on ER-2 instead of Sonnet, convoy stopped after 3 takes, the five-robot result.
 
 ---
 
@@ -629,6 +630,15 @@ Open item: the kits hard-assert gemini / ER-2 (`cond_dmc.py` `a_backend_gemini`,
 **Unchanged.** The campaign totals (43 200 s, $10), the 5 valid takes and 3 bring-up aborts per scenario, the admission logic (`ledger_dmc.py`) and every kit's per-take budget. The sum of the shares stays under the 43 200 s total.
 
 **How.** `common/caps_dmc.tsv` edited (two values and the header comment); the `ib` and `m5` kits reassembled with the unchanged `common/assemble_dmc.sh` (a scratch reassembly before the edit was byte-identical to both kits). `kit_md5_dmc.txt` (VM files) is unchanged: `ib` `98a57626`, `m5` `89112a40`. `kit_md5_all_dmc.txt` is now `ib` `510882a6`, `m5` `8cd74255`. Both `test_dry_dmc.sh` end OK (`MIN_MAC_FREE_KB=3000000`, test only; the real ledger was not touched). On a ledger copy, `ledger_dmc.py admit ib 4800 0.25` now gives `ADMIT cap_sec=7586 ... next_take=4 valid=3`. The `cv`, `ho` and `ib_sonnet` kits were not reassembled and keep the old split in their own caps copies; this changes nothing for `cv` (its share is the same), and `ho` has finished. Sections 6 and 10.5 show the original split; this note supersedes them for `ib` and `ho`.
+
+### 10.8 Take-Plan Deviations and Closing Note (2026-11-15)
+
+Recorded after all live runs finished. The results are in `docs/reports/2026-11-15-demo-campaign-results.md`.
+
+- **Intersection takes 4–5 ran on ER-2, not on Sonnet 5.5.** Section 10.5 planned up to 2 Sonnet 5.5 takes after 3 ER-2 takes if none was VLM-driven. The Sonnet arm was built and dry-tested (`ib_sonnet/kit`). But the offline Sonnet B3 check gave only 1 of 15 qualifying first triggers (about 13 % over 2 takes), because of the yielder gap. See `docs/reports/2026-11-15-vlm-order-channel-plan-check.md` section 11 and the results report section 3.4–3.5. Takes 4 and 5 therefore ran on the unchanged ER-2 `ib` kit, after the wall-share amendment of 10.7. Take 5 is the campaign's one VLM-driven take (results report section 7).
+- **Convoy stopped after 3 takes, not 5.** All three takes were unresolved in the same way: the first yield ran as named, the model left out the queued robots, and the scene latched. No further convoy take was run, so 2 of its 5 valid takes went unused (ledger: `cv` valid 3, `next_take=4`; the ledger's `stopped` flag stays `no`). See results report section 5.
+- **Five robots: one take.** `m5D_t01_a1` (seed position 21) was unresolved, 1 of 5 robots arrived, and it was used as the limitation demonstration (results report section 8). Section 4.4 allows one or two takes.
+- Head-on ran 1 take, which resolved (results report section 6).
 
 ## 11. What Could Not Be Verified Offline
 

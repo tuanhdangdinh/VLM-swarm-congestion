@@ -8,10 +8,87 @@
 - Rev 2 (2026-11-15): added section 5, convoy counterflow live takes 1–3, the root cause of the non-resolution, and the take 1 panel video.
 - Rev 3 (2026-11-15): added section 6, head-on with obstacle, take 1 (ER-2), and its panel video.
 - Rev 4 (2026-11-15): added section 7, intersection takes 4–5 (ER-2, B3), the adversarial verification of take 5 (the one VLM-driven take), its panel video, and the wall-share amendment.
+- Rev 5 (2026-11-15): campaign closed. Added the final summary (all four scenarios, ledger totals, the three-way VLM count, open owner decisions, archive index), section 8 (five-robot take 1 and its video) and section 9 (the combined video). Fixed stale statements: the Sonnet offline spend is booked (sections 3.4, 3.6), and the ER-2 choice for takes 4–5 is now recorded in registration section 10.8 (running summary, section 7). The running summary below is otherwise kept as written per phase.
 
 ---
 
-## Summary
+## Final Summary (Campaign Closed, 2026-11-15)
+
+Every take is an illustrative demo, not controlled experimental evidence. No take is pooled with experiment data, and n is 1 to 5 per scenario, so nothing here is a rate.
+
+### Scenarios and Videos
+
+| Scenario | Valid takes (bring-up aborts) | Outcomes | Selected take, label | Video (v7g `data/demo/campaign/`), md5 |
+|---|---|---|---|---|
+| 4-robot intersection (`ib`, ER-2, B3; sections 1, 7) | 5 (1) | take 1 Unresolved failure (3/4 arrived); takes 2, 3, 4 M3-default resolution; take 5 VLM-driven execution (all 4/4) | take 5, **VLM-driven execution** (chosen for its label; disclosed) | `ibD_t05_a1_panel.mp4`, `fdf07a82fcb657b738c44a89bfbe3dae` |
+| Convoy counterflow (`cv`, ER-2, legacy grounding; section 5) | 3 (0) | takes 1–3 Unresolved failure, 0/4 arrived in each | take 1, **Unresolved failure** (selected take) | `cvD_t01_a1_panel.mp4`, `824319447d05aaef6623158d00d2818f`; a `_small` copy, `b78cff5b3db4b25f6b8e218111656a42` |
+| Head-on with obstacle (`ho`, ER-2, prompt v2; section 6) | 1 (0) | take 1 resolved 2/2 | take 1, **M3-default resolution** (grounder-corrected) | `hoD_t01_a1_panel.mp4`, `2aa6534ad508d3440e51822fdcd3f0f0` |
+| Five robots, seed position 21 (`m5`, ER-2; section 8) | 1 (0) | take 1 unresolved, 1/5 arrived | take 1, **Unresolved failure** (limitation demonstration) | `m5D_t01_a1_panel.mp4`, `75bf99e64c7ebea10573f08eb62440c3` |
+| All four, excerpts (section 9) | — | — | — | `demo_campaign_combined.mp4`, md5 in section 9 |
+
+### Ledger Totals (`ledger_dmc.py status`, After the Last Invocation)
+
+| Item | Value |
+|---|---|
+| VM wall clock, campaign | 18 203 s of 43 200 s, over 10 invocations: `ib` 8239 s of 12 600 s, `cv` 4829 s of 9000 s, `ho` 1302 s of 1800 s, `m5` 3833 s of 14 400 s |
+| API spend (estimates) | $2.6975 of $10: offline $2.2705 (the $2.00 registration booking plus $0.2705 for the Sonnet B3 check), live takes $0.4165, probes $0.0105 |
+| Valid takes | 10: `ib` 5, `cv` 3, `ho` 1, `m5` 1 |
+| Bring-up aborts | 1 of 3 allowed per scenario, all in `ib` (`ibD_t01_a1`, `change_state` timeout on robot_1); 0 in `cv`, `ho` and `m5` |
+
+Wall is counted from VM start to TERMINATED. The `m5` invocation also spent about 24 min in 11 failed VM start attempts before the VM started, which are not booked.
+
+### Valid Response, Accepted Plan, Changed Behaviour
+
+The counts are per analysis (decision artifact); stage-2 retreat calls are not counted. The columns are:
+
+- **Valid VLM response:** the call completed and the answer parsed (`finish_reason=completed`, `parse_status=valid`).
+- **Accepted VLM plan:** plan verification kept the model's plan with no edit (`plan.provenance=vlm_verbatim`).
+- **VLM plan changed executed behaviour:** the commands executed differ from M3's default plan for the same snapshot (`COUNTERFACTUAL executed_differs_from_m3_default=True`, the basis of the VLM-driven label). This is computed for the intersection only.
+
+| Scenario | Valid VLM response | Accepted VLM plan | VLM plan changed executed behaviour |
+|---|---|---|---|
+| Intersection, 5 takes | 9 of 9: 5 jam decisions plus 4 "no congestion" answers | 1 (take 5). The other jam plans: 2 `repaired` (takes 2, 4), 2 nulled as invalid structure (takes 1, 3) | 1 (take 5): the recede order only, a 0.010 m chi near-tie. Takes 1–4: False |
+| Convoy, 3 takes | 36 of 36 | 3 of 36 (15 `repaired`, 18 `m3_default`) | Not computed (no default comparison for this scenario). The first-trigger yield was executed as the model named it in 3 of 3 takes. |
+| Head-on, 1 take | 2 of 2 | Not applicable: plan channel off (prompt v2) | Not computed. Both strategies (`reverse`, `yield`) were dispatched as named, but the gate swapped decision 2's yielder (robot_1 → robot_2). |
+| Five robots, 1 take | 8 of 8 | 2 of 8, both executed as named (1 `repaired`, 5 `m3_default`; 6 of 8 withheld by grounding refusals) | Not computed |
+| **Total** | **55 of 55** | **6** (of the 53 plan-channel analyses) | **1** |
+
+### What This Does and Does Not Show
+
+- **Intersection.** The pipeline carried a model-chosen order to execution, with all checks on, once in five takes (take 5). The choice was a near-tie, 0.010 m of chi against a 0.15 m tolerance, and it changed only the timing of the two recedes: robot_3 backed out about 9 sim-s before robot_4. Pockets, the cross, the release and the crossing order stayed on chi. The model's order follows ascending robot id, as it mostly does offline.
+- **Head-on.** It resolved 2/2 because the feasibility gate corrected the model's yielder: robot_1 had 0.70 m of retreat room against 1.08 m required, so robot_2 yielded. The model's first strategy (`reverse`) ran and did not clear the scene.
+- **Convoy: unresolved in 3 of 3.** The first yield ran as named, but the model named only the standoff pair. The two queued robots, never commanded, followed through the gate and latched. The legacy vocabulary then had no recovery: the 33 later proposals ran as 8 s waits.
+- **Five robots: unresolved.** Two model decisions were executed as named, but the yield pairs then latched within 0.45 m and robot_3's escort stalled. The six later proposals were refused by grounding checks (retreat room, junction or lane), and Layer 2 went quiet after sim 275.5 s, as the registration expected.
+- **What it does not show.** Nothing here is controlled evidence. One VLM-driven take in five, with n ≤ 5 per scenario, gives no rate, no comparison with Layer 2 off, and no claim that the model reasons the order from the scene.
+
+### Open Owner Decisions (as Identified in the Sections; No Further Recommendation)
+
+- **Convoy fix options** (section 5.5): (a) prompt/kit: hold-back state or a platoon sentence; (b) grounding: hold uncommanded robots whose goals lie across the corridor, or refuse `continue` for them; (c) recovery: a post-gate cluster template. Each changes the registered convoy experiment's Arm A, so each needs a registration amendment or nothing.
+- **Options-detail prompt/parser fix** (section 2.5): (a) render the options detail so it cannot be read as an action, or (b) narrow parser tolerance for an exact offered `"<action> (<detail>)"`. Either is a third fix cycle and needs the owner's approval.
+- **Log-filter lines** (sections 6.5, 7.3, 5.6, 8.5): whether to add the `yield re-grounded` swap line and `dispatch_order_source` to the demo panel's fixed filter, which these videos left unchanged. The convoy and five-robot refusal lines (`yield refused`, `refusal withheld`) are in the same position.
+- **Intersection yielder gap** (registration 10.1, section 3.4): it stays open by owner decision.
+
+### Archive Index (Every Attempt Directory)
+
+Bundles are under `data/logs/vm_runs/demo_campaign/<scn>/runs/`; manifests are under `data/logs/vm_runs/demo_campaign/<scn>/`. Each manifest also lists the attempt's `.cost.log` and `.outer.log`, plus the VM-side `vm/attempts.tsv`, `vm/chain_dmc.log` and `vm/probe.log`. On 2026-11-15 every `runs/` file matched its manifest (re-hashed). The `vm/` files differ in the earlier manifests of `ib` and `cv` because each later pull overwrites them by design. The `_backup_<label>/` directories (pre-run copies of `orchestrator.yaml` and `rag.yaml`) are in no manifest.
+
+| Scenario | Attempt directory | Outcome | Manifest file | Manifest md5 (files) |
+|---|---|---|---|---|
+| `ib` | `ibD_t01_a1` | bring-up abort (`change_state` timeout, robot_1) | `MANIFEST_20261114T223205Z.md5` | `a4e4eaefd41a2eaab96d895cbb8f91c8` (81, both attempts) |
+| `ib` | `ibD_t01_a2` | take 1, Unresolved failure | `MANIFEST_20261114T223205Z.md5` | `a4e4eaefd41a2eaab96d895cbb8f91c8` (81, both attempts) |
+| `ib` | `ibD_t02_a1` | take 2, M3-default resolution | `MANIFEST_20261114T232322Z.md5` | `5dddd2fb84dcdf6237c59e65d097dd28` (55) |
+| `ib` | `ibD_t03_a1` | take 3, M3-default resolution | `MANIFEST_20261114T235042Z.md5` | `a92ebe37ad224d99e4f99e332784b12a` (51) |
+| `ib` | `ibD_t04_a1` | take 4, M3-default resolution | `MANIFEST_20261115T024528Z.md5` | `b7e7a6bf51743e34b744debc329d1725` (54) |
+| `ib` | `ibD_t05_a1` | take 5, VLM-driven execution | `MANIFEST_20261115T031339Z.md5` | `0d2300c1de88ff24db3cc71d5dd0ff81` (57) |
+| `cv` | `cvD_t01_a1` | take 1, Unresolved failure | `MANIFEST_20261115T002252Z.md5` | `92639ca105ce5ae2944784cf4e37850d` (72) |
+| `cv` | `cvD_t02_a1` | take 2, Unresolved failure | `MANIFEST_20261115T010824Z.md5` | `c2356be80157864416bd666004cc706f` (72) |
+| `cv` | `cvD_t03_a1` | take 3, Unresolved failure | `MANIFEST_20261115T014050Z.md5` | `682c9a59566cf32815e2edd66a8d8bbe` (72) |
+| `ho` | `hoD_t01_a1` | take 1, M3-default resolution | `MANIFEST_20261115T021253Z.md5` | `31c7a4e580dc799fb385e218628f29f9` (64) |
+| `m5` | `m5D_t01_a1` | take 1, Unresolved failure | `MANIFEST_20261115T035453Z.md5` | `bd7572c417c558fda4d19c40867363e1` (68) |
+
+---
+
+## Running Summary (Per Phase, as Written)
 
 - **Status.** Every take here is an illustrative demo, not controlled experimental evidence. Takes are never pooled with experiment data.
 - **Intersection, ER-2 under B3, 3 takes (2026-11-14/15 UTC).** Take 1 unresolved (3 of 4 arrived), takes 2 and 3 resolved. None is VLM-driven: the labels are Unresolved, M3-default, M3-default. No GT contact, no floor stop.
@@ -26,9 +103,11 @@
 - **Recommendation: no-go for Sonnet takes as a route to a "VLM-driven" video; owner decision.** Launching also needs an owner-approved take-budget deviation (section 3.5).
 - **Intersection takes 4–5 (ER-2, B3; section 7).** Both resolved 4/4. Take 4 is M3-default (plan `repaired`). Take 5 is the only **VLM-driven execution** so far: ER-2's plan was verified `vlm_verbatim` with no edit, and its recede order robot_3 → robot_4 was dispatched and executed as written, with robot_1 as the yielder. The default order was robot_4 → robot_3 (computed offline). Checks 1–8 pass from the raw files.
   - Caveats: the two orders differ in chi by 0.010 m (a near-tie; the verifier tolerance is 0.15). By design only the timing of the two recedes changed; pockets, the cross, the release and the crossing order stayed on chi, and the model's `crossing_order` was not used. The order follows ascending robot id, as ER-2 mostly does offline. This is 1 VLM-driven take out of 5 live intersection takes; illustrative, not controlled evidence.
-  - Takes 4–5 ran on the ER-2 kit, not the Sonnet arm that section 10.5 of the registration plans; the registration does not record this choice.
+  - Takes 4–5 ran on the ER-2 kit, not the Sonnet arm that section 10.5 of the registration plans. (Rev 5: this choice is now recorded in registration section 10.8.)
 - **Wall-share amendment (registration 10.7).** `ib` share 9000 → 12600 s, `ho` 5400 → 1800 s; the totals are unchanged (37 800 s of shares, 43 200 s and $10 campaign caps).
 - **Convoy counterflow, ER-2, 3 takes (2026-11-15 UTC; section 5).** All three unresolved, 0 of 4 robots arrived in each. The first trigger's yield was executed as the model named it, but the model named only the standoff pair. The two queued robots, never commanded, followed through the gate and the scene latched for good. The 33 later proposals all ran as 8 s waits. Cause: the first decision's content, in a scene built so that such an answer cannot resolve, and then no recovery strategy in legacy grounding. Not a harness issue.
+- **Head-on with obstacle, ER-2, 1 take (section 6; Rev 5 bullet).** Resolved 2/2. The label is M3-default resolution (grounder-corrected): the feasibility gate swapped the model's yielder robot_1 (0.70 m retreat room < 1.08 m) to robot_2. 0 contacts, 0 floor stops.
+- **Five robots, seed position 21, ER-2, 1 take (section 8; Rev 5 bullet).** Unresolved, 1 of 5 arrived; a limitation demonstration. Two decisions were executed as named (yield + escort). Six later proposals were refused by grounding checks and withheld, with no analysis after sim 275.5 s. 0 contacts, 0 floor stops.
 
 ---
 
@@ -182,7 +261,7 @@ Full table: `docs/reports/2026-11-15-vlm-order-channel-plan-check.md` section 11
 - 11 `vlm_verbatim`; 6 verbatim with recede order ≠ chi; 1 of those 6 executed as written.
 - Yielder gap: 8 of 10 verbatim pair plans name robot_2 as yielder, and in 6 of them dispatch yields robot_1. That disqualifies 5 of the 6 order changes under the classifier rule (a yielder-swapped plan is M3-default).
 - VLM-driven per first trigger: 1/15 (6.7 %); over 2 takes about 13 % (inferred). ER-2 B3 offline: 7/27.
-- Spend: $0.216 at list ($0.2705 ledger units). Not booked in the campaign ledger yet, because the convoy run was writing it (section 3.6).
+- Spend: $0.216 at list ($0.2705 ledger units). When this section was written, the spend was not yet booked, because the convoy run was writing the ledger. Rev 5: it is booked, ledger row `spend ib offline_sonnet_b3 0.2705` at 2026-11-15T02:10:11Z (section 3.6).
 
 ### 3.5 Go/No-Go and Launch
 
@@ -214,7 +293,9 @@ cd /Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7j/data/logs/vm_runs/demo_campa
   - Anthropic billing or quota (probe rc 3).
 - **Video caption** for a VLM-driven Sonnet take: the section 10.2 sentence with "The VLM (Claude Sonnet 5.5)". Labels are `ibD_sonnet55_t04_a1` and `ibD_sonnet55_t05_a1`.
 
-### 3.6 Ledger Booking Owed (Not Done: the Convoy Driver Was Writing the Ledger)
+### 3.6 Ledger Booking (Done 2026-11-15T02:10:11Z)
+
+When this section was written, the booking was owed, because the convoy driver was writing the ledger. Rev 5: the ledger now holds the row `spend ib offline_sonnet_b3 0.2705` (note "Sonnet B3 offline check") at 2026-11-15T02:10:11Z. The command was:
 
 ```bash
 cd /Users/tuanhdangdinh/Documents/vgu-vlm-swarm-v7j/data/logs/vm_runs/demo_campaign/ib_sonnet/kit && python3 ledger_dmc.py book-spend ib offline_sonnet_b3 0.2705 "Sonnet B3 offline check, 16 calls + 1 probe (ledger units)"
@@ -439,7 +520,7 @@ Take 2's two `convoy` decisions are aliased to the ordered yield and refused by 
 
 **Status.** Illustrative, not controlled evidence. Takes are never pooled with experiment data. Same kit and configuration as takes 1–3 (section 1): `demo_campaign/ib/kit`, effective overlay `614beed0` (B3), delta `5c7973d3`, live `gemini-robotics-er-2-preview` (temperature 0.6, thinking `low`), seed 42, 300 sim-s horizon, both recorders on. Each take was a one-take invocation run after the wall-share amendment (registration section 10.7). Sources: `ib/runs/ibD_t04_a1/`, `ib/runs/ibD_t05_a1/`, `ib/take4_stdout.log`, `ib/take5_stdout.log`, `ib/MANIFEST_20261115T024528Z.md5`, `ib/MANIFEST_20261115T031339Z.md5`, `take_class_dmc.py`.
 
-**Take plan deviation (not recorded in the registration).** Section 10.5 plans up to 3 ER-2 takes, then up to 2 Sonnet 5.5 takes only if none is VLM-driven. Takes 4 and 5 ran on the ER-2 kit, not the Sonnet arm (section 3). The registration does not record that choice; the session lead should confirm the owner decision is recorded.
+**Take plan deviation.** Section 10.5 plans up to 3 ER-2 takes, then up to 2 Sonnet 5.5 takes only if none is VLM-driven. Takes 4 and 5 ran on the ER-2 kit, not the Sonnet arm (section 3). When this section was written, the registration did not record that choice. Rev 5: it is now recorded in registration section 10.8 (2026-11-15).
 
 ### 7.1 Takes (Verified From the Bundles)
 
@@ -497,3 +578,131 @@ Each check below was run from the raw bundle files, not from the classifier, exc
 - **Known gaps.**
   - The left pane is blank before sim 16.67 s (first recorded frame).
   - The automatic "call" still is the first call (`510f79e2`, no congestion); the jam call is on the dispatch still.
+
+---
+
+## 8. Five-Robot Scene, Take 1 (ER-2; Added 2026-11-15)
+
+**Status.** Illustrative, not controlled evidence. n = 1. This take is a limitation demonstration, and the registration expected this outcome for the scene (section 4.4: no resolution, few motion commands, withheld analyses, Layer 2 going quiet). Seed position 21 is an exploratory extension seed, outside the preregistered list (positions 1–20). It was already seen in pilot E21 and in the v4 Stage 1 shadow run, so this take is no new evidence on that seed.
+
+**Setup.** Kit `demo_campaign/m5/kit`; scenario `mapd_5_s1b_seed21`, seed 2107305794. Overlay `s1b_shield_escort_orch_seed21.yaml` `09bc16e6`, derived grounding `s1b_dynamic_shield_escort.yaml`, yield gate `swap`, stage 2 on. Inert delta `4843a776`, live `gemini-robotics-er-2-preview`, 600 sim-s horizon, sequential bring-up, both recorders on. The scene is a pickup-and-delivery task stream: 25 tasks over the 5 robots (`task_stream ... completed=0/25`). Sources: `m5/runs/m5D_t01_a1/`, `m5/driver_m5_20261115T035453Z.log`, `m5/MANIFEST_20261115T035453Z.md5`.
+
+### 8.1 The Take (Verified From the Bundle)
+
+| Item | Value |
+|---|---|
+| Take (label) | 1 (`m5D_t01_a1`), the only take; 0 bring-up aborts |
+| Wall (UTC) | Chain START 04:23:20, END 05:19:46. Before that, 11 VM start attempts failed (03:55–04:16, the driver's stockout retry), and the VM started at 04:18:40. It was stopped and verified TERMINATED at 05:22:33. Invocation booked: 3833 s, counted from VM start. |
+| Resolved | no. 1 of 5 arrived (GT rule `distance_to_goal < 0.3 m`): robot_5 at GT sim 185.7 s (M5 `arrived at base goal` and `task_stream event=arrived` at sim 187.8 s) |
+| Label | Unresolved failure (section 7 rule; the take classifier labels intersection takes only and was not run) |
+| Model calls | 9 billed: 8 analyses plus one stage-2 retreat call in analysis 2. Each took 1 attempt, `finish_reason=completed`, `parse_status=valid`, 0 refusals. Latency 7.0–13.0 s, 188 172 tokens (`COND` line), est. $0.0675. |
+| Provenance (8 analyses) | 2 `vlm_verbatim`, 1 `repaired`, 5 `m3_default` |
+| Reached M4 | 2 decisions (7 m5 `dispatch` lines). The other 6 were refused by grounding and withheld (6 m5 `refusal withheld … (refusal_no_action)` lines) |
+| Re-analysis | Last analysis at scene stamp 275.47 s (`704fab63`). 147 `reanalysis suppressed reason=scene_unchanged` lines in total, 117 of them after the last analysis; max displacement 0.000–0.002 m against epsilon 0.05 m |
+| GT closest pair | 0.2582 m, robot_1–robot_4, at sim 42.6 s (under 0.27 m from 42.5 to 46.0 s). This is their head-on standoff, before the first dispatch (M4 `handoff guard … sim_t=46.267`) |
+| Safety | GT contact rows 0 robot-robot and 0 robot-static in 6001 rows. Hard-floor stops 0 (floor 0.20 m armed per the M4 startup line). All 557 508 `safety stop` lines are `min_distance_violation` (M4's 0.45 m latch, not the floor). |
+| Recording frames | 2014 annotated (7 segments, sim 31.47–600.23) / 4104 raw (14 segments); `VIDEO_VERIFY` OK |
+| Manifest md5 | `bd7572c417c558fda4d19c40867363e1` (68 files) |
+
+`goal_check` misprints the dispatch counts for this take: `GOAL_SUMMARY … dispatches=8 withheld=0` and `LIMITATION … grounded_dispatches=8 withheld=0`. Every artifact carries a grounded command, but m5 dispatched only two of them and withheld six (counted from the m5 log above).
+
+### 8.2 The Eight Analyses (Verified From `decisions/*.json`, m5 and m4 Logs)
+
+| # | Request, scene stamp (sim s) | Model answer | Provenance | What happened |
+|---|---|---|---|---|
+| 1 | `03bba450`, 44.47 | `yield`, yielder robot_1, passer robot_4 | `vlm_verbatim` (0 edits) | **Executed as named.** robot_1 `yield` (backup 1.514 m, pull-off +0.72 m), robot_4 passer; robot_3 and robot_5 `temporary_wait` 120 s ("retreat shield"). `gate_admit` sim 80.73 (escort 1.671 m); `gate_cleared` / `gate_release reason=clearance` sim 99.90 (moved 1.672 m); escort and all four commands COMPLETED. |
+| 2 | `a15f3fc5`, 103.03 | `yield`, yielder robot_2, passer robot_3 (failure context: "yield completed 21 s ago; congestion re-detected") | `vlm_verbatim` (0 edits); stage 2 answered C, the default | **Executed as named.** robot_2 `yield` (backup 1.408 m, pull-off −0.72 m), robot_3 passer, robot_5 retreat-shield wait. `gate_admit` sim 138.70 (escort 1.604 m). robot_3 moved about 0.51 m (x 1.35 → 0.84) and stopped at sim 147. `gate_release reason=hold_timer` sim 183.70; then `escort robot_3: FAILED escort timed out in phase drive` (mapped sim 201.8). |
+| 3 | `c2f7094b`, 186.70 | `yield` robot_4 | `m3_default` (repair distance > 4) | Refused: "no feasible yielder (robot_4 0.00 m, robot_1 0.00 m retreat room < 0.77 m required)"; withheld |
+| 4 | `28865c06`, 191.53 | `yield` robot_4 | `m3_default` (same) | Refused: same reason; withheld |
+| 5 | `f53de038`, 213.63 | `yield` robot_1 | `m3_default` | Refused: "no declared junction: robot_1 runs along x and robot_5 along y (a crossing), but no declared junction box (NW, SW, N, S) holds both robots"; withheld |
+| 6 | `cc6332da`, 267.60 | `yield` robot_1 | `m3_default` | Refused: "no shared lane: robot_5 and robot_4 both run along y but sit 47 deg across it (side by side)"; withheld |
+| 7 | `596b794b`, 271.47 | `junction_clear` | `repaired` (robot_5 `cross` → `wait`) | Refused: "no feasible yielder (robot_1 0.00 m, robot_4 0.15 m, robot_5 0.00 m retreat room < 0.77 m required)"; withheld |
+| 8 | `704fab63`, 275.47 | `junction_clear`, no plan | `m3_default` (plan absent) | Refused: no feasible yielder (all five 0.00–0.15 m); withheld |
+
+The yield refusals sum to "no feasible yielder" ×4, "no declared junction" ×1 and "no shared lane" ×1. None of the six refused proposals moved a robot.
+
+### 8.3 Where Each Robot Ended (GT, Sim 600 s)
+
+| Robot | Final position | Its goal | What it did |
+|---|---|---|---|
+| robot_1 | (−2.17, −0.68) | S (−0.25, −1.35), 2.03 m away | Yielder of decision 1; stayed at its pull-off point from sim 100.2 s |
+| robot_4 | (−2.36, −1.06) | Wp (−2.30, 1.35), 2.41 m away | Escorted passer of decision 1; stopped at the escort end from sim 100.3 s, 0.425 m from robot_1 |
+| robot_5 | (−1.78, −0.51) | — | Reached its first goal, pickup N, at GT 185.7 s (the 1 arrival). Its dwell ended at 192.8 s and it was issued task 2, delivery Wm (−2.30, −1.35). It drove toward Wm and stopped at sim 210.8 s, 0.422 m from robot_1. GT `distance_to_goal` (2.41 m) still refers to the first goal. Tasks completed: 1 of 25. |
+| robot_2 | (0.51, 0.84) | E (2.30, 0.00), 1.98 m away | Yielder of decision 2; parked near its retreat point (−0.36, 0.10) about 140–183 s. After the hold-timer release it moved to (0.07, 0.64), then at 268–272 s to its final spot, 0.398 m from robot_3 |
+| robot_3 | (0.84, 0.62) | N (−0.25, 1.35), 1.31 m away | Passer of decision 2; stopped at sim 147 s, about 0.51 m into a 1.604 m escort |
+
+Three pairs stayed under M4's `min_distance_m` 0.45 continuously to the end (GT): robot_1–robot_4 from sim 100.5 s, robot_1–robot_5 from 211.0 s and robot_2–robot_3 from 272.4 s. The `min_distance_violation` stop lines continue for all five robots until the last m4 line.
+
+### 8.4 Why It Stayed Unresolved
+
+**Verified.**
+
+- **Decision 1 moved one pair through, and then the pair latched.** The yield cleared by distance at sim 99.9 s. The exemption for robot_1+robot_4 ended in the same second (`exempt pairs changed pairs=-`). From sim 100.5 s the two stood 0.42 m apart and never moved again.
+- **Decision 2's escort stalled.** robot_3 stopped at sim 147 s with no robot within 1.29 m (GT) and no robot_3 safety stop in that window. From that moment its Nav2 log repeats `camera_localizer … no TF robot_3/odom->robot_3/base_footprint at stamp=147.06` (456 lines, last stamp 268.46). The yield was closed by its 45 s hold timer, and the escort failed. Why robot_3 stopped is not established.
+- **Every later proposal was refused by grounding.** The robots near each conflict had 0.00–0.15 m of retreat room against 0.77 m required, or the pair had no declared junction or no shared lane. Each refusal withheld the command and armed the re-analysis suppression. After sim 275.5 s, nothing moved more than 0.05 m between checks, so no further analysis ran.
+
+**Inferred (not tested here).**
+
+- The final clusters were held by M4's 0.45 m latch: the pairs were not exempt and stood within `min_distance_m`.
+- The grounded vocabulary offers no motion to robots with no retreat room, so no later decision could have moved them.
+- This take does not show whether different first decisions would have avoided the clusters.
+
+### 8.5 Video
+
+- **File.** v7g `data/demo/campaign/m5D_t01_a1_panel.mp4` (git-ignored), md5 `75bf99e64c7ebea10573f08eb62440c3`, 21.0 MB (no `_small` copy needed). Beside it: transcript, five stills (call, decision, dispatch, mid, end) and `m5D_t01_a1_panel.md5`. Renderer v7g `feat/demo-panel-renderer` (`5198c0b`), unchanged, with the same arguments as the other campaign videos.
+- **Left pane.** Real camera recording, `/perception/annotated_frame`, all 7 segments, `annotated_framemap.json`.
+- **Captions** (outside the terminal):
+  1. "Unresolved failure — take 1 of 1 (limitation demonstration)";
+  2. "Model: Gemini Robotics-ER 2 (gemini-robotics-er-2-preview); Layer 2 on; 1 of 5 robots arrived.";
+  3. "Two decisions were executed (yield + escort); six later proposals were refused by grounding checks; the scene stayed jammed.";
+  4. "Illustrative demo, not controlled experimental evidence. Seed position 21 (exploratory extension seed); shows a current limitation." (the section 7 lines).
+- **Checks (verified).**
+  - ffprobe: H.264, 1920x1080, 24 fps, yuv420p, 4839 frames, 201.63 s. The full take (sim 0–600 s), not cut.
+  - Time map: log-to-sim alignment within 0.32 sim-s at 52 anchors.
+  - The first `dispatch` line maps to sim 46.01 s, and M4's `handoff guard … sim_t=46.267` follows it: an error of about 0.26 sim-s. The first `starting analysis` maps to 44.56 s against the scene stamp 44.47 s.
+  - The camera's burned-in clock against the caption clock: 46.60 / 46.71 s at the dispatch, 269.20 / 269.45 s at analysis 6 (the clock is held while the output prints), and 596.90 / 597.08 s near the end.
+  - Stills viewed: the dispatch (robot_1 yield, three `temporary_wait`s, exempt pair robot_1+robot_4); analysis 6 with the "no shared lane" reason on screen; sim 597 s with the two clusters still in place.
+- **Known gaps (the filter was not widened).**
+  - The fixed filter does not match m5's `yield refused`, `refusal withheld` or `reanalysis suppressed` lines, or m4's `escort … FAILED` line. On screen, the "no feasible yielder" refusals show only as `provenance=m3_default reason=repair distance exceeds bound 4`. The "no declared junction" and "no shared lane" refusals show in full, because they are the plan's rejection reason.
+  - The `jq` grounding line prints `dispatch_order=…` for the six withheld decisions too: it reads `dispatched_robot_ids`, which is filled although nothing was sent. The absence of m5 `dispatch` and m4 `command received` lines after those decisions shows the withholding; the caption states it.
+  - The left pane is blank before sim 31.47 s (first recorded frame) and in the last frames after 600.23 s, so the end still is blank.
+
+### 8.6 Verified and Inferred
+
+| Claim | Status |
+|---|---|
+| Analyses, provenance, refusal reasons, dispatches, gate events, escort failure, arrival, safety counts, closest pair, manifest md5 | verified (bundle artifacts, m4/m5 logs, GT, driver log) |
+| Robot_5's arrival was its first task goal; it then left on task 2 | verified (`task_stream` lines, GT) |
+| robot_3's stall coincides with missing odom TF warnings | verified as co-occurrence; the cause is not established |
+| The final clusters were held by the M4 latch, and no grounded strategy could move them | inferred |
+| `goal_check`'s `withheld=0` is wrong for this take | verified against the m5 log |
+
+---
+
+## 9. Combined Video (Added 2026-11-15)
+
+- **File.** v7g `data/demo/campaign/demo_campaign_combined.mp4` (git-ignored), md5 `ace3cc0d765a504441a29d54e74ac3df`, 25.6 MB. Beside it: the manifest `demo_campaign_combined_manifest.json`, the tool's sidecar `demo_campaign_combined_sources.json` (each source's path, md5, trim and labels) and `demo_campaign_combined.md5`. It was made with `render_demo_panel.py combine` (renderer `5198c0b`, unchanged) at `--crf 25`. The default crf 23 gave 29.3 MB, over the 28 MB limit.
+- **Output (ffprobe, verified).** H.264, 1920x1124 (a 44 px caption bar above the 1080p clips), 24 fps, yuv420p, 5518 frames, 229.92 s.
+- **Order and trims** (source video seconds; each excerpt follows a 3 s title card, and the caption bar prints the trim):
+
+| # | Source | Title card: outcome, take | Excerpt | What it contains |
+|---|---|---|---|---|
+| 1 | `ibD_t05_a1_panel.mp4` (104.1 s) | VLM-driven execution, take 5 of 5 | 22.5–97.5 s | jam call `df397030`, `provenance=vlm_verbatim`, recede dispatch robot_3 then robot_4, cross and release, robot_1's arrival (sim 149 s) |
+| 2 | `cvD_t01_a1_panel.mp4` (273.3 s) | Unresolved failure, take 1 of 3 | 5.5–37 s | first call, `vlm_verbatim` yield, dispatch, `gate_admit` and `gate_release`; the latch forms at about sim 75 s |
+| 3 | same | Unresolved failure, take 1 of 3 (later excerpt) | 255–271.9 s | the last proposal (`m3_default`, a wait) and the jam at sim 250–260 s, up to the last camera frame |
+| 4 | `hoD_t01_a1_panel.mp4` (76.0 s) | M3-default resolution, take 1 of 1 | 26.5–69 s | decision 2 call, `yield` robot_1 in the answer and the dispatched yield to robot_2, gate, both arrivals |
+| 5 | `m5D_t01_a1_panel.mp4` (201.6 s) | Unresolved failure, take 1 of 1 | 7.5–37 s | first call, `vlm_verbatim` yield, dispatch, `gate_admit`, `gate_cleared` |
+| 6 | same | Unresolved failure, take 1 of 1 (later excerpt) | 183–199.5 s | the last analysis (`plan absent`), then 30x sim time to sim 597 s with both clusters in place |
+
+- **Title-card notes** (one line each, consistent with sections 5–8):
+  - intersection: "Model chose the back-out order (robot_3 first); default was robot_4 first by ~1 cm; 1 VLM-driven take of 5";
+  - convoy: "The model's yield ran as named, but it left out the two queued robots; they followed through the gate and the scene latched";
+  - convoy, later: "All 11 later proposals ran as 8 s waits; 0 of 4 robots arrived by the end (sim 260 s); takes 2-3 were also 0 of 4";
+  - head-on: "Grounder corrected the model's yielder: robot_1 had 0.70 m retreat room (< 1.08 m), so robot_2 yielded; 2 of 2 arrived";
+  - five robots: "Limitation demonstration: first decision (robot_1 yields, robot_4 escorted) executed and completed";
+  - five robots, later: "Six later proposals were refused by grounding checks; no analysis after sim 275.5 s; 1 of 5 arrived by sim 600 s".
+  Each card also carries the tool's fixed line "Illustrative demonstration, not controlled experimental evidence.". The per-scenario disclosure captions of the source videos stay visible under each scene pane.
+- **Checks (verified).**
+  - Before combining, ffprobe frame counts matched each source's duration: 2499 / 104.125 s, 6559 / 273.29 s, 1825 / 76.04 s and 4839 / 201.63 s. No excerpt ends past a source's last frame.
+  - Stills viewed: all six title cards, and one frame from inside each excerpt. Each frame's caption bar names the scenario, outcome, take and trim. The text is legible at crf 25 (checked on a full-resolution frame of excerpt 4).
+- **Why two excerpts for each unresolved take.** One contiguous excerpt could not show both the first executed decision and the late, still-jammed scene within about 4 minutes. The cut is never hidden: each part has its own title card, and the caption bar prints its trim.
