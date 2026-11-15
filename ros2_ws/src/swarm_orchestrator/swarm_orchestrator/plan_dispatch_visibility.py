@@ -245,6 +245,17 @@ def _warning_lines(
 ) -> list[str]:
     # `reason` last: it can carry free text with spaces (a substituted wait's
     # refusal sentence), so every key before it stays machine-splittable.
+    if mismatch.withheld is not None and mismatch.items:
+        # Nothing was sent to anyone, and M5 already logs `refusal withheld`:
+        # one line per decision, not one per robot (the artifact keeps every
+        # per-robot item).
+        robots = [item.subject for item in mismatch.items if item.subject in mismatch.planned]
+        planned = ",".join(f"{r}:{mismatch.planned[r]}" for r in robots)
+        return [
+            f"plan dispatch mismatch request={request_id} strategy={mismatch.strategy} "
+            f"robot={','.join(robots)} planned={planned} dispatched=none kind=withheld "
+            f"plan_id={plan_id} reason=withheld:{mismatch.withheld}"
+        ]
     return [
         f"plan dispatch mismatch request={request_id} strategy={mismatch.strategy} "
         f"robot={item.subject} planned={item.planned} dispatched={item.dispatched} "

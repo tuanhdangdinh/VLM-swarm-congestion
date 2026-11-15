@@ -378,3 +378,55 @@ def test_visibility_failure_never_blocks_dispatch(node_env, tmp_path, monkeypatc
     assert node._cmd_pub.published
     block = _artifact(node, "b07a700f441b4745a6be81f3899668ed")["plan_dispatch_mismatch"]
     assert block == {"error": "RuntimeError: synthetic"}
+
+
+def test_withheld_decision_logs_one_summary_warning(node_env, tmp_path):  # noqa: F811
+    from swarm_orchestrator.plan_dispatch_visibility import (
+        LegEffectLedger,
+        build_plan_dispatch_visibility,
+    )
+
+    node = _node(node_env, tmp_path, visibility=True)
+    artifact = _fixture("m5D_03bba450_yield_shield.json")
+    verified = VerifiedPlan(legs=_verified_legs(artifact), provenance="vlm_verbatim")
+    acceptance = node._plan_tracker.accept_plan(verified)
+    outcome = PipelineOutcome(
+        request_id=artifact["request_id"],
+        reasoner_result=ReasonerResult(
+            request_id=artifact["request_id"],
+            decision=CongestionDecision.model_validate(artifact["decision"]),
+            raw_text="{}",
+            diagnostics=ReasonerDiagnostics(
+                request_id=artifact["request_id"], backend_id="mock", attempts=1,
+                parse_status="valid",
+            ),
+        ),
+        grounded_command=artifact["dispatched_command"],
+        terminal_stage=TerminalStage.OK,
+        plan=PlanDispatchInfo(
+            plan_id=acceptance.plan.plan_id,
+            provenance="vlm_verbatim",
+            legs=acceptance.plan.legs,
+            dispatch_matches_plan=False,
+        ),
+        plan_verified_legs=tuple(verified.legs),
+    )
+
+    record = build_plan_dispatch_visibility(
+        outcome,
+        dispatch_command=artifact["dispatched_command"],
+        dropped_robot_ids=(),
+        withheld_reason="refusal_no_action",
+        request_robot_ids=FIVE,
+        ledger=LegEffectLedger(),
+    )
+
+    assert record is not None
+    assert record.warning_lines == (
+        f"plan dispatch mismatch request={artifact['request_id']} strategy=yield "
+        "robot=robot_1,robot_4 planned=robot_1:yield,robot_4:cross dispatched=none "
+        "kind=withheld plan_id=1 reason=withheld:refusal_no_action",
+    )
+    legs = {leg["robot_id"]: leg for leg in record.mismatch_block["leg_status"]}
+    assert legs["robot_1"]["effective_status"] == "not_sent"
+    assert legs["robot_1"]["reason"] == "withheld:refusal_no_action"
