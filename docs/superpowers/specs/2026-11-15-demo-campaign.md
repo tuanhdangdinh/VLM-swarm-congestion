@@ -10,6 +10,7 @@
 - Rev 4 (2026-11-15): section 10.8, closing note: intersection takes 4–5 on ER-2 instead of Sonnet, convoy stopped after 3 takes, the five-robot result.
 - Rev 5 (2026-11-15): section 12, owner-approved convoy takes 4–5 with the M3 queued-robot hold (`cvh` kit), the second wall-share amendment (12.4) and the simulator-only test step; written before the VM start.
 - Rev 6 (2026-11-15): section 13, the convoy rerun `cvy` (the hold plus the M3 counterflow yielder swap) under its own ledger key; written offline before any VM start; not launched.
+- Rev 7 (2026-11-15): section 13.6, the `cvy` wall share raised from 5 400 s to 7 200 s before the VM start (caps data and kit md5 pins only).
 
 ---
 
@@ -863,3 +864,20 @@ Kit md5s: `kit_md5_dmc.txt` (VM files, 36 entries) `194a09b7`, `kit_md5_all_dmc.
 
   n = 1 resolution so far (the smoke, not owner-accepted).
 - **Never.** No weakened checks, no hardcoded plans, no ground-truth edits, no edits to pulled bundles, no `rsync --delete`, no push. Nothing in the `sft` kit or its files is touched.
+
+### 13.6 `cvy` Wall-Share Amendment (2026-11-15, Before the VM Start)
+
+**What changed.** `wall_sec_cvy` 5 400 s → 7 200 s, the planning session's ruling, so that a second take can be admitted if take 1 does not resolve (13.4). It supersedes the 5 400 s figure in 13.4 and 13.5.
+
+- **Arithmetic.** 25 667 s used + 7 200 s (`cvy`) + 7 200 s (reserved for the other queued session) = 40 067 s ≤ 43 200 s.
+- **Unchanged.** Every other caps row (`usd_cvy` 0.25, 2 valid takes, 3 bring-up aborts, every other scenario's share), both campaign totals (43 200 s, $10), the per-take budget (3 000 s), the per-invocation admission (4 800 s) and the admission logic (`ledger_dmc.py`).
+- **How.**
+  - `cvy/spec/caps_dmc.tsv`: the one value and the header comment; md5 `4ab4447e` → `30915419`. `common/caps_dmc.tsv` is untouched.
+  - The kit was reassembled with the unchanged `common/assemble_dmc.sh cvy <v7t>`. `diff -rq` against a backup of the kit lists only `caps_dmc.tsv` and `kit_md5_all_dmc.txt`.
+  - `caps_dmc.tsv` is a Mac-only file, so `kit_md5_dmc.txt` (VM files, 36 entries) is unchanged at `194a09b7`. `kit_md5_all_dmc.txt` (55 entries) is now `ebcedf81`.
+  - The kit's `README.md`, the `ledger_dmc.py` docstring and the `profile_dmc.sh` comment still say 5 400 s; they are comments and were left as they are.
+- **Checks (verified by running).**
+  - `MIN_MAC_FREE_KB=3000000 bash test_dry_dmc.sh <v7t>` (test only) ends `TEST_DRY_DMC cvy OK`, including the git preflight against v7t HEAD `272ad4a` and the ledger dry paths.
+  - `mac_kit_md5_dmc.sh --check`: `KIT_MD5 OK`.
+  - Read-only `ledger_dmc.py admit cvy 4800 0.05`: `ADMIT cap_sec=7200 spend_left=0.25 aborts_left=3 next_take=1 valid=0`. The ledger md5 `e611935f` was unchanged before and after the dry test and the admit.
+- **Launch.** Still `bash run_dmc.sh --episodes 1` per invocation, with the stop rules of 13.5.
