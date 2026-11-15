@@ -227,9 +227,11 @@ def summarize_first(rows: list[dict[str, Any]]) -> dict[str, Any]:
         for arm in ARMS:
             t["resolving"][arm] += int(resolving(r[arm]["struct"]))
         st = r["fix"]["struct"] or {}
-        t["fix_yielder"][str(st.get("yielder"))] = t["fix_yielder"].get(str(st.get("yielder")), 0) + 1
+        fy = str(st.get("yielder"))
+        t["fix_yielder"][fy] = t["fix_yielder"].get(fy, 0) + 1
         t["swapped_fix"] += int(st.get("grounded_from") is not None)
-        t["refused_fix"] += int(any("counterflow_refused" in d for d in r["fix"]["degradations"] or []))
+        degr = r["fix"]["degradations"] or []
+        t["refused_fix"] += int(any("counterflow_refused" in d for d in degr))
         p = str(r["fix"]["provenance"])
         t["prov_fix"][p] = t["prov_fix"].get(p, 0) + 1
         t["match_fix"] += int(bool(r["fix"]["dispatch_matches_plan"]))

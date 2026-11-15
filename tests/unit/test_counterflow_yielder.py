@@ -1,4 +1,4 @@
-"""Counterflow yielder feasibility (2026-11-15): a corridor yield's crossers must start opposite the yielder.
+"""Counterflow yielder feasibility (2026-11-15): crossers must start opposite the yielder.
 
 Convoy counterflow (docs/reports/2026-11-15-convoy-non-arrival-and-yielder-feasibility.md):
 legacy multi-passer grounding parks the yielder on its own side of the corridor
@@ -37,8 +37,8 @@ from reasoning.rag.command_grounder import (
     verify_and_repair_plan,
 )
 from reasoning.rag.maneuver_geometry import GroundingParams
-from reasoning.rag.scene_geometry import ArmGeometry, CorridorGeometry, SceneGeometry
-from reasoning.vlm.models import RobotStateInput, SnapshotFrame
+from reasoning.rag.scene_geometry import ArmGeometry
+from reasoning.vlm.models import SnapshotFrame
 from tests.unit.test_m5_node_probe import _config, node_env  # noqa: F401
 from tests.unit.test_queued_crosser_hold import (
     _CONTINUE_PLAN,
@@ -80,7 +80,9 @@ def _mirror(frame: SnapshotFrame) -> SnapshotFrame:
 def _transpose(frame: SnapshotFrame) -> SnapshotFrame:
     return SnapshotFrame(
         stamp=frame.stamp,
-        robots=[_robot(r.robot_id, r.y, r.x, r.theta, (r.goal[1], r.goal[0])) for r in frame.robots],
+        robots=[
+            _robot(r.robot_id, r.y, r.x, r.theta, (r.goal[1], r.goal[0])) for r in frame.robots
+        ],
     )
 
 
@@ -150,7 +152,11 @@ def _strip_counterflow(command: dict) -> dict:
             if k not in ("yield_robot_grounded_from", "yield_regrounded_reason")
         }
         actions.append({**action, "parameters": parameters})
-    tags = [t for t in command.get("degradations", []) if not t.startswith(COUNTERFLOW_REGROUNDED_TAG)]
+    tags = [
+        t
+        for t in command.get("degradations", [])
+        if not t.startswith(COUNTERFLOW_REGROUNDED_TAG)
+    ]
     stripped = {k: v for k, v in command.items() if k != "degradations"}
     return {**stripped, "actions": actions, **({"degradations": tags} if tags else {})}
 
