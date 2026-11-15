@@ -12,7 +12,7 @@ The system prompt is the same single line in all three requests (28 characters, 
 You are a helpful assistant.
 ```
 
-== Prompt Version 3.4 in the Intersection Experiment <sec:app-prompt-v34>
+== Prompt Version 3.4 in Intersection Run 1 <sec:app-prompt-v34>
 
 The first request is the one excerpted in @fig:impl-prompt-excerpt: an analysis in episode 3 of intersection run 1 (coordination layer on), with the plan channel on #ev("4.39"). Its user prompt is 6,738 characters long, SHA-256 `cde5e27373b9c2b379b8b3395ba78097ca5bf1deb8adec9d92aef90ea29996a0`. The baseline of @sec:impl-vlm (5,804 characters, `6d08540f...`) is rendered by a test from a fixed two-robot test request, so its length and digest differ from those of a prompt recorded on a live scene #ev("4.17"). The image is sent after the text.
 
