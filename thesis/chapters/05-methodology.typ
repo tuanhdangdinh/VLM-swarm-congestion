@@ -4,16 +4,20 @@
 
 = Experimental Methodology <sec:ch5>
 
-This chapter states how the system described in Chapters 3 and 4 was evaluated. It covers the research questions, the history of the preregistration, the two simulated scenes, the experimental arms, the outcome measures, the run procedure, the analysis plan, the offline benchmark used for the v4 extensions, and the threats to validity that were known before any data was seen. It reports no outcome; every result belongs to Chapter 6.
+This chapter states how the system described in Chapters 3 and 4 was evaluated. It covers the research questions, the history of the preregistration, the simulated scenes, the experimental arms, the outcome measures, the run procedure, the analysis plan, the offline benchmark used for the v4 extensions, the decision-level analyses, the demonstration campaign, and the threats to validity that were known before any data was seen. It reports no outcome; every result belongs to Chapter 6.
 
-Three live comparisons and one offline benchmark are described. Their evidential status differs, and the chapter keeps them apart:
+Three live comparisons, one offline benchmark, three decision-level analyses and one demonstration campaign are described. Their evidential status differs, and the chapter keeps them apart:
 
 - *prereg-v3 tranche 1* on the five-robot S1b scene, Layer 2 on against Layer 2 off. It was registered as confirmatory. This report reports it as a *pilot*, for the reason given in the section on research questions.
 - *IB10 live resolution* on the four-robot intersection, Layer 2 on against Layer 2 off. Exploratory.
 - *IB10 grounder-default arm*, a separate run on the same scene, Layer 2 on against a grounder-only arm with no VLM call. Exploratory.
 - *the v4 offline bench*, a replay of recorded decisions. Exploratory and decision-level only.
+- *the head-on decision analyses*, a re-score of recorded head-on decisions and three pre-registered offline replays. Decision-level only (@sec:ch5-decision).
+- *the plan-influence trace*, a counterfactual re-grounding of every live four-robot analysis. Decision-level only (@sec:ch5-decision).
+- *the offline contact recompute*, a geometric check of recorded ground truth. Offline, pending live validation (@sec:ch5-decision).
+- *the demonstration campaign*, twelve valid live takes in four scenes. Illustrative only (@sec:ch5-demo).
 
-The IB10 runs and the v4 bench are never pooled with prereg-v3 data, and the two IB10 runs are never pooled with each other.
+The IB10 runs and the v4 bench are never pooled with prereg-v3 data, and the two IB10 runs are never pooled with each other. None of the decision-level analyses or demonstration takes is pooled with any experiment.
 
 == Research Questions and Hypotheses <sec:ch5-rq>
 
@@ -74,7 +78,7 @@ The IB10 experiment and its grounder-default addendum are registered separately 
 
 == Scenes <sec:ch5-scenes>
 
-Both scenes are scenario files of the v3 pinned runtime, built into Isaac Sim stages, with Nav2 running on a map generated from the same file. Robot poses for the decision layer come from M1’s overhead ArUco tracking; ground truth (GT) positions come from the simulator.
+The scenes are scenario files of the v3 pinned runtime, built into Isaac Sim stages, with Nav2 running on a map generated from the same file. Robot poses for the decision layer come from M1’s overhead ArUco tracking; ground truth (GT) positions come from the simulator.
 
 === S1b: five-robot task-stream scene
 
@@ -98,6 +102,33 @@ A run counts only if a jam forms. The frozen validity gate requires a jam onset 
   caption: flex-caption([Layout of the IB10 intersection.], [Layout of the IB10 intersection: four robots, one per arm, each crossing to the opposite arm. The drawing is cropped to the area around the cross aisle and the tracked band.#fig-source("5.16")]),
 ) <fig:ch5-ib10>
 
+@fig:ch5-ib10-frame shows the same scene as the overhead camera sees it when the jam has formed.
+
+#figure(
+  image("../assets/images/fig_intersection_jam_t30p10.png", width: 75%),
+  caption: flex-caption([Overhead camera frame of the four-robot intersection in a jam.], [Four-robot intersection (`intersection_bottleneck`, the IB10 scene file, seed 42), raw overhead camera frame at simulated time 30.1 s: the four robots jammed at the centre of the cross aisle before any command; `robot_1` left, `robot_2` right, `robot_3` bottom, `robot_4` top, each bound for the opposite arm. Simulation (Isaac Sim), overhead camera. Frame from demonstration take 5 of 5, not from an IB10 experiment episode.#fig-source("6.01")]),
+) <fig:ch5-ib10-frame>
+
+The next two scenes were used only in the demonstration campaign and, for the head-on family, in the decision-level analyses. Neither carries a scored live comparison in this report.
+
+=== Convoy counterflow
+
+The convoy counterflow scene places four robots on one line through a narrow gap #ev("5.52"). The gap between two barrier blocks is 0.55 m wide and 1.0 m long. `robot_1` drives east into the gap and meets the counter-flow robot `robot_2` nose to nose; `robot_3` and `robot_4` queue behind `robot_1`, and their goals also lie past the gap. The two queued robots are held at their start for 120 s of wall-clock time and then released, so they reach the gap after the first decision. The scene runs for 260 sim-s with seed 42 #ev("5.52") #ev("6.01"). Its oracle is a convoy: `robot_2` yields once and the three eastbound robots pass in the order `robot_1`, `robot_3`, `robot_4`. The scene file states in advance that any answer that omits the queued robots ends in a latch of robots that the command did not name, so the first decision has to include all four robots #ev("5.52") #ev("6.01"). @fig:ch5-convoy shows the standoff.
+
+#figure(
+  image("../assets/images/fig_convoy_standoff_t28p00.png", width: 75%),
+  caption: flex-caption([Overhead camera frame of the convoy counterflow scene.], [Convoy counterflow scene (`convoy_counterflow_slip`, seed 42), four robots, raw overhead camera frame at simulated time 28.0 s. Left to right: `robot_4` and `robot_3` queued behind `robot_1`, which stands nose to nose with the counter-flow robot `robot_2` in the 0.55 m wide, 1.0 m long gap between the two barrier blocks (yellow). Before any command. Simulation (Isaac Sim), overhead camera. Frame from demonstration take 1 of 5.#fig-source("6.01")]),
+) <fig:ch5-convoy>
+
+=== Head-on corridor with obstacle
+
+The head-on corridor scene is one member of a family of two-robot head-on scenes that differ in which side a blocking box stands on #ev("5.52"). Two robots, `robot_1` from the west and `robot_2` from the east, meet nose to nose in a corridor between barrier blocks that is 0.55 m wide and 2.0 m long. A box behind `robot_1` (`blocker_west`) leaves it 0.70 m of retreat room from the corridor mouth, against the 1.08 m it needs to park, so only `robot_2` can yield. The scene's oracle therefore names `robot_2` as the yielder. It runs for 300 sim-s with seed 42 #ev("5.52"). @fig:ch5-headon shows the first standoff. The mirrored scenes of the family, with the box on the east side, make `robot_1` the correct yielder; the decision-level analyses of @sec:ch5-decision use both sides.
+
+#figure(
+  image("../assets/images/fig_headon_standoff_t26p00.png", width: 75%),
+  caption: flex-caption([Overhead camera frame of the head-on corridor with an obstacle.], [Head-on corridor with an obstacle (`head_on_asymmetric_w0p2_eopen_bshort_o0`, seed 42), two robots, raw overhead camera frame at simulated time 26.0 s: `robot_1` (left) and `robot_2` (right) nose to nose in the 0.55 m wide, 2.0 m long corridor between the barrier blocks (yellow). The box at the left (`blocker_west`) leaves `robot_1` 0.70 m of retreat room against 1.08 m required, so only `robot_2` can yield. First standoff, before any command. Simulation (Isaac Sim), overhead camera. Frame from demonstration take 1 of 1.#fig-source("6.01")]),
+) <fig:ch5-headon>
+
 == Arms <sec:ch5-arms>
 
 Three arm definitions are used, in three separate comparisons (@tab:ch5-arms). An arm is defined by what happens after M1 publishes a scene. Perception, the Nav2 base missions, M4’s safety monitor and the simulator are the same in every arm.
@@ -117,12 +148,12 @@ Three arm definitions are used, in three separate comparisons (@tab:ch5-arms). A
     table.header([*Comparison*], [*Arms*], [*Runtime and safety*], [*Status*]),
     [prereg-v3 tranche 1, S1b], [A: ER-2. \ B: `reasoning_enabled: false`.], [v3 runtime with the Arm B switch; 0.20 m floor.], [Registered confirmatory; reported as pilot.],
     [IB10 live resolution], [A: ER-2. \ B: `reasoning_enabled: false`.], [v3 pinned runtime; 0.20 m floor.], [Exploratory.],
-    [IB10 grounder default], [A: ER-2. \ C: scripted mock, M3 default plan.], [v3 pinned runtime plus a two-file safety fix, switched on; 0.20 m floor.], [Exploratory.],
+    [IB10 grounder default], [A: ER-2. \ C: scripted mock, M3 default plan.], [v3 pinned runtime plus the safety fix (three files: two monitor code files and a merged safety file carrying the key), switched on; 0.20 m floor.], [Exploratory.],
   ),
   caption: flex-caption([The three live comparisons.], [The three live comparisons. Arms are compared only within a row.#fig-source("5.21")]),
 ) <tab:ch5-arms>
 
-The rows differ in runtime. Tranche 1 ran on the commit that introduced the Arm B switch, which the v3 pinned runtime contains #ev("5.21"). The first IB10 run used the v3 pinned runtime with no code deployed #ev("5.17"). The grounder-default run added two safety-monitor files and a configuration key that narrows the coordination exemption, with the floor armed #ev("5.21"). Arm C is therefore compared only with the Arm A episodes of its own run, never with the earlier IB10 arms.
+The rows differ in runtime. Tranche 1 ran on the commit that introduced the Arm B switch, which the v3 pinned runtime contains #ev("5.21"). The first IB10 run used the v3 pinned runtime with no code deployed #ev("5.17"). The grounder-default run added the safety fix, three files in all: two safety-monitor code files and a merged safety file carrying a configuration key that narrows the coordination exemption, with the floor armed #ev("5.21") #ev("6.06"). Arm C is therefore compared only with the Arm A episodes of its own run, never with the earlier IB10 arms.
 
 == Measures <sec:ch5-measures>
 
@@ -170,7 +201,7 @@ where $D$ is the set of robots the decision names and $I$ the set of robots in t
 
 All IB10 scoring uses the criteria frozen for the scene before either experiment, through the same pinned scorer #ev("5.26").
 
-*Primary.* An episode is *resolved* when the formed-jam gate passes and all four robots arrive, by the GT position rule: within 0.35 m of the goal and never beyond 0.5 m afterwards #ev("5.26"). An episode is a *success* when it is resolved, M4 logged no hard-contact-floor stop, and the GT minimum distance between any two robots after time zero is at least 0.18 m #ev("5.26"). A floor stop or a GT robot pair below 0.18 m makes an episode a failure, whatever its arrivals.
+*Primary.* An episode is *resolved* when the formed-jam gate passes and all four robots arrive, by the GT position rule: within 0.35 m of the goal and never beyond 0.5 m afterwards #ev("5.26"). An episode is a *success* when it is resolved, M4 logged no hard-contact-floor stop, and the GT minimum distance between any two robots after time zero is at least 0.18 m #ev("5.26"). This is a centre-distance test on robot pairs; IB10 declares no static obstacles, and contact with walls or rack blocks is not checked #ev("6.20"). A floor stop or a GT robot pair below 0.18 m makes an episode a failure, whatever its arrivals.
 
 *Secondary.* Time to full resolution is the last arrival minus the GT jam onset, censored at the horizon when the jam is not resolved. Also reported are the minimum pairwise GT distance, the floor-stop count, the number of arrivals out of four, and an outcome rank that orders episodes first by whether all robots arrived, then by the phase reached, then by arrivals #ev("5.26").
 
@@ -233,7 +264,7 @@ Safety gates are validity conditions, not hypotheses. A breach is reported as a 
 
 In tranche 1 the gates were #ev("5.32"):
 
-- a *contact gate*: no robot pair below 0.18 m GT centre distance at any time, from an all-pairs scan of ground truth because the simulator's contact field is a stub, and no floor stop in M4’s log;
+- a *contact gate*: no robot pair below 0.18 m GT centre distance at any time, from an all-pairs scan of ground truth because the simulator's contact field is a stub, and no floor stop in M4’s log. The gate covers robot pairs only; contact with the rack islands was not gated, and a later offline distance recompute flagged one possible millimetre graze with a rack island in tranche 1, which is not established as a contact (Chapter 6) #ev("6.01");
 - a *floor gate*: M4’s start-up line must show the 0.20 m floor, otherwise the chain stops;
 - a *condition gate* per arm: for Arm A, every grounded artifact carries the escort and shield flags; for Arm B, no decision artifact, no analysis line, exactly one status line, one task log and a non-empty scene log, so that a crashed M5 cannot pass as silence;
 - an *escort and park check*: the escort legs of every dispatched yield are compared with the 0.45 m park clearance and flagged when below it;
@@ -283,6 +314,46 @@ The v4 bench is an offline test bed for M2. It replays decisions on S1b scenes r
 Replays used ER-2 and Claude Sonnet 5.5. A shuffled-option control permuted the options with seed 20261023 to expose position effects. The replays could not be run at temperature 0.0: the ER-2 interface has no temperature field, and the Sonnet backend does not send non-default sampling because the model rejects it. Each call therefore records the sampling actually sent #ev("5.39"). A fixed chooser that takes the first listed option in every group serves as the reference. Options are ordered by the generator, so this is a default-ordered choice, not a blind baseline #ev("5.41").
 
 *Live shadow (Stage 1).* The per-cluster variant was also run as a live shadow on S1b. In each analysis the ordinary Arm A loop decided and dispatched as before, and a second, per-group M2 call was grounded and checked but never dispatched. It ran 7 episodes on seed positions 21 to 27, on the v4 code rather than the v3 pinned runtime #ev("5.42"). It can show whether the per-group path runs live, not whether per-group dispatch would resolve anything.
+
+== Decision-Level Analyses <sec:ch5-decision>
+
+Three analyses were made after the live comparisons, on recorded data or in offline replays. None executes anything in simulation, none is pooled with a live comparison, and each is described here only by its method and by what it can and cannot show.
+
+=== Head-on decision analyses
+
+*Re-score of recorded decisions.* The re-score asks whether, in the recorded head-on scenes, the model names the oracle-correct yielder more often than a position-only rule, and whether any advantage is explained by a preference for `robot_1` or for the robot listed first #ev("6.08"). It reads every recorded live head-on decision. The unit is the run: the first positive analysis of each run, that is, the first analysis that detects congestion and names a yielder. Each run's choice is scored against the scene's oracle yielder beside three references: a position-only rule (the classical first-come-first-served reasoner, recorded or recomputed from the scene log), a chooser that always names `robot_1`, and the yielder that M3's feasibility gate would ground, derived from the decision record #ev("6.08"). The analysis was not pre-registered, is post hoc, and reports counts only, with no p-values or intervals. The grounded yielder is derived from artifact fields; dispatch itself was not checked against M4’s logs #ev("6.08").
+
+*Pre-registered offline replays.* Three replays were each registered before their first paid call #ev("6.09") #ev("6.10") #ev("6.11"). They use recorded standoff scenes of the same family, half with the box on each side, two robots and the first decision only, and they vary one input at a time:
+
+- the *swapped-ID replay* exchanges the labels of the two robots in the scene, and adds arms with a neutral grey image and with the obstacle text removed, under both listing orders and with two replicates, so that a choice driven by the scene can be told apart from one driven by the label or the listing slot. Its pre-stated scene-use rule requires a high share of correct choices in every label and slot combination #ev("6.09");
+- the *JSON-only replay* replaces the answer-format block of the prompt with a single JSON-only line for every model, to test whether one prompt text is usable by every provider and to make the models' answers assessable #ev("6.11");
+- the *improved-annotation replay* shows the frame with legible labels and no obstacle text, with and without a neutral sentence that a robot backing up needs free floor behind it #ev("6.10").
+
+Each replay states a stop rule for provider limits and labels any cell with too few decisions "not assessable". They can show whether a model's choice follows the scene in these two-robot scenes; they cannot show anything about execution or about other scene types.
+
+=== Plan-influence trace
+
+The trace asks whether the model's plan changed what the robots were commanded to do #ev("6.02"). It covers every recorded live four-robot analysis with a non-mock model. Each recorded decision is re-grounded with the runtime's own functions, using the artifact's recorded parameters, feasibility mode, stage-2 answer and scene geometry. A comparison is trusted only if re-grounding the recorded decision reproduces the recorded dispatch exactly (the fidelity gate). The trace then re-grounds the same decision without its proposed plan, and separately with the scripted Arm C decision, and compares the commands #ev("6.02"). Every claim is labelled as verified from a record or inferred. The trace shows which executed commands depended on the plan and which on the other decision fields; it cannot show whether a different plan would have changed the outcome, and it covers only the runtime and the switches that were active in the recorded runs.
+
+=== Offline contact recompute
+
+Because the ground truth's contact lists were a stub that always logged an empty list #ev("6.20"), contact was recomputed offline from recorded poses #ev("6.12"). For each ground-truth row, at 10 Hz, the recompute places the robot's planar collision footprint from its URDF at the logged pose and measures the signed gap to every declared box (walls, racks, barrier blocks, declared obstacles) and to every other robot. A gap of at most 5 mm counts as a contact entry, and one second of consecutive entries as a sustained contact; both thresholds were fixed before the suspected cases were examined #ev("6.12"). A recorded robot-robot contact serves as a positive control. The recompute is a geometric proximity measure, not a physics contact. The same computation was later added to the ground-truth logger on a separate branch and checked in one live validation take, which reproduced the offline values row by row but contained no contact #ev("6.17"). The recompute can therefore flag where a robot met an obstacle; its figures are treated as pending validation, and only a contact confirmed independently, from poses, geometry and the recording, is cited as a finding.
+
+== Demonstration Campaign <sec:ch5-demo>
+
+The demonstration campaign recorded live takes of the full pipeline in four scenes to show what it does, not to measure how well it does it #ev("5.51"). It was registered before any machine time was used, with caps of 12 machine-hours and \$10 in all, and every take, including every aborted one, was archived and labelled #ev("5.51").
+
+*Scenes and configuration.* The four scenes are the IB10 intersection, the convoy counterflow scene, the head-on corridor with obstacle, and the five-robot S1b scene at seed position 21, an exploratory seed outside the registered confirmatory list that earlier pilots and the live shadow had already used #ev("5.51"). Every take runs Layer 2 on with the live ER-2 model; there is no Layer-2-off or scripted arm. Every take keeps all grounding, feasibility and safety checks on, including the safety-exemption fix and the 0.20 m floor, and M4’s start-up line must confirm both before a take counts #ev("5.51"). Each scene otherwise uses the settings of its earlier record: the 2026-11-14 IB10 configuration for the intersection, the registered legacy grounding for the convoy, the September production configuration (prompt version 2, plan channel off, feasibility gate in `swap` mode, obstacle text on) for the head-on corridor, and the tranche-1 Arm A procedure for the five robots. The intersection alone adds the prompt condition that lists the plan actions the verifier accepts, together with the plan-order switch (@sec:impl-later) #ev("5.51").
+
+*Take rule.* One take runs per invocation. After each take the operator reads its summary and either stops the scene, at the first take that meets the scene's demonstration goal, or runs another, up to five valid takes per scene. A start-up failure of the navigation stack is retried as a new attempt of the same take, up to three per scene. Takes that were not chosen are listed, and the choice of the take shown in a video is disclosed #ev("5.51").
+
+*Labels.* Every take receives exactly one label #ev("5.51"):
+
+- *Unresolved failure*: not every robot arrived at its goal.
+- *VLM-driven execution*: at the intersection only, a resolved take in which every dispatched decision is a `junction_clear` whose plan passed the audit unchanged, whose dispatched back-out order, yielder and phases match that plan with no fallback or stage-2 command, and whose back-out order differs from the grounder's default order for the same snapshot. The default order is recomputed offline. A take earns this label as soon as the back-out order differs, however small the difference in cost, so the label says that the model's order was executed, not that it improved the outcome.
+- *M3-default resolution*: every other resolved take, including any take whose yielder the feasibility gate swapped or in which a fallback command ran. Outside the intersection the label "VLM-driven" is not used.
+
+*What the campaign can and cannot show.* With one to five takes per scene and the stop rule above, the takes give no rate and no comparison with Layer 2 off; nothing from them is reported as a percentage. Recording changes the real-time factor, so no timing from a take is comparable with an experiment. The configuration differs from the evaluated runtime in the ways listed above. The campaign shows what the pipeline did in these takes, and it can expose failure modes that the scored experiments did not exercise.
 
 == Threats to Validity <sec:ch5-threats>
 
