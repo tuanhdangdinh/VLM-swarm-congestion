@@ -240,7 +240,7 @@ The registered `want_arm` stays `True True True 0.5 config/grounding/cvl_convoy_
 **Known limit of the note (from code; not tested live).**
 
 - The clause "once released, it starts driving toward its goal_x, goal_y" is exact when no coordination command owns the robot. That is the case at every first trigger here.
-- When a command owns a held robot, M4's base mission does not drive it at release; it waits until the command ends. In the smoke, robot_3 was released 82 wall-s after the dispatch while on a linked wait, and it moved only when admitted.
+- When a command owns a held robot, M4's base mission does not drive it at release; it waits until the command ends. In the smoke, robot_3 and robot_4 were released 82 wall-s after the dispatch while on linked waits. M4 admitted robot_3 71 s and robot_4 208 s after that release (`m5.log`, `m4.log` `gate_admit`), and the platoon crossed in order. That they did not drive at release is inferred from this order.
 - The wording was not changed, because that would void this check.
 
 **Scope of the null.** It covers this one facts-only sentence, with the existing guidance unchanged. The guidance-sentence variant of fix (a) (campaign report section 5.5: "robots queued behind a standoff ... belong in `involved_robots`") prescribes roles, so the facts-only rule excludes it. It remains untested.
