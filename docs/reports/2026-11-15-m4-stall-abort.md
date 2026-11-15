@@ -5,6 +5,12 @@
 **Revision history:**
 
 - Initial draft: Step-1 facts, the detector and its M4 wiring behind `safety.stall_abort.enabled` (default off), parameter derivation from recorded runs, unit, node and replay tests, replay over 221 recorded primitives, limits, kit needs and a live-validation proposal.
+- Rev 2 (review):
+  - An escort abort keeps the passer's wait ACTIVE (robot parked) and publishes its eventual terminal as FAILED, instead of failing it at once.
+  - The adapter imports `stall_abort` for type checking only.
+  - Unknown config keys are rejected.
+  - Committed `scripts/stall_abort_analysis.py`, which regenerates every table and fixture.
+  - Corrected judged counts and the `input_stale` evidence claim.
 
 ---
 
@@ -103,13 +109,21 @@ The grounding-side guards on the other branches see only declared obstacles. Thi
 - **Command bus** (`command_bus_node.py`).
   - Loads `safety.stall_abort` from the installed `config/safety.yaml`. With the key on, it subscribes `/safety/holds` once (shared with B3's `FreshLatchWatch`) and passes a `StallWatch` to every backup, pull-off and escort.
   - **Backup and pull-off:** the verdict travels the existing FAILED path unchanged. The leg is FAILED with the detail, and linked waits are released `released: yield failed`.
-  - **Escort:** it has no status channel (2.1). On a `stall_abort:` FAILED, the passer's still-active linked wait is ended **FAILED with the same detail** (`_fail_wait`), so M5 and the logs no longer read COMPLETED for an aborted transit. The yielder's hold is untouched. An escort FAILED on its deadline keeps today's behaviour.
+  - **Escort:** it has no status channel (2.1).
+    - On a `stall_abort:` FAILED, the passer's still-active linked wait is **kept ACTIVE**, as after any escort failure today. The robot stays parked and its base mission stays suppressed until the yielder's hold ends.
+    - The abort is recorded (`_mark_stall_aborted_wait`). The wait's eventual terminal (hold end, passer cleared, or its own timer) is published **FAILED with `<stall detail>; <release detail>`** instead of COMPLETED, by the one choke point `_publish_status`.
+    - The status therefore arrives exactly when today's COMPLETED would, so neither the safety monitor's exemption timeline nor the client's resume time changes; only its label and detail change.
+    - The yielder's hold is untouched. An escort FAILED on its deadline keeps today's behaviour (a COMPLETED wait).
+  - **Downstream of the FAILED** (code reading):
+    - `base_mission.on_status` resumes the base mission on the owner command's terminal, COMPLETED or FAILED alike (verified).
+    - `CoordinationTracker.record_status` counts only COMPLETED toward a multi-passer chain's admitted partners. A FAILED wait at hold end changes nothing, because the yielder's exemption ends with its own terminal at the same time (verified).
+    - M5: the command resolves `failed`, the contradiction trigger arms `leg_failed`, and in a `junction_clear` composite **a FAILED phase dispatches the precomputed fallback `yield`** (`junction_phase_queue.py`, verified by code reading). That is M5's existing failure policy, not a retry of the aborted manoeuvre. With the key on, a stalled junction escort or recede would reach that fallback where, for an escort, it reads COMPLETED today. No junction primitive stalled in the replay, so this is not exercised.
   - No auto-retry. Latch, exemptions, floor, B3 and the deadlines are unchanged.
 - **Reason and log line.**
   - Detail (on the wire in `CoordinationStatus.detail`): `stall_abort: commanded 0.100 m/s for 3.0 s, measured 0.068 m (expected >= 0.075 m)`, or `stall_abort: input_stale no odometry for 1.05 s (bound 1.00 s)`.
   - One WARN line per abort: `stall abort robot=robot_3 command=<id> primitive=escort phase=drive reason=stall mode=linear commanded_m=0.300 measured_m=0.068 expected_min_m=0.075 window_s=3.00 commanded_rate=0.100 sim_t=149.600`. A turn uses `_rad` keys; `input_stale` uses `odom_age_s=` and `bound_s=`.
 - **Traceability.**
-  - In m4.log an aborted primitive shows the `stall abort` line, then (backup and pull-off) `status published … status=FAILED`, or (escort) `escort <robot>: FAILED stall_abort: …` and the wait's `status published … status=FAILED`.
+  - In m4.log an aborted primitive shows the `stall abort` line, then (backup and pull-off) `status published … status=FAILED`, or (escort) `escort <robot>: FAILED stall_abort: …` and, when the wait ends, its `status published … status=FAILED`.
   - An executed primitive shows `COMPLETED` (or, for escorts, `escort <robot>: COMPLETED escort complete: moved …`).
   - M5 records only `failed`. The reason is in the status detail and the m4.log line, joined by command id. M5 was not changed, so no new cross-module contract exists.
 - **Key.**
@@ -118,7 +132,10 @@ The grounding-side guards on the other branches see only declared obstacles. Thi
   - An unreadable file means off, with a `stall_abort config unreadable` warning. That warning appears only when the installed file cannot be read, a case in which the safety monitor already warns.
   - An enabled block with an invalid parameter fails the node at startup.
   - The safety monitor reads the same file and ignores the block.
-- **Dependency.** `stall_abort.py` imports pydantic. `package.xml` gains `<exec_depend>python3-pydantic</exec_depend>`. The M4 nodes run in the same container as `swarm_perception`, which already requires it (`run_gemini_er2_demo.sh`: one `ROS_SETUP` for M1, M4 and M5).
+- **Dependency.** `stall_abort.py` imports pydantic.
+  - `nav2_adapter.py` imports it for type checking only, so the safety monitor and the coordination client do not need pydantic (checked with pydantic blocked).
+  - The command bus imports it at module level, with the key on or off. `package.xml` gains `<exec_depend>python3-pydantic</exec_depend>`.
+  - M1, which already requires pydantic, runs in the same container as M4 in the campaign: m5D's m1, m4 and m5 logs share one `/root/.ros/log` root and one PID sequence (637, 2329, 2454). That pydantic is importable by the command bus there is **inferred**, so the kit adds an import pre-flight (section 8).
 
 ---
 
@@ -140,15 +157,15 @@ All values are from the replay of section 6 (221 primitives) and the bags of sec
 
 ## 5. Tests
 
-- **New files** (75 functions; red first: the detector tests ran against a missing module, an import error):
+- **New files** (79 functions; red first: the detector tests ran against a missing module, an import error):
   - `tests/unit/test_stall_abort.py` (36), the detector, config, log line and suffix:
     - genuine stalls: pinned from start; pinned mid-manoeuvre (the m5D pattern, 0.09 m/s then stopped); slow creep; blocked turn; pinned reverse;
     - false-positive cases: normal drive; turn in place; ramp-up; safety hold zeroing the command; release within grace; zero-command wait; below-minimum speed; brief odometry dropout; deceleration at the end; noisy measurements; turn-to-drive phase change; RTF 0.17 against 1.0;
     - stale input: long dropout, no odometry ever, stale with zero command;
     - config validation and the literal-`true` rule.
-  - `tests/unit/test_stall_abort_node.py` (29 with fakes; uses the replay script's `ReplayNode`):
+  - `tests/unit/test_stall_abort_node.py` (33 with fakes; uses the replay script's `ReplayNode`):
     - adapter: pinned backup ends FAILED with a zero twist, cancelled timer, removed subscription and one log line; key off keeps driving; **command stream identical with and without the watch** (backup and escort); no odometry → `input_stale`; frozen header stamps → `input_stale`; held robot not aborted; blocked sidestep turn → `phase=turn_out mode=angular`; pinned escort drive aborts within 5.9 + 3.0 s; same sim fire time at RTF 0.17 and 1.0 with the wall deadline patched;
-    - command bus: no `stall_watch` kwarg with the key off (and on a node without config); watch on backup, pull-off and escort with it on; backup stall → leg FAILED with the reason and linked wait released; **escort stall → passer wait FAILED with the reason, yielder untouched**; escort deadline FAILED leaves the wait as before; `/safety/holds` gates the watch and a corrupt message keeps the previous set; one holds subscription shared with B3; startup line unchanged with the key off;
+    - command bus: no `stall_watch` kwarg with the key off (and on a node without config); watch on backup, pull-off and escort with it on; backup stall → leg FAILED with the reason and linked wait released; **escort stall → passer wait stays ACTIVE (parked), then its terminal at hold end or wait-timer expiry is FAILED `<stall detail>; <release detail>`**, yielder untouched; without a stall the wait still releases COMPLETED; escort deadline FAILED leaves the wait as before; an unknown config key is rejected; `/safety/holds` gates the watch and a corrupt message keeps the previous set; one holds subscription shared with B3; startup line unchanged with the key off;
     - loader: base file off, merged fragment on, unreadable file off with a warning; fragment pinned to the code defaults; base `safety.yaml` has no `stall_abort` key.
   - `tests/unit/test_stall_abort_replay.py` (10), section 6, on the committed fixtures `tests/unit/data/stall_abort/replay_episodes.jsonl.gz` (221 episodes, 440 KB, md5 `7b7821fe87883b95019e5dc0260e53d6`), `expected.json` and `pinned_bag_samples.json`.
 - **Existing M4 tests unchanged and passing:** `test_nav2_adapter`, `test_command_bus_node`, `test_safety_monitor`.
@@ -157,10 +174,11 @@ All values are from the replay of section 6 (221 primitives) and the bags of sec
   | | failed | passed | skipped | errors |
   |---|---|---|---|---|
   | Before (8933863) | 57 | 6967 | 151 | 3 |
-  | After (this branch) | 57 | 7042 | 151 | 3 |
+  | After (1dbac68) | 57 | 7042 | 151 | 3 |
 
   - The failing and erroring ids are identical (diffed): the 57 known failures and the 3 `pxr` collection errors.
-  - The 75 new passes are the 75 new test functions.
+  - The 75 new passes are the 75 test functions at 1dbac68.
+  - The Rev 2 changes (escort wait handling, type-checking import, `extra="forbid"`, 4 more node tests) were covered by the six M4 test files only: the three new files plus `test_nav2_adapter`, `test_command_bus_node` and `test_safety_monitor`, 400 passed. Both full-suite runs allowed by the resource rule were spent.
 
 ---
 
@@ -184,6 +202,10 @@ All values are from the replay of section 6 (221 primitives) and the bags of sec
   - 13 IB10 bag bundles (v3 `ib10_remedy`, `ib10_closure`).
 - **Result:** 221 primitives (105 backups, 57 pull-offs, 31 escorts among the completed; 28 not completed).
 - **Contact check.** v7m `isaac/vgu_sim/contact_geometry.py` (`b5eaee5`, every authored box plus robot pairs, URDF footprint), read-only.
+- **Reproduction.**
+  - `scripts/stall_abort_analysis.py tables` regenerates sections 2.4, 4 and 6 from the packed fixture: contact gaps and onsets, plateau ratios, ramp, latch classification and `expected.json`.
+  - `pin-fixture` regenerates `pinned_bag_samples.json`.
+  - Both were re-run, and the outputs equal the committed fixtures.
 
 ### 6.2 Must Fire: Primitives Pinned in Contact
 
@@ -207,7 +229,8 @@ Columns:
 - Live end: mapped ROS sim time of the primitive's terminal line.
 - Wall at abort: start + (abort − start) × (live wall duration / live sim duration), assuming constant RTF within the episode. The deadlines are measured from m4.log.
 
-- **Every abort is a physical contact**, and every abort fires 2.3-3.0 sim-s after contact onset, at 0.22-0.25 of commanded progress. The verdict is `stall` in every case; no `input_stale` occurs on recorded data.
+- **Every abort is a physical contact**, and every abort fires 2.3-3.0 sim-s after contact onset, at 0.22-0.25 of commanded progress. The verdict is `stall` in every case.
+- **`input_stale` is not tested by this replay.** The replay delivers odometry synchronously, so it says nothing about odometry delivery lag at the live command bus (limit, section 7).
 - **Against the owner's list.** Of the October reverses named as pinned or in contact (v7l §8.6), 5 of the 7 deadline failures fire (`9cf93ebe`, `8bf906be`, `93100ae3`, `a3bbc017`, `c7aeaac1`). `ea23b1a7` robot_1 and `d5541ff0` robot_2 stay silent because the robot was latch-held, so its wheels were zeroed, when it stopped (section 6.4). Two October **yield** backups the reverse guard does not cover (`6745a136`, `7a47f2f7`) also fire.
 - **Behaviour change on two completed primitives.** Both pressed into something until the primitive scraped free or completed:
   - `d374802a` robot_2 (the reverse guard's "contact" case) would end FAILED about 0.8 s before its live completion;
@@ -227,12 +250,16 @@ Columns:
     | S1b (Oct) | 23 | 66 | 0.848 | 0.638 |
     | IB10 bags (Oct) | 13 | 74 | 0.894 | 0.638 |
 
-  - **By primitive:** backups 105 (judged 103), pull-offs 57 (57 turns, 9 drives judged), escorts 31 (30). Primitives shorter than grace plus window are never judged while moving freely (3 short recedes).
+  - **By primitive:**
+    - backups: 105, 1 fired (contact), 103 of the other 104 judged;
+    - pull-offs: 57, all 57 turns judged, 9 drives judged;
+    - escorts: 31, 1 fired (contact), all 30 others judged.
+  - **Never judged:** 1 primitive, a 0.389 m campaign recede (ibD t01) shorter than grace plus window while moving freely. A stalled short primitive keeps running, so it would be judged.
 - **Replay alignment, not detector behaviour.** 5 COMPLETED backups in E13 and E17 do not reach their target inside the mapped window (anchors are sparse late in those runs). They are counted as "no fire", which they are. Earlier iterations of the replay showed artificial fires from late or early starts in October-7 bundles. They were fixed in the replay, by onset-based starts, not by changing the detector.
 
 ### 6.4 Neither: Live Failures or No Terminal Line, Not Fired (21)
 
-- **19 of the 21 were latch-held when they stopped.** The relay's `hold engaged` for the robot falls within 1.5 s before its last motion (or covers the whole primitive). Their nearest robot's footprint gap is 0.20-0.35 m: a bystander latch.
+- **19 of the 21 were latch-held when they stopped.** The relay's `hold engaged` for the robot, wall-mapped, falls 0.2-3.4 s before its last measured motion (deceleration after the zeroing) or covers the whole primitive. Their nearest robot's footprint gap is 0.20-0.35 m: a bystander latch.
   - **No wheel command reached them, so silence is correct by design:**
     - cvD ×3 and cvH convoy escorts (`35084986`, `759bdb94`, `ab6a10c5`, `08f4dca0`): latched against robot_3 or robot_1 at 0.41-0.44 m centre distance. This answers "cause not examined" in the campaign report §8.7.4;
     - S1b backups `63f8d1ce`, `984e3bdf`, `ea23b1a7` r1, `ede6d209` r3/r4, `150b95a6`, `09647748`, `93100ae3` r1, `f06c33b3` r4;
@@ -250,8 +277,14 @@ Columns:
 - **Latch-held robots are never judged.** A primitive latched at a face still runs to its deadline (6.4).
 - **Odometry must be a physics pose.** True for Isaac's `IsaacComputeOdometry` (2.2). On a real robot with wheel odometry, wheel slip reads as motion, and the detector would need IMU, visual odometry or M1.
 - **Clock.** It needs `use_sim_time` on the command bus (as launched). A wall node clock against sim-stamped odometry gives an immediate, loud `input_stale` abort. A frozen sim fires nothing; the monotonic deadline remains.
+- **`stale_input_s` has no live evidence.** The bags show a 0.033 s odometry period at the recorder, not the delivery lag at the command bus. The replay delivers odometry synchronously. The first live take should bag `/clock` and the robots' `/odom`, as the IB10 kits did, and treat any `input_stale` abort as a finding to explain before scoring.
 - **Holds arrive by message.** `/safety/holds` is published on change and at 1 Hz. A missed engage message gives at most about 1 s of apparent stall, below the about 2.2 s a hard stop needs. A missed release keeps the detector idle (conservative).
-- **After an abort the robot is not kept parked by this mechanism.** The FAILED status makes the coordination client resume the base mission under Nav2 (existing behaviour for every FAILED). No further raw command is published. Owner question: should an aborted robot instead be held, e.g. by a short wait?
+- **After the abort, what holds the robot depends on the primitive.**
+  - **Escort.** The passer stays parked under its ACTIVE wait until the yielder's hold ends, as after any escort failure today.
+  - **Backup or pull-off.** The FAILED goes the existing, owner-mandated path: the coordination client resumes the robot's base mission under Nav2 (collision monitor in the loop), and the linked waits are released.
+  - **No further raw command** is published after the abort's zero twist.
+  - **Junction.** In a `junction_clear` composite, M5 then dispatches its fallback `yield` (section 3).
+  - Owner question: should an aborted backup instead be held, e.g. by a short wait?
 - **The replay is a reconstruction.** Commands are regenerated, starts and ends are aligned (6.1), and holds are mapped from wall time. Turn-phase stalls are covered by unit and node tests and the pinned bags only; no recorded raw-primitive turn was pinned.
 - **Not run live.**
 
@@ -264,16 +297,17 @@ Columns:
 
   | File | md5 (this branch) | md5 at the pin |
   |---|---|---|
-  | `ros2_ws/src/swarm_execution/swarm_execution/nav2_adapter.py` | `aa070a77266cd1d1f64651942febaed8` | `f139305c873b9b4997fb08a525845c11` |
-  | `ros2_ws/src/swarm_execution/swarm_execution/command_bus_node.py` | `ba6d7a13393ef4e7bf833690711a2673` | `caad9edc40394557159d5d916e1e2aff` |
-  | `ros2_ws/src/swarm_execution/swarm_execution/stall_abort.py` (new) | `8dd7b9739d87b44e6cbb81752e9d19b1` | — |
+  | `ros2_ws/src/swarm_execution/swarm_execution/nav2_adapter.py` | `fe031a6237c9a9aeb62f4250bb0eb15f` | `f139305c873b9b4997fb08a525845c11` |
+  | `ros2_ws/src/swarm_execution/swarm_execution/command_bus_node.py` | `443b435d0445ff98ee4e3061da62425a` | `caad9edc40394557159d5d916e1e2aff` |
+  | `ros2_ws/src/swarm_execution/swarm_execution/stall_abort.py` (new) | `2afb5b86492fceec0c0ad6329d9b9b2b` | — |
   | `ros2_ws/src/swarm_execution/package.xml` (adds `python3-pydantic`) | `e77c52ceda66bfc7dbfdaea44967814b` | `2cf264526f5c5eb9c88807669291477a` |
   | `config/safety/stall_abort.fragment.yaml` (new, merged into the installed safety file) | `f1ffd432821b3c71547f97c70d90181b` | — |
 
+- **Pre-flight, once per container after the build.** `python3 -c "import pydantic, swarm_execution.stall_abort"` under the M4 `ROS_SETUP`. The command bus imports pydantic even with the key off.
 - **Arm check, per episode.** m4.log contains `Command bus started. stall_abort=True window_s=3.0 min_progress_ratio=0.25 grace_s=1.5 stale_input_s=1.0 min_linear_mps=0.03 min_angular_radps=0.15 min_expected_m=0.06 min_expected_rad=0.3`, and no `stall_abort config unreadable`. An older tree prints `Command bus started.` alone, so the check fails loud.
 - **Alone.** Escort and reverse obstacle guards, contact logging, B3 fast-fail, the 0.20 m floor and the scoped exemption stay at the configuration of the reference run being compared, and no other new key is on.
 - **Post-take gate:**
-  - **Each abort line has its FAILED.** Every `stall abort robot=R command=C` line is followed by `status published command=C robot=R status=FAILED` (backup, pull-off) or `escort R: FAILED stall_abort:` plus the wait's FAILED (escort).
+  - **Each abort line has its FAILED.** Every `stall abort robot=R command=C` line is followed by `status published command=C robot=R status=FAILED`: at once for a backup or pull-off; for an escort, after `escort R: FAILED stall_abort:`, when the wait ends.
   - **Each abort was a contact.** GT shows contact (footprint gap ≤ 5 mm) within 3.5 s before each abort, and GT speed below 0.01 m/s within 1 s after it.
   - **No abort on free motion.** No `stall abort` on a primitive whose GT shows free motion. Run `scripts/stall_abort_replay.py` on the bundle: replayed fires must equal the live `stall abort` lines.
   - **Counts.** Report the numbers of `input_stale` and `stall` aborts.
@@ -306,7 +340,9 @@ Columns:
 | GT clock = ROS sim − 0.50 s (bag runs); per-bundle offset 0.47-0.64 s estimated from M1 | verified (bags); estimated (others, ±0.03 s) |
 | The detector fires on all 10 contact stalls 2.3-3.0 sim-s after contact, and on none of 191 contact-free completed primitives | verified by replay (reconstructed commands; section 6.1 caveats) |
 | The 19 quiet live failures were latch-held | verified (relay hold lines mapped to sim time, GT) |
+| The command bus can import pydantic in the campaign container | inferred (same container as M1, which needs it); kit pre-flight added |
+| Consumers of a FAILED wait (client resume, safety tracker, M5 junction fallback) | verified by code reading; the junction fallback path is not exercised by any replayed stall |
 | Key off is unchanged | verified (tests: no kwarg passed, identical command streams, startup line) |
 | The abort saves 20-54 sim-s (45-82 wall-s instead of 191-335 wall-s) | estimated (constant-RTF mapping) |
 | Live behaviour | not run |
-| Full unit suite after the change | verified: 57 failed / 7042 passed / 151 skipped / 3 errors, failing ids identical to the baseline |
+| Full unit suite | verified at 1dbac68: 57 failed / 7042 passed / 151 skipped / 3 errors, failing ids identical to the baseline; Rev 2 delta verified by the six M4 test files (400 passed) |
