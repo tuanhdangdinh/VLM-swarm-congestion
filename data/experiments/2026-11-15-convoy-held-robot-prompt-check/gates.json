@@ -1,0 +1,118 @@
+[
+ {
+  "episode": "cvD_t01_a1",
+  "request_id": "35084986da8f422e9366a89d9c5161ee",
+  "held": [
+   "robot_3",
+   "robot_4"
+  ],
+  "control_matches_stored": true,
+  "stored_user_sha256": "24b34947ecd33da98355b0b6a7da29161e358ecea81966d795540042d64578b7",
+  "H_user_sha256": "3fb81862729abd66bc183cb13a7e834c9ce433e449ae2a4c37e48ad9e9bf7c2b",
+  "H_minus_C_chars": 182,
+  "recorded_command_reproduced": true,
+  "recorded_structure": {
+   "kind": "yield",
+   "robots": [
+    "robot_1",
+    "robot_2"
+   ],
+   "linked_waits": [],
+   "yielder": "robot_2",
+   "crossing_order": [
+    "robot_1"
+   ],
+   "full_sequence": false
+  },
+  "reasoner_config_diff_vs_live": {}
+ },
+ {
+  "episode": "cvD_t02_a1",
+  "request_id": "759bdb9490c34c96ba85100a630a0f50",
+  "held": [
+   "robot_3",
+   "robot_4"
+  ],
+  "control_matches_stored": true,
+  "stored_user_sha256": "8e44f2abeb4e3602bc821d23ff77559c9d3857fa37ccaf829e5b3e684388dc81",
+  "H_user_sha256": "f1b379c9de23a2627de8e87a326893e5ef47c372d1f872c7423c210e1fa12317",
+  "H_minus_C_chars": 182,
+  "recorded_command_reproduced": true,
+  "recorded_structure": {
+   "kind": "yield",
+   "robots": [
+    "robot_1",
+    "robot_2"
+   ],
+   "linked_waits": [],
+   "yielder": "robot_1",
+   "crossing_order": [
+    "robot_2"
+   ],
+   "full_sequence": false
+  },
+  "reasoner_config_diff_vs_live": {}
+ },
+ {
+  "episode": "cvD_t03_a1",
+  "request_id": "ab6a10c5fa7a4923b251c12941080990",
+  "held": [
+   "robot_3",
+   "robot_4"
+  ],
+  "control_matches_stored": true,
+  "stored_user_sha256": "5ca37656b78810e26ae3339ea784959bd4d946c170869bdce9da329c60458fbd",
+  "H_user_sha256": "df03e11f87fa818adb996ad0cebb5de2d44639d88f6ce0aea039ede160458bba",
+  "H_minus_C_chars": 182,
+  "recorded_command_reproduced": true,
+  "recorded_structure": {
+   "kind": "yield",
+   "robots": [
+    "robot_1",
+    "robot_2"
+   ],
+   "linked_waits": [],
+   "yielder": "robot_2",
+   "crossing_order": [
+    "robot_1"
+   ],
+   "full_sequence": false
+  },
+  "reasoner_config_diff_vs_live": {}
+ },
+ {
+  "episode": "cvL_e01_armC_a1",
+  "request_id": "39f2846381844a6bbd54fac5e45a1cff",
+  "held": [
+   "robot_3",
+   "robot_4"
+  ],
+  "control_matches_stored": true,
+  "stored_user_sha256": "6163da99c4214df269f2ab0403336b96ee37539d40528d2413e1073f4afe6ff1",
+  "H_user_sha256": "a4a486fb3c07603e20c37409951d984cf65e014b069535ff066bb6b8a89962d5",
+  "H_minus_C_chars": 182,
+  "recorded_command_reproduced": true,
+  "recorded_structure": {
+   "kind": "yield",
+   "robots": [
+    "robot_1",
+    "robot_2",
+    "robot_3",
+    "robot_4"
+   ],
+   "linked_waits": [
+    "robot_1",
+    "robot_3",
+    "robot_4"
+   ],
+   "yielder": "robot_2",
+   "crossing_order": [
+    "robot_1",
+    "robot_3",
+    "robot_4"
+   ],
+   "full_sequence": true
+  },
+  "reasoner_config_diff_vs_live": {}
+ }
+]
