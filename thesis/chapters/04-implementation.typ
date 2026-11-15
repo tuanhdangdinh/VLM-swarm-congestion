@@ -192,7 +192,28 @@ Live runs are executed from a prepared run kit. Before each episode a pin gate c
 
 == Physical TurtleBot3 Demonstration <sec:impl-physical>
 
-The pipeline was also run on physical TurtleBot3 robots @robotis2026turtlebot3 on 12 November 2026, with an overhead RealSense camera, ArUco localisation, `gemini-3.1-flash-lite` as the model, deterministic grounding, Zenoh transport @eclipse2026zenoh, stamped velocity commands, live execution and the safety monitor #ev("4.28")\; the saved artifacts confirm the model #ev("4.29"). Its safety boundary was 0.50 m, wider than the 0.45 m of simulation #ev("4.30") #ev("4.16").
+The pipeline was also run on physical TurtleBot3 robots @robotis2026turtlebot3 on 12 November 2026, with an overhead RealSense camera, ArUco localisation, `gemini-3.1-flash-lite` as the model, deterministic grounding, Zenoh transport @eclipse2026zenoh, stamped velocity commands, live execution and the safety monitor #ev("4.28")\; the saved artifacts confirm the model #ev("4.29"). The hardware and communication details below come from the team's testbed notes, which are outside the repository #ev("4.41").
+
+*Hardware.* Four TurtleBot3 Burger robots, numbered 2 to 5, each with a Raspberry Pi onboard computer and an OpenCR motor controller, drove under an overhead Intel RealSense D435 camera connected to a central laptop #ev("4.41"). Each robot carried the ArUco marker of its number; perception turned the marker into a robot identifier and the command bus mapped that identifier to the robot's namespace (@tab:impl-physical-ids).
+
+#figure(
+  table(
+    columns: (auto, auto, auto, auto),
+    align: (left, right, left, left),
+    stroke: 0.4pt + luma(160),
+    fill: (_, y) => if y == 0 { luma(235) },
+    table.header([*Robot*], [*ArUco id*], [*Perception id*], [*Namespace*]),
+    [TurtleBot3 2], [2], [`robot_2`], [`/tb3_2`],
+    [TurtleBot3 3], [3], [`robot_3`], [`/tb3_3`],
+    [TurtleBot3 4], [4], [`robot_4`], [`/tb3_4`],
+    [TurtleBot3 5], [5], [`robot_5`], [`/tb3_5`],
+  ),
+  caption: flex-caption([Robot identities on the physical testbed.], [Robot identities on the physical testbed: marker, perception identifier and ROS 2 namespace of each robot.#fig-source("4.41")]),
+) <tab:impl-physical-ids>
+
+*Communication.* Each of the five computers kept its own local ROS 2 graph (`ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST`, multicast scouting off), and `zenoh-bridge-ros2dds` joined them in a star: one bridge in router mode on the laptop, one client bridge on each robot #ev("4.41"). Keeping discovery local avoids DDS multicast discovery over the shared Wi-Fi. Each bridge forwards only allowlisted topics, the robot's odometry (`/tb3_N/odom`) to the laptop and its velocity command (`/tb3_N/cmd_vel`) to the robot; no services or actions are bridged. The allowlist patterns are anchored (`^/tb3_N/cmd_vel$`), so a command for one robot cannot match another robot's namespace, and traffic stays small #ev("4.41"). @sec:app-physical gives the configurations, commands and routing table.
+
+*Safety.* The safety boundary was 0.50 m, wider than the 0.45 m of simulation #ev("4.30") #ev("4.16")\; the linear speed limit was 0.08 m/s, and a stale pose counted as unsafe, with a larger unsafe distance #ev("4.41"). A robot was to be stopped on a missing marker, a stale pose, a timeout, a communication error or an execution exception, and the team's pre-run checklist covered markers, identifiers, odometry, command subscribers, the namespace map, an empty safety-hold list and `dry_run=False` #ev("4.41"). The model sends no velocities: its decision passes grounding, which checks identifiers and turns the strategy into bounded commands, and the safety monitor before anything reaches a robot #ev("4.28") #ev("4.41").
 
 Four arrangements were staged: two parallel head-on pairs (scenario A, @fig:impl-physical), a three-robot triangle with a fourth robot outside it (C), four robots facing a shared centre (D), and a tighter dual-lane variant of A (E) #ev("4.30"). Unparsable replies and earlier wait-only or timed-out attempts are excluded #ev("4.31"). The outcomes are reported in @sec:res-physical.
 
@@ -206,7 +227,7 @@ Four arrangements were staged: two parallel head-on pairs (scenario A, @fig:impl
   caption: flex-caption([Annotated perception frames from the physical demonstration.], [Annotated perception frames saved by the demonstration run on 12 November 2026. Left: scenario A, two simultaneous head-on pairs. Right: scenario C, a three-robot triangle with a fourth robot outside the cluster.#fig-source("4.30")]),
 ) <fig:impl-physical>
 
-The robots had no navigation goals: the saved robot states hold only identifier, pose, speed, status and stamp, and every distance-to-goal map is empty #ev("4.29"). One run per scenario is recorded and the code that ran is not in the repository's history.
+The robots had no navigation goals: the saved states hold no goal and every distance-to-goal map is empty #ev("4.29"). One run per scenario is recorded, and the code that ran is not in the repository's history. These hardware runs carry their own caveats and are never pooled with the simulation results.
 
 == Later Extensions (Not Evaluated) <sec:impl-later>
 
