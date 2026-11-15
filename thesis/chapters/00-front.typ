@@ -4,8 +4,33 @@
 #todo[Declaration of authorship text, to be provided by the owner.]
 
 #pagebreak()
-#heading(numbering: none, outlined: false)[Acknowledgements]
-#todo[Acknowledgements, to be written by the owner.]
+#[
+  #set par(first-line-indent: 0pt)
+
+  #v(1cm)
+
+  #align(center)[
+    #heading(numbering: none, outlined: false)[Acknowledgements]
+  ]
+
+  #v(1.2cm)
+
+  We would like to express our sincere gratitude to our supervisor, *Dr. Vo Bich Hien*, for his valuable guidance, constructive feedback, and continuous support throughout this project. His expertise and direction greatly helped us shape the research approach and improve the quality of this report.
+
+  #v(0.6cm)
+
+  We also thank the *Department of Computer Science, Faculty of Engineering, Vietnamese-German University (VGU)* for providing an academic environment, resources, and opportunities that supported our work.
+
+  #v(0.6cm)
+
+  Finally, we would like to thank our classmates, friends, and families for their encouragement and motivation during the project period. Their support helped us stay focused and complete this report.
+
+  #v(1fr)
+
+  #align(right)[
+    _The Authors_
+  ]
+]
 
 #pagebreak()
 #heading(numbering: none, outlined: false)[Abstract]
