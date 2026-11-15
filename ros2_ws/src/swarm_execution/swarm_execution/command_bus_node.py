@@ -89,6 +89,11 @@ class CommandBusNode(Node):
         self._stall_config = load_stall_abort_config(self)
         self._held: frozenset[str] = frozenset()
         self._holds_sub = None
+        # (command_id, passer) -> stall detail of an aborted escort. The
+        # passer's linked wait stays ACTIVE (robot parked, base mission
+        # suppressed, as after any escort failure); its eventual terminal is
+        # published FAILED with this detail instead of COMPLETED.
+        self._stall_aborted_waits: dict[tuple[str, str], str] = {}
         if self._stall_config.enabled:
             self._ensure_holds_subscription()
         self._status_pub = self.create_publisher(CoordinationStatus, "/coordination/status", 10)
@@ -439,8 +444,10 @@ class CommandBusNode(Node):
                             ):
                                 # The escort has no status of its own: the
                                 # passer's linked wait carries the abort to
-                                # M5 instead of later reading COMPLETED.
-                                self._fail_wait(command.command_id, rid, detail)
+                                # M5 when it ends, instead of COMPLETED.
+                                self._mark_stall_aborted_wait(
+                                    command.command_id, rid, detail
+                                )
 
                         turn_rad = passer.escort_turn_rad
                         if turn_rad is None:
@@ -672,6 +679,11 @@ class CommandBusNode(Node):
         detail: str,
         release_detail: str | None = None,
     ) -> None:
+        aborted = getattr(self, "_stall_aborted_waits", None)
+        if aborted and status == "COMPLETED":
+            stall_detail = aborted.pop((command.command_id, command.robot_id), None)
+            if stall_detail is not None:
+                status, detail = "FAILED", f"{stall_detail}; {detail}"
         self._update_in_flight_registry(command.robot_id, command.command_id, status)
         msg = CoordinationStatus()
         msg.command_id = command.command_id
@@ -740,25 +752,23 @@ class CommandBusNode(Node):
             self.destroy_timer(timer)
         self._publish_status(wait.command, "COMPLETED", detail)
 
-    def _fail_wait(self, command_id: str, robot_id: str, detail: str) -> None:
-        """End one still-active linked wait FAILED with `detail` (stall abort).
+    def _mark_stall_aborted_wait(self, command_id: str, robot_id: str, detail: str) -> None:
+        """Record an escort stall abort on the passer's still-active linked wait.
 
-        Only an escort stall abort calls this: the escorted passer's wait is
-        its only status channel to M5. No-op when the wait already ended.
+        The wait is not ended here: ending it would let the coordination
+        client resume the base mission from the contact pose at once, while
+        after any other escort failure the passer stays parked until the
+        yielder's hold ends. Its terminal, whenever and however it comes
+        (hold end, passer cleared, wait timer), is published FAILED with the
+        stall detail by `_publish_status`. No-op when the wait already ended.
 
         Args:
             command_id: Command identifier shared by the yield and the wait.
             robot_id: The escorted passer.
             detail: The `stall_abort: ...` detail.
         """
-        wait = self._active_waits.pop((command_id, robot_id), None)
-        if wait is None:
-            return
-        timer = wait.timer_ref.get("timer")
-        if timer is not None:
-            timer.cancel()
-            self.destroy_timer(timer)
-        self._publish_status(wait.command, "FAILED", detail)
+        if (command_id, robot_id) in self._active_waits:
+            self._stall_aborted_waits[(command_id, robot_id)] = detail
 
     def _update_in_flight_registry(self, robot_id: str, command_id: str, status: str) -> None:
         """Keep `_in_flight` in sync with the status that is about to publish.

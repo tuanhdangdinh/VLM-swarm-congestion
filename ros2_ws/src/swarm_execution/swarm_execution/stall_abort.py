@@ -72,7 +72,9 @@ class StallAbortConfig(BaseModel):
             judged.
     """
 
-    model_config = ConfigDict(frozen=True)
+    # Unknown keys are rejected: a typo in the fragment must not run with
+    # the defaults silently.
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
     enabled: bool = False
     window_s: float = Field(default=3.0, gt=0.0)

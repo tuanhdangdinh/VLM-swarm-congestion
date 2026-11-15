@@ -20,6 +20,7 @@ from swarm_execution.stall_abort import (
     STALL_ABORT_DETAIL_PREFIX,
     StallAbortConfig,
     StallWatch,
+    config_from_safety,
     startup_suffix,
 )
 
@@ -317,6 +318,7 @@ def _bus(stall_on: bool):
     node._nav_watchdogs = {}
     node._status_republish_timers = []
     node._fresh_latch = None
+    node._stall_aborted_waits = {}
     node._stall_config = StallAbortConfig(enabled=stall_on)
     node._held = frozenset()
     node._holds_sub = None
@@ -415,14 +417,39 @@ def test_escort_gets_a_watch_with_key_on() -> None:
     assert isinstance(kwargs["stall_watch"], StallWatch)
 
 
-def test_escort_stall_fails_the_passer_wait_with_reason() -> None:
+def test_escort_stall_keeps_the_passer_parked_until_the_hold_ends() -> None:
     node, published, logger = _escort(stall_on=True)
     node._adapter.on_result["escort:robot_2"]("FAILED", _STALL)
-    assert ("cmd-Y", "robot_2", "FAILED", _STALL) in published
-    assert ("cmd-Y", "robot_2") not in node._active_waits
     assert f"escort robot_2: FAILED {_STALL}" in logger.lines
-    # The yielder's hold is untouched: it still ends on its own timer.
-    assert not any(p[1] == "robot_1" and p[2] in ("COMPLETED", "FAILED") for p in published)
+    # The wait stays ACTIVE (base mission suppressed), as after any escort
+    # failure, and the yielder's hold is untouched.
+    assert ("cmd-Y", "robot_2") in node._active_waits
+    assert not any(p[2] in ("COMPLETED", "FAILED") for p in published)
+
+
+def test_escort_stall_turns_the_wait_terminal_into_failed_with_reason() -> None:
+    node, published, _logger = _escort(stall_on=True)
+    node._adapter.on_result["escort:robot_2"]("FAILED", _STALL)
+    hold = [t for t in node.timers if t.period == 45.0][-1]
+    hold.cb()
+    assert ("cmd-Y", "robot_1", "COMPLETED", "yield complete") in published
+    assert ("cmd-Y", "robot_2", "FAILED", f"{_STALL}; released: yield complete") in published
+    assert not any(p[1] == "robot_2" and p[2] == "COMPLETED" for p in published)
+    assert node._stall_aborted_waits == {}
+
+
+def test_escort_stall_on_wait_timer_expiry_is_failed_with_reason() -> None:
+    node, published, _logger = _escort(stall_on=True)
+    node._adapter.on_result["escort:robot_2"]("FAILED", _STALL)
+    wait_timer = [t for t in node.timers if t.period == 120.0][-1]
+    wait_timer.cb()
+    assert ("cmd-Y", "robot_2", "FAILED", f"{_STALL}; wait complete") in published
+
+
+def test_escort_without_stall_releases_the_wait_completed() -> None:
+    node, published, _logger = _escort(stall_on=True)
+    [t for t in node.timers if t.period == 45.0][-1].cb()
+    assert ("cmd-Y", "robot_2", "COMPLETED", "released: yield complete") in published
 
 
 def test_escort_deadline_failure_keeps_the_wait_as_before() -> None:
@@ -496,6 +523,11 @@ def test_loader_unreadable_file_is_off_with_a_warning(monkeypatch, tmp_path) -> 
     logger = _Logger()
     assert load_stall_abort_config(SimpleNamespace(get_logger=lambda: logger)).enabled is False
     assert logger.lines and logger.lines[0].startswith("stall_abort config unreadable")
+
+
+def test_config_rejects_unknown_key() -> None:
+    with pytest.raises(ValueError):
+        config_from_safety({"stall_abort": {"enabled": True, "window_sec": 3.0}})
 
 
 def test_fragment_values_equal_code_defaults() -> None:

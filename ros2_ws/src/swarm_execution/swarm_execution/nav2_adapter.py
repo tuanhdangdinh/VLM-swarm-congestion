@@ -9,7 +9,7 @@ from __future__ import annotations
 import math
 import time
 from collections.abc import Callable, Mapping
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 try:
     from action_msgs.msg import GoalStatus
@@ -121,8 +121,12 @@ except ImportError:
             def __init__(self) -> None:
                 self.goal_info = _GoalInfo()
 
-from swarm_execution.stall_abort import StallWatch
 from swarm_execution.yield_phase import BACKUP_STARTED_DETAIL
+
+if TYPE_CHECKING:
+    # Annotation only: the safety monitor and coordination client import this
+    # module and must not need pydantic with the stall abort off.
+    from swarm_execution.stall_abort import StallWatch
 
 # Line-hold servo gains, the escort's centerline-servo values: heading
 # correction per metre of cross-track error, and its clamp in radians.

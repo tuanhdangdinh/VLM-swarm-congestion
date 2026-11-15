@@ -5,11 +5,6 @@
    "contact": "obstacle_2 -0.0 mm",
    "live_outcome": "FAILED"
   },
-  "s1b_E11_seed11_er2_b1|7a47f2f7373a41378feeddd025c09696-yield|robot_4|backup": {
-   "contact_onset_sim": 70.6,
-   "contact": "obstacle_1 -1.9 mm",
-   "live_outcome": "FAILED"
-  },
   "s1b_E12_seed12_er2_c1|d374802aa0394e63a4d436010f48f04e-reverse|robot_2|backup": {
    "contact_onset_sim": 58.9,
    "contact": "rack/NW_north -1.5 mm",
@@ -49,7 +44,12 @@
    "contact_onset_sim": 46.3,
    "contact": "rack/NW_west 0.0 mm",
    "live_outcome": "FAILED"
+  },
+  "s1b_E11_seed11_er2_b1|7a47f2f7373a41378feeddd025c09696-yield|robot_4|backup": {
+   "contact_onset_sim": 70.6,
+   "contact": "obstacle_1 -1.9 mm",
+   "live_outcome": "FAILED"
   }
  },
- "note": "Every other episode in replay_episodes.jsonl.gz must not fire. contact_onset_sim: first GT row (ROS sim time) with footprint gap <= 5 mm, v7m contact_geometry; see the report section 6."
+ "note": "Every other episode in replay_episodes.jsonl.gz must not fire. contact_onset_sim: first GT row (ROS sim time) with footprint gap <= 5 mm, v7m contact_geometry; written by scripts/stall_abort_analysis.py."
 }
