@@ -2700,6 +2700,14 @@ class OrchestratorNode(Node):
                 fields["plan_grammar_rules"] = True
             if config.prompt_plan_grammar_release_rule:
                 fields["plan_grammar_release_rule"] = True
+            if config.prompt_held_robot_state:
+                # Live registry state at request time, limited to robots in the
+                # scene so every listed id has a state line to mark.
+                fields["held_robot_ids"] = sorted(
+                    view.robot_id
+                    for view in snapshot.robots
+                    if self._registry.is_pending(view.robot_id)
+                )
         for name, requested, drawn in (
             ("metric_grid", config.prompt_metric_grid, overlays.metric_grid),
             ("motion_trails", config.prompt_motion_trails, overlays.motion_trails),

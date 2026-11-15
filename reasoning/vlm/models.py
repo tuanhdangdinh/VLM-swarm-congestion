@@ -276,6 +276,24 @@ class ReasonerRequest(BaseModel):
     # grammar sentence on top of the v3.5 rules; requires them. False renders
     # every prompt byte-identically to before it existed.
     plan_grammar_release_rule: bool = False
+    # Held-robot state condition (2026-11-15; config `prompt_held_robot_state`):
+    # the robots whose base mission M5's task registry still holds back
+    # (`TaskRegistry.is_pending`) at request time. None = condition off; a
+    # list (empty included) = on. v3-only; None or an empty list renders every
+    # prompt byte-identically to before the field existed.
+    held_robot_ids: list[str] | None = None
+
+    @model_validator(mode="after")
+    def _validate_held_robots_are_known(self) -> "ReasonerRequest":
+        if self.held_robot_ids is None:
+            return self
+        known = {s.robot_id for s in self.robot_states}
+        unknown = sorted(set(self.held_robot_ids) - known)
+        if unknown or len(set(self.held_robot_ids)) != len(self.held_robot_ids):
+            raise ValueError(
+                f"held_robot_ids must be distinct robots of robot_states; got {self.held_robot_ids}"
+            )
+        return self
 
     @model_validator(mode="after")
     def _validate_last_failed_needs_latest(self) -> "ReasonerRequest":

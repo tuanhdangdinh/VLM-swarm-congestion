@@ -8,10 +8,22 @@
 - Rev 2 (2026-10-19): §2-§9 added after the live run on the zone-moved VM clone: summary, deploy/build evidence (the §1 "to be filled" md5s), the E24-E26 episodes, P1-P4 scored (all PASS), Rev 7 aggregates, deviations, VM end state and owner rulings. §1 unchanged.
 - Rev 3 (2026-10-20): §9.1 added, the offline switch-off re-ground of E24 `dfb33b91`, which answers the §9 item 3 measurement question; §1 unchanged.
 - Rev 4 (2026-10-21): §9 owner rulings recorded (items 1, 3, 4 RULED as A32 R2, R1, R3) and the kit follow-ups for the next kit; §1 unchanged.
+- Rev 5 (2026-11-15): added the erratum "2026-11-15 Erratum — Contact Wording"; P2's contact wording scoped to robot-robot pair distance; §1 annotated, not reworded; no number or verdict changed.
 
 ---
 
 PILOT-ONLY, RECORD = 0.
+
+---
+
+## 2026-11-15 Erratum — Contact Wording
+
+Ground truth's two contact lists, `robot_static_contacts` and `robot_robot_contacts`, are hard-coded to `[]` in `isaac/vgu_sim/acceptance_logging.py:99-100`. No contact detector exists, so an empty list shows nothing. The sound channel is the logged minimum pairwise distance (`min_pairwise_distance_m` and the GT positions), a centre-to-centre robot-robot distance. Nothing in GT logs contact with static obstacles. Same caveat: `docs/reports/2026-09-25-overnight-findings.md` (Metric correction 2 and its Rev 11 note) and `docs/reports/2026-10-08-s1-pilot.md` (GT `robot_static_contacts`); full account in section 8.7 of `docs/reports/2026-11-15-demo-campaign-results.md`.
+
+- **What the statements rested on.** P2's contact clause is an all-pairs scan of GT robot positions for a centre distance < 0.18 m (`a27/kit/gt_contacts.py`), not the GT contact field (§1 P2). "Zero GT contacts" and "no contact" here are robot-robot distance statements, and they hold as such.
+- **Affected statements.** §1 P2 ("no contact", "Zero GT contacts"); the status line ("There were no GT contacts"); the P2 rows of the two prediction tables ("P2 no contact"). Each is scoped in place and marked (corrected 2026-11-15, see erratum); §1 is annotated with a bracket, its text unchanged.
+- **What remains supported.** Robot-robot only: all-pairs GT minima 0.404 / 0.338 / 0.323 m, no pair below 0.18 m, 0 floor firings; passer-yielder minima after admit 0.587 / 1.736 / 0.433 m. P2 PASS stands as registered (a robot-pair prediction).
+- **Static obstacles.** S1b has rack islands (`mapd_5_s1b`: `obstacle_1`, `obstacle_2`, `obstacle_3`), so the robot-static gap is material here: nothing in this report measures robot-to-island contact. A later offline escort-segment check (demo-campaign report 8.7.4) found no admitted escort segment in the October batches 2-6 (batch 5 included) crossing a declared box; that is a centreline check, not a contact measurement.
 
 ---
 
@@ -132,7 +144,7 @@ this block.
   - A yield with no escort leg (MC s24) is reported **vacuous**, not a pass.
   - Any leg < 0.45 m is a P1 FAILURE.
   - Scope: the command at decision time. Dispatch-time drift (the E18 class) belongs to P2.
-- **P2 (no contact; the floor is quiet).** Zero GT contacts and zero floor firings.
+- **P2 (no contact; the floor is quiet).** Zero GT contacts and zero floor firings. [Robot-robot only: GT does not log robot-static contact, and this prediction does not cover it (corrected 2026-11-15, see erratum).]
   - Contact: no robot pair, at any time in any episode, comes below **0.18 m** centre distance, by an all-pairs scan of GT positions (`gt/ground_truth.jsonl`, the `a27/kit/gt_contacts.py` scan; the GT contacts field is a stub, trap 20).
   - Floor firings: zero `m4.log` `safety stop robot=… reason=hard_contact_floor` lines.
   - A30 predicts zero floor firings, so any firing FAILS P2 (stricter than batch 4's P2). It is reported with its pair, GT minimum and closing speed.
@@ -175,7 +187,7 @@ this block.
 
 ## 2. Summary of Results
 
-**Status: the batch ran in full (E24, E25, E26) inside budget, on the zone-moved VM clone. All four pre-registered predictions PASS. The filter fired live once, on E24's dispatched yield. Every dispatched yield was admitted and released by clearance. There were no GT contacts, no floor firings and no B3 firings. All three episodes were cut by the $0.05 episode cap, between 133 and 174 sim-s of the 600 sim-s horizon.**
+**Status: the batch ran in full (E24, E25, E26) inside budget, on the zone-moved VM clone. All four pre-registered predictions PASS. The filter fired live once, on E24's dispatched yield. Every dispatched yield was admitted and released by clearance. There were no robot-robot contacts by GT pair distance (corrected 2026-11-15, see erratum), no floor firings and no B3 firings. All three episodes were cut by the $0.05 episode cap, between 133 and 174 sim-s of the 600 sim-s horizon.**
 
 | Question | Answer |
 |---|---|
@@ -183,7 +195,7 @@ this block.
 | Deploy | `PINS_PRE OK` with no drift. Every deploy, floor and overlay sentinel printed. Installed md5 = source md5 for all 10 manifest files plus the floor (§3.2) |
 | Batch | 5 attempts: 2 sequential bring-up aborts at $0, then 3 episodes run. **Spend est. $0.1395 of $0.15** (E24 0.0488, E25 0.0470, E26 0.0437). Each episode was stopped by its cost-cap stop flag |
 | P1 escort clears park ≥ 0.45 m | **PASS, 3/3 non-vacuous**: 0.575 / 1.730 / 1.036 m |
-| P2 no contact, floor quiet | **PASS**: all-pairs GT minimum 0.404 / 0.338 / 0.323 m, no pair below 0.18 m, 0 floor firings |
+| P2 no contact (robot-robot (corrected 2026-11-15, see erratum)), floor quiet | **PASS**: all-pairs GT minimum 0.404 / 0.338 / 0.323 m, no pair below 0.18 m, 0 floor firings |
 | P3 filter fires live | **PASS**: 1 tag, `retreat=escort_park_filtered:A:robot_4:0.215` on E24 `dfb33b91`, which was dispatched. It fired on a cluster MC did not model. Neither MC-predicted tag (s25, s26) fired |
 | P4 admitted == dispatched | **PASS, 3/3** |
 | Rev 7 | Admitted/dispatched pooled **14/20**, and **11/11** on the A26+ runtime. First-conflict yield **6/21** live (CI 0.113-0.522) against MC 15/21. **0 alternations in 21 live episodes, NO LIVELOCK.** Productive nonzero 10/33 all-classified (live 9/21) |
@@ -281,7 +293,7 @@ PILOT-ONLY, RECORD = 0.
 | Prediction | Bar (§1.4) | Result | Evidence |
 |---|---|---|---|
 | P1 escort clears park | every dispatched yield's legs ≥ 0.45 m; a yield with no leg is vacuous | **PASS, 3/3 non-vacuous** (0.575, 1.730, 1.036 m) | `batch5/score_p9_results.jsonl` (`score_p9.py`, the scorer validated in §1.4) |
-| P2 no contact, floor quiet | 0 GT pairs < 0.18 m (all pairs) AND 0 floor firings | **PASS** | `batch5/gt_contacts_b5.json`: minima 0.404 / 0.338 / 0.323 m, `contacts_below_018` empty. 0 `reason=hard_contact_floor` lines. Passer–yielder minima after admit 0.587 / 1.736 / 0.433 m |
+| P2 no contact (robot-robot (corrected 2026-11-15, see erratum)), floor quiet | 0 GT pairs < 0.18 m (all pairs) AND 0 floor firings | **PASS** | `batch5/gt_contacts_b5.json`: minima 0.404 / 0.338 / 0.323 m, `contacts_below_018` empty. 0 `reason=hard_contact_floor` lines. Passer–yielder minima after admit 0.587 / 1.736 / 0.433 m |
 | P3 filter fires live | ≥ 1 `retreat=escort_park_filtered:` tag in any artifact | **PASS, 1 tag (1 dispatched)**: E24 `dfb33b91` `A:robot_4:0.215` | 0 `yield=infeasible:escort_hits_park`. MC predicted tags on s25/s26; neither fired. s25 had the same pair and yielder at about the same time, with the cause not isolated (§4). On s26 the first analysis on MC's pair was a `reverse` dispatched as waits. The tag fired on the s24 second cluster, which MC did not model |
 | P4 admits | admitted == dispatched | **PASS, 3/3** | `gate_admit` on `dfb33b91`, `c1fd8b36`, `cf77ca65`; 0 B3 firings, no yield failed |
 

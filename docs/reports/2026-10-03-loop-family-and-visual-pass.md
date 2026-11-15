@@ -16,6 +16,17 @@
   and validated, load prop verified visible without occluding the marker,
   M1 detection unaffected, A/B crops saved, maps byte-identical, `b3`
   scored against a real GT log.
+- Rev 2 (2026-11-15): added the erratum "2026-11-15 Erratum — Contact Wording"; the B2-visual "zero contacts" marked unsupported; no other number or verdict changed.
+
+---
+
+## 2026-11-15 Erratum — Contact Wording
+
+Ground truth's two contact lists, `robot_static_contacts` and `robot_robot_contacts`, are hard-coded to `[]` in `isaac/vgu_sim/acceptance_logging.py:99-100`. No contact detector exists, so an empty list shows nothing. The sound channel is the logged minimum pairwise distance (`min_pairwise_distance_m` and the GT positions), a centre-to-centre robot-robot distance. Nothing in GT logs contact with static obstacles. Same caveat: `docs/reports/2026-09-25-overnight-findings.md` (Metric correction 2 and its Rev 11 note) and `docs/reports/2026-10-08-s1-pilot.md` (GT `robot_static_contacts`); full account in section 8.7 of `docs/reports/2026-11-15-demo-campaign-results.md`.
+
+- **Affected statement.** Part B, "B2-visual runs": both runs "reached 2/2 arrivals with zero contacts". The report states no method and no pair distance. The same `pv_r1_s42` run's "0 / 0" robot-robot / static contacts in `docs/reports/2026-10-05-follow-waypoints-validation.md` can only come from the empty lists. Treat "zero contacts" as unsupported, not as evidence.
+- **What remains supported.** The 2/2 arrivals and the loaded-robot-first order (71.3 / 71.1 s after t0). No contact figure.
+- **Static obstacles.** `priority_visual_r1/_r2` have an `aisle_barrier` corridor (`static_obstacles: []`); robot-static contact was not measured.
 
 ---
 
@@ -247,7 +258,7 @@ optional field, None by default. No v1 artifact changes.
 **B2-visual runs.** `pv_r1_s42` (20261003_045905) and `pv_r2_s42`
 (20261003_051343) used the mock `priority_visual_r{1,2}_yield_once.json`
 with the pristine config, which is the goal-table row. Both reached 2/2
-arrivals with zero contacts, and the loaded robot arrived first (71.3 /
+arrivals with zero contacts (method not stated; the GT contact lists are hard-coded empty and are not evidence; no pair distance is quoted (corrected 2026-11-15, see erratum)), and the loaded robot arrived first (71.3 /
 71.1 s after t0).
 
 **Flagged, not acted on:**

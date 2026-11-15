@@ -521,6 +521,13 @@ class OrchestratorConfig(BaseModel):
     # before it"). Default off; requires `prompt_plan_grammar_rules`; recorded
     # as `prompt_conditions.plan_grammar_release_rule`.
     prompt_plan_grammar_release_rule: bool = False
+    # Held-robot state condition (2026-11-15): mark each robot whose base
+    # mission the task registry still holds back (`start_delay_sec` or a
+    # task-stream hold) with `start_pending=true` on its prompt state line,
+    # plus one generic note. Default off = byte-identical prompt; requires
+    # `plan_channel_enabled` (v3 only); recorded as
+    # `prompt_conditions.held_robot_ids`.
+    prompt_held_robot_state: bool = False
     # prereg-v3 R3.4 contradiction trigger (closed-loop item); default off.
     contradiction_trigger: ContradictionTriggerConfig = Field(
         default_factory=ContradictionTriggerConfig
@@ -611,6 +618,7 @@ class OrchestratorConfig(BaseModel):
                 "prompt_zoom_tile",
                 "prompt_candidate_options",
                 "prompt_plan_grammar_rules",
+                "prompt_held_robot_state",
             )
             if getattr(self, name)
         ]
@@ -1137,7 +1145,8 @@ def plan_order_status_line(config: OrchestratorConfig) -> str | None:
 
     Logged so a run's log alone shows whether the VLM recede-order channel
     (`plan_dispatch_order_source`) and its prompt conditions were live. None
-    (nothing new logged) unless one of the three keys is off its default.
+    (nothing new logged) unless one of the three keys, or the held-robot state
+    condition, is off its default.
 
     Args:
         config: The loaded orchestrator config.
@@ -1149,6 +1158,7 @@ def plan_order_status_line(config: OrchestratorConfig) -> str | None:
         config.plan_dispatch_order_source == "chi"
         and not config.prompt_plan_grammar_rules
         and not config.prompt_candidate_options
+        and not config.prompt_held_robot_state
     ):
         return None
     line = (
@@ -1159,6 +1169,8 @@ def plan_order_status_line(config: OrchestratorConfig) -> str | None:
     # Appended only when on, so every line logged before the key existed is unchanged.
     if config.prompt_plan_grammar_release_rule:
         line += " prompt_plan_grammar_release_rule=True"
+    if config.prompt_held_robot_state:
+        line += " prompt_held_robot_state=True"
     return line
 
 

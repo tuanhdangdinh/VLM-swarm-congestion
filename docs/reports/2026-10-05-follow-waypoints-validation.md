@@ -6,6 +6,18 @@
 
 - Initial draft: diagnosis of the `perm_reroute_s42` stall, the M4 waypoint-progress logging change, two blocker-free validation runs (both FAIL, same shared root cause), one head-on regression run (PASS), and a STOP on the fix, which needs a change to a shared component.
 - Rev 2 (same day, review pass): the first aisle closure came with ≤ 0.06 rad of map→odom yaw error, so the localizer is restated as a demonstrated contributor, not the sole phantom source. Also: the option ranking now favours C, the (d) wording is no longer a message-pairing claim, and the watchdog interval and leg count are corrected.
+- Rev 3 (2026-11-15): added the erratum "2026-11-15 Erratum — Contact Wording"; the "0 contacts" lines and the contacts table row marked as resting on the empty GT lists; no verdict changed.
+
+---
+
+## 2026-11-15 Erratum — Contact Wording
+
+Ground truth's two contact lists, `robot_static_contacts` and `robot_robot_contacts`, are hard-coded to `[]` in `isaac/vgu_sim/acceptance_logging.py:99-100`. No contact detector exists, so an empty list shows nothing. The sound channel is the logged minimum pairwise distance (`min_pairwise_distance_m` and the GT positions), a centre-to-centre robot-robot distance. Nothing in GT logs contact with static obstacles. Same caveat: `docs/reports/2026-09-25-overnight-findings.md` (Metric correction 2 and its Rev 11 note) and `docs/reports/2026-10-08-s1-pilot.md` (GT `robot_static_contacts`); full account in section 8.7 of `docs/reports/2026-11-15-demo-campaign-results.md`.
+
+- **What the statements rested on.** Every "0 contacts" here read the GT contact lists, which are hard-coded empty: runs 1 and 2 have one robot, so there is no robot pair, and the "static" column can only come from `robot_static_contacts`. No pair distance is reported for the regression run. These lines are not evidence.
+- **Affected statements.** Summary table, regression row ("0 contacts"); run 1 and run 2 ("There were 0 contacts"); the regression table row "Contacts (robot-robot / static)". Each is marked in place (corrected 2026-11-15, see erratum).
+- **What remains supported.** No contact figure. The verdicts do not rest on these lines: runs 1 and 2 FAIL on the leg-1 and watchdog criteria, and the regression PASS rests on the identical command flow and the M5 arrival checks. All are unchanged.
+- **Static obstacles.** Material here. In runs 1 and 2 robot_1 was wedged at the remnant corner at the aisle mouth for about 35-40 s (sim 40-79 and 42-76); whether it touched the corner was not measured. `priority_visual_r1` (regression) has an `aisle_barrier` corridor; robot-static contact there was not measured either.
 
 ---
 
@@ -21,7 +33,7 @@ Branch `feat/v2-waypoints`, cut from `feat/prereg-v2-composite` at `fb54ebb`.
 | M4 code change landed | Log-only: `send_waypoints` now logs each change of `current_waypoint` (`36d26de`). The plain NavigateToPose path is byte-identical (pinned). |
 | Validation run 1, `wp_fwd_s42` | **FAIL.** WP0 reached; leg 1 was never driven; watchdog kill at 120.5 wall-s; base arrival rejected (0.39 m > 0.35 m). |
 | Validation run 2, `wp_fwd_s43` (replication) | **FAIL**, same signature. Watchdog kill at 121.4 wall-s. The base mission later arrived (0.03 m, accepted). Costmap evidence captured: the aisle was closed from sim 18 s on. |
-| Regression run, `reg_pv_r1_s42` (head-on yield) | **PASS.** The command flow is identical to the known-good `pv_r1_s42`. 2/2 arrivals accepted, 0 contacts, 0 STALE. |
+| Regression run, `reg_pv_r1_s42` (head-on yield) | **PASS.** The command flow is identical to the known-good `pv_r1_s42`. 2/2 arrivals accepted, 0 contacts (read from the hard-coded empty GT lists; not evidence (corrected 2026-11-15, see erratum)), 0 STALE. |
 | STALE | 0 STALE rows on every robot in all three runs. |
 | Suite | Baseline `fb54ebb` and branch run on the same venv: 63 failed / 153 skipped / 3 errors in both. Passed: 5111 at baseline, 5115 on the branch (+4 new pins). The failing-name sets are identical. |
 | VM | Idle: `pgrep` empty, GPU 0 % / 171 MiB. Configs are pristine in source and installed (`1f656533…` / `e18c723c…`). The tree equals the branch tip `46492d6` except the pristine `orchestrator.yaml`. |
@@ -158,7 +170,7 @@ The M3 grounding of the declared detour was confirmed live: the follower receive
 | Watchdog FAILED; base mission resumed | 79.0 (120.5 wall-s after ACTIVE) | `m4.log` |
 | Nav2 "goal reached" at (2.083, 0.291), a tolerance-substituted endpoint; **M5 arrival rejected**, 0.39 m > 0.35 m | 92.1 | `m5.log` |
 
-Closest GT approach to WP1 (1.8, 1.2) was 0.904 m. Leg 1 was never driven. No latch fired: there is one robot and no safety hold. There were 0 contacts.
+Closest GT approach to WP1 (1.8, 1.2) was 0.904 m. Leg 1 was never driven. No latch fired: there is one robot and no safety hold. The GT contact lists were empty, which is not evidence (they are hard-coded `[]`); robot-static contact during the wedge was not measured (corrected 2026-11-15, see erratum).
 
 **Run 2, `wp_fwd_s43` (seed 43, stamp `20261005_122227`; replication with costmap capture).**
 
@@ -175,7 +187,7 @@ Closest GT approach to WP1 (1.8, 1.2) was 0.904 m. Leg 1 was never driven. No la
 | Watchdog FAILED; base mission resumed | 78.9 (121.4 wall-s after ACTIVE) | `m4.log` |
 | Base goal reached; **M5 arrival accepted**, 0.03 m | 95.0 | `m5.log` |
 
-Closest GT approach to WP1 was 0.955 m. There were 0 contacts.
+Closest GT approach to WP1 was 0.955 m. The GT contact lists were empty, which is not evidence (they are hard-coded `[]`); robot-static contact during the wedge was not measured (corrected 2026-11-15, see erratum).
 
 **Verdict:** both runs FAIL the PASS bar. In each, leg 1 was never traversed and the watchdog killed the route; run 1 also had no position-verified arrival.
 
@@ -195,7 +207,7 @@ Closest GT approach to WP1 was 0.955 m. There were 0 contacts.
 | Re-analyses after resolution | 4 (robot_2) | 4 (robot_2) |
 | Arrivals (M5 position check) | robot_1 0.06 m, robot_2 0.08 m, both within tolerance | robot_1 0.05 m, robot_2 0.08 m, both within tolerance |
 | GT within 0.15 m of goal | robot_1 85.0 s, robot_2 131.6 s | robot_1 86.4 s, robot_2 134.1 s |
-| Contacts (robot-robot / static) | 0 / 0 | 0 / 0 |
+| Contacts (robot-robot / static), from the hard-coded empty GT lists: not evidence (corrected 2026-11-15, see erratum) | 0 / 0 | 0 / 0 |
 | `waypoint leg` lines in `m4.log` | 0 | 0 |
 | STALE rows | 0 / 0 | 0 / 0 |
 

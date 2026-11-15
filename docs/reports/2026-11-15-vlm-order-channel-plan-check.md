@@ -5,6 +5,17 @@
 **Revision history:**
 
 - Initial draft: prompt v3.5 condition, paid offline replay on 20 recorded IB10 snapshots (ER-2, Sonnet 5.5, gpt-4o), go/no-go inputs and demo runtime delta.
+- Rev 2 (2026-11-15): added the erratum "2026-11-15 Erratum — Contact Wording"; "Zero GT contacts in any recede window" scoped to robot-robot pair distance; no number or verdict changed.
+
+---
+
+## 2026-11-15 Erratum — Contact Wording
+
+Ground truth's two contact lists, `robot_static_contacts` and `robot_robot_contacts`, are hard-coded to `[]` in `isaac/vgu_sim/acceptance_logging.py:99-100`. No contact detector exists, so an empty list shows nothing. The sound channel is the logged minimum pairwise distance (`min_pairwise_distance_m` and the GT positions), a centre-to-centre robot-robot distance. Nothing in GT logs contact with static obstacles. Same caveat: `docs/reports/2026-09-25-overnight-findings.md` (Metric correction 2 and its Rev 11 note) and `docs/reports/2026-10-08-s1-pilot.md` (GT `robot_static_contacts`); full account in section 8.7 of `docs/reports/2026-11-15-demo-campaign-results.md`.
+
+- **Affected statement.** Recorded precedent: "Zero GT contacts in any recede window". It rested on the empty list: `scripts/ib10_recede_order_precedent.py` counts GT rows listing `robot_robot_contacts` (`contacts_in`, lines 140-157; `recede_window_contacts`, line 414), and that list is always empty. It is not evidence. The surrounding separation bullets are GT centre-to-centre distances (`score_ibs.gt_min_pairwise`) and stand.
+- **What remains supported.** Robot-robot only, by distance: recede-window minima 0.301 m (robot_3 first) and 0.309 m (robot_4 first), so no robot pair was in contact in any recede window.
+- **Static obstacles.** IB10 declares no static obstacles, so the gap is not material for declared obstacles; the warehouse rack blocks and walls are not logged and were not checked.
 
 ---
 
@@ -219,7 +230,7 @@ This is consistent with ordering by robot id more often than by chi. Inferred; t
 - **Recede-window minimum separation:**
   - robot_3 first: 0.301 / 0.323 / 0.407 m (min / median / max, n = 11, 11 of 11 resolved);
   - robot_4 first: 0.309 / 0.325 / 0.392 m (n = 12, 11 of 12 resolved; e09 unresolved).
-- Zero GT contacts in any recede window. Recedes never overlapped: the second starts about 10 s after the first.
+- Zero robot-robot contacts in any recede window, by GT pair distance (minimum 0.301 m); the script's GT contact-list count is always zero and is not evidence (corrected 2026-11-15, see erratum). Recedes never overlapped: the second starts about 10 s after the first.
 - The window minimum is the standing jam separation measured before any recede. It does not show that a rank-1-first recede would be safe.
 - **Side finding:** in 5 episodes (ib10S_e01, e05, e07, closure R1, P1), `plan.legs` lists the rank-1 robot's `reverse` first while dispatch was chi. The frozen scorer's `chi_pair.executed_recede` reads `plan.legs`, which is why ib10S_e01 shows `executed_order_correct: false`. Executed order must be read from the m5/m4 command order, never from `plan.legs`.
 
@@ -454,3 +465,50 @@ Per replicate: A3 verbatim 4 / 2, order changes 1 / 0. B3 verbatim 10 of 20 / 4 
 **Analysis-only change.** `analyze_one` now records a `strategy: none` answer as `not_congestion` and stops, because `verify_and_repair_plan` raises on it. Cycle 1 had no such answer, so its rows are unaffected. No grounding, verification, parser or safety code changed.
 
 **Spend (verified, `ledger.json`).** 69 billed calls, ledger $0.583 (list × 1.25), so **$0.466 at list**, under the $0.50 cap. No probe was run. The timed-out attempt is not in the ledger; whether Google bills it is unknown.
+
+---
+
+## 11. Addendum (2026-11-15): Sonnet 5.5 Under B3, Offline Sanity Check for the Sonnet Demo Arm
+
+This check backs the go/no-go for up to 2 live Sonnet 5.5 intersection takes (demo campaign registration section 10.5; owner 2026-11-15: "you can try sonnet or gpt if needed"). It changes no prompt, parser, grounding, verification or safety code, and it does not touch the yielder gap.
+
+### 11.1 Pre-Registration (Written and Committed Before the First Paid Call)
+
+- **Model:** `claude-sonnet-5-5`, models.yaml arm `anthropic` as M5 resolves it (`thinking_type: between_tools`, 4 attempts, grey-image fallback after 2, sampling recorded as unsupported). The same id the cycle-1 Sonnet calls used (`calls.jsonl`, `model_id`).
+- **Condition:** B3 only (the live intersection condition: v3.5 rules + release sentence + candidate options), built by the same runner (`scripts/vlm_order_channel_plan_check.py`, condition `B3`, `rep 0`).
+- **n = 16:** the first 16 stimuli in the runner's `STIMULI` order (all 6 `ib10L`, all 5 `ib10S`, the 4 October snapshots, Arm C `4edbbfa0`). 15 are first triggers; `ceff5efa` (e09 third trigger) is excluded from per-episode figures, as before. Same frames and prompts as cycle 2 (`B3_user_sha256` in `stimuli.json`).
+- **Spend cap:** $0.60 at list = `--cap 0.75 --subcap 0.75` in the runner's ledger units (list × 1.25), checked before every attempt with the worst-case reserve. Expected about $0.21 at list (cycle-1 Sonnet median $0.013 per call). Fewer than 16 billed calls is reported as partial.
+- **Output:** a new directory, `data/experiments/2026-11-15-vlm-order-channel-plan-check-c3-sonnet/` (the earlier ledgers and calls stay as committed). Only the Anthropic key is exported to the runner.
+- **Stop rules:** the runner's (a refusal or an HTTP 401/402/403/429 stops the provider; the cap).
+- **Measures** (offline replay through `InProcessPipeline._run_from_result`, unchanged `analyze` / `tables`):
+  1. answered / refused (attempts with `refusal`, `refusal_category`);
+  2. structurally valid (plan present after parsing);
+  3. `vlm_verbatim`;
+  4. verbatim with recede order ≠ chi;
+  5. of those, executed as written (`dispatch_matches_plan` under `model_when_verified`);
+  6. the yielder gap: verbatim plans whose `yield` leg names a robot other than the executed yielder (`dispatch_matches_plan=false`). Under the take classifier (registration section 10.4) such a take is M3-default, never VLM-driven.
+- **Per-take chance** of a VLM-driven take = first-trigger rate of (4 and 5); over the 2 allowed takes, 1 − (1 − p)². Descriptive only; one scene, n = 15 first triggers.
+- **Go/no-go:** the three section 10.1 criteria (a) structurally valid and feasible, (b) executed as written, not replaced, (c) executed commands differ from the no-VLM default.
+
+### 11.2 Results (Verified, Sonnet B3)
+
+Data: `data/experiments/2026-11-15-vlm-order-channel-plan-check-c3-sonnet/` (`calls.jsonl`, `analysis.jsonl`, `summary.json`, `tables.txt`, `ledger.json`). Run complete: 16 of 16 billed, one attempt each, every `stop_reason` `end_turn`, no HTTP error.
+
+| Count (Sonnet 5.5, B3) | Value |
+|---|---|
+| Calls billed / answered / refused | 16 / 16 / 0 (0 refusal attempts) |
+| Strategy | `junction_clear` 11, `yield` 5 |
+| Structurally valid (plan present after parsing) | 16 / 16 |
+| `vlm_verbatim` / `repaired` / `m3_default` | 11 / 1 / 4 (the 4: `yield` plans, repair distance over bound 4) |
+| Verbatim with a recede pair | 10 (order = chi 4, ≠ chi 6) |
+| Verbatim, order ≠ chi, executed as written (`dispatch_matches_plan`) | **1 of 6** (`ib10S_e03`, yielder robot_1) |
+| Yielder gap: verbatim `junction_clear` plans naming robot_2 as yielder | 8 of 10; dispatch yields robot_1 in 6 of them (`dispatch_matches_plan=false`) |
+| ... of the 6 order changes, disqualified by the yielder gap | 5 |
+| First triggers (excl. `ceff5efa`) | 15 |
+| FT demo events: verbatim, order ≠ chi, phases ≠ no-plan default | 6 / 15 |
+| ... and `dispatch_matches_plan` (the classifier's VLM-driven condition) | **1 / 15** |
+
+- **Per-take chance** of a VLM-driven take (FT rate of the last row): 1/15 = 6.7 %; over the 2 allowed takes about 13 % (inferred, 1 − (1 − p)²). For comparison, ER-2 B3 offline was 7/27 per take (section 10.3).
+- **Order bias:** 8 of the 10 pair plans list robot_3 first (ascending id), as in cycle 1.
+- **Spend:** ledger $0.2705 (list × 1.25), so **$0.216 at list**, under the $0.60 cap.
+- **Reading against the three criteria.** (a) met: 16/16 valid, 11/16 verbatim. (b) mostly not met: Sonnet's default yielder is robot_2, which dispatch replaces with robot_1, so 6 of the 10 verbatim pair plans are accepted but not executed as written. (c) the recede order differs from the default in 6/15, but only 1/15 is executed as written. The yielder gap stays open by owner decision; grounding was not changed.

@@ -269,6 +269,7 @@ def build_reasoner_request(
     candidate_options: list[RobotCandidateOptions] | None = None,
     plan_grammar_rules: bool = False,
     plan_grammar_release_rule: bool = False,
+    held_robot_ids: list[str] | None = None,
 ) -> ReasonerRequest:
     """Project a SceneSnapshot plus a dumped image path into a ReasonerRequest.
 
@@ -302,6 +303,8 @@ def build_reasoner_request(
         plan_grammar_rules: Prompt v3.5 plan-grammar rules condition.
         plan_grammar_release_rule: Prompt v3.6 release-rule sub-condition
             (requires `plan_grammar_rules`).
+        held_robot_ids: Held-robot state condition: robots the task registry
+            still holds back; None (off) and an empty list render unchanged.
 
     The four apparatus arguments (prereg-v2 rev 6) and `plan_grammar_rules`
     default to off, which renders byte-identically to every request built
@@ -343,6 +346,7 @@ def build_reasoner_request(
         candidate_options=candidate_options,
         plan_grammar_rules=plan_grammar_rules,
         plan_grammar_release_rule=plan_grammar_release_rule,
+        held_robot_ids=held_robot_ids,
     )
 
 
@@ -430,6 +434,9 @@ class PromptConditions(BaseModel):
     plan_grammar_rules: bool = False
     # Prompt v3.6 release-rule sub-condition, as rendered; omitted when False.
     plan_grammar_release_rule: bool = False
+    # Held-robot state condition: the held robots the request carried (replay
+    # rebuilds the prompt from it); omitted when the condition was off (None).
+    held_robot_ids: list[str] | None = None
 
     @model_serializer(mode="wrap")
     def _omit_rules_off(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
@@ -437,6 +444,8 @@ class PromptConditions(BaseModel):
         for key in ("plan_grammar_rules", "plan_grammar_release_rule"):
             if not data.get(key):
                 data.pop(key, None)
+        if data.get("held_robot_ids") is None:
+            data.pop("held_robot_ids", None)
         return data
 
 
@@ -486,6 +495,7 @@ def build_prompt_conditions(
         prompt_version=None if request is None else request.prompt_version,
         plan_grammar_rules=request is not None and request.plan_grammar_rules,
         plan_grammar_release_rule=request is not None and request.plan_grammar_release_rule,
+        held_robot_ids=None if request is None else request.held_robot_ids,
     )
 
 

@@ -298,6 +298,18 @@ _PLAN_GRAMMAR_V36 = _PLAN_GRAMMAR_V35.replace(
     1,
 )
 
+# Held-robot state condition (2026-11-15; config `prompt_held_robot_state`,
+# default off). M5 lists the robots its task registry still holds back at
+# request time; each one's state line gains the token below, and one generic
+# note follows the state lines, both only when at least one listed robot is
+# held. Facts only: no strategy, role, order or robot name. Evidence for the
+# gap: docs/reports/2026-11-15-demo-campaign-results.md section 5.3.
+_HELD_ROBOT_TOKEN = "start_pending=true"
+_HELD_ROBOT_NOTE = (
+    "start_pending=true: the system has not yet released this robot to start its task; "
+    "once released, it starts driving toward its goal_x, goal_y."
+)
+
 # Prompt-apparatus sentences (prereg-v2 rev 6 + round-3 deltas, 2026-10-04).
 # Each is an A/B condition, never a default, and renders only when the request
 # says the frame/attachment ACTUALLY carries the thing it names (M5 sets the
@@ -492,11 +504,15 @@ def render_visual_crosscheck_block(include_pairwise_geometry: bool) -> str:
     )
 
 
-def format_robot_state_lines(robot_states: list[RobotStateInput]) -> list[str]:
+def format_robot_state_lines(
+    robot_states: list[RobotStateInput], held_robot_ids: frozenset[str] = frozenset()
+) -> list[str]:
     """Render robot states as deterministic key=value lines for the prompt.
 
     Args:
         robot_states: Robot states to render (caller sorts beforehand).
+        held_robot_ids: Robots whose line ends with the held-robot token
+            (held-robot state condition); empty renders every line unchanged.
 
     Returns:
         One comma-separated line per robot; optional fields omitted when None.
@@ -519,6 +535,8 @@ def format_robot_state_lines(robot_states: list[RobotStateInput]) -> list[str]:
             parts.append(f"linear_velocity={state.linear_velocity:.2f}")
         if state.angular_velocity is not None:
             parts.append(f"angular_velocity={state.angular_velocity:.2f}")
+        if state.robot_id in held_robot_ids:
+            parts.append(_HELD_ROBOT_TOKEN)
         lines.append(", ".join(parts))
     return lines
 
@@ -644,8 +662,11 @@ def build_prompt_payload(request: ReasonerRequest) -> PromptPayload:
             image_path=request.image_path,
             known_robot_ids=known_ids,
         )
-    lines = format_robot_state_lines(sorted_states)
+    held = frozenset(request.held_robot_ids or ())
+    lines = format_robot_state_lines(sorted_states, held)
     block = "\n".join(f"- {line}" for line in lines) or "- no robots observed"
+    if held:
+        block += "\n" + _HELD_ROBOT_NOTE
     geometry_lines = (
         format_pairwise_geometry_lines(sorted_states, order)
         if request.include_pairwise_geometry
