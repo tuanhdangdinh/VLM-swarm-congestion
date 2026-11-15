@@ -117,7 +117,7 @@ The report is bounded in the following ways.
 
 *Chapter 6* reports the results: the IB10 comparisons, the prereg-v3 tranche-1 pilot, the exploratory findings (presentation order, model refusals, the offline bench), the head-on decision analyses (re-score and offline replays), the plan-influence trace, the demonstration campaign, the safety and contact findings, and the physical demonstration.
 
-*Chapter 7* discusses what the evidence supports and what it does not, discusses grounding rather than detection as the bottleneck of the pipeline, and sets out the limitations and the threats to validity, including those that arose after the design was fixed.
+*Chapter 7* discusses what the evidence supports and what it does not, discusses where the model's proposals stop, in grounding refusals and in how little of its plans reaches execution, and sets out the limitations and the threats to validity, including those that arose after the design was fixed.
 
 *Chapter 8* concludes the report and outlines future work.
 
