@@ -19,7 +19,9 @@ For every decision artifact of each bundle given whose decided strategy is
 3. Physical record per reversing robot: M4's last published status for the
    command (`m4.log`), and from ground truth the distance moved from the
    pose at M4's handover (`handoff guard ... reason=handover sim_t=`) until
-   the leg's distance is reached, the robot turns back, or 150 s pass. With
+   the leg's distance is reached, the robot turns back, or 150 s pass (not
+   bounded by M4's terminal status: for a FAILED leg, check that the minimum
+   falls before the FAILED line). With
    `--contact-root DIR` (a checkout carrying `isaac/vgu_sim/contact_geometry.py`,
    e.g. the GT contact-recompute branch) the minimum URDF-footprint gap to
    every box the scene builders author is measured over that window too.
@@ -83,7 +85,9 @@ def _actions(command: dict[str, Any]) -> list[dict[str, Any]]:
     return [
         {
             **a,
-            "parameters": {k: v for k, v in (a.get("parameters") or {}).items() if k not in _IGNORED},
+            "parameters": {
+                k: v for k, v in (a.get("parameters") or {}).items() if k not in _IGNORED
+            },
         }
         for a in command.get("actions", [])
     ]
@@ -218,7 +222,9 @@ def replay(bundle: Path, contact: Any) -> list[str]:
             verdict, repro = "n/a (legacy mode)", "-"
         else:
             off = _reground(artifact, config, params)
-            on = _reground(artifact, config, params.model_copy(update={"reverse_obstacle_guard": True}))
+            on = _reground(
+                artifact, config, params.model_copy(update={"reverse_obstacle_guard": True})
+            )
             repro = (
                 "reproduced"
                 if _actions(off) == _actions(live)
@@ -251,7 +257,11 @@ def replay(bundle: Path, contact: Any) -> list[str]:
                         artifact["request_id"][:8],
                         robot_id,
                         f"L={distance_m:.3f}",
-                        "leg clear" if hit is None else f"leg hits {hit.obstacle_id}@{hit.clear_m:.3f}",
+                        (
+                            "leg clear"
+                            if hit is None
+                            else f"leg hits {hit.obstacle_id}@{hit.clear_m:.3f}"
+                        ),
                         repro,
                         verdict,
                         f"M4 {statuses[-1] if statuses else 'no status'}",

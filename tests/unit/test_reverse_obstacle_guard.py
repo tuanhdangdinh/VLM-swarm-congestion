@@ -202,7 +202,9 @@ def test_reverse_clear_length_is_the_escort_segment_entry():
     (hit, _) = reverse_obstacle_hits(
         _legs(case, ["robot_4", "robot_5"]), frame, _obstacles(), _MARGIN
     )
-    box = next(b for b in grown_obstacle_boxes(_obstacles(), _MARGIN) if b.obstacle_id == "obstacle_1")
+    box = next(
+        b for b in grown_obstacle_boxes(_obstacles(), _MARGIN) if b.obstacle_id == "obstacle_1"
+    )
     assert hit.clear_m == segment_entry_m(hit.start_xy, hit.heading_rad, hit.distance_m, box.bounds)
 
 
