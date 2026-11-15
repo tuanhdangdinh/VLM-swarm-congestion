@@ -13,6 +13,7 @@ done
 
 echo "== (a) compile"
 if typst compile $T/main.typ $T/main.pdf; then echo "compile OK"; else echo "FAIL: compile"; fail=1; fi
+if typst compile $T/supplement.typ $T/supplement.pdf; then echo "supplement compile OK"; else echo "FAIL: supplement compile"; fail=1; fi
 
 echo "== (b) held items per chapter"
 total_todo=0; total_verify=0

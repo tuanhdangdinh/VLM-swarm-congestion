@@ -31,7 +31,11 @@
 // Caption with a short form for the List of Figures/Tables and the full form under the figure.
 #let flex-caption(short, long) = context if in-outline.get() { short } else { long }
 
-#let ev(id) = context if in-outline.get() { none } else { link(label("ev:" + id))[\[#id\]] }
+// Links to the Evidence Index row when it is in this document (the supplement); the report itself prints the plain tag.
+#let ev(id) = context if in-outline.get() { none } else {
+  let l = label("ev:" + id)
+  if query(l).len() > 0 { link(l)[\[#id\]] } else [\[#id\]]
+}
 
 #let ev-cols = (14mm, 1fr, 1fr)
 
