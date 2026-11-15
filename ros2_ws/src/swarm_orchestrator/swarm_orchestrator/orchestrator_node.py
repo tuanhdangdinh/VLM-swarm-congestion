@@ -227,6 +227,7 @@ def _build_default_pipeline(
         dispatch_outcome_observer=getattr(backend, "note_dispatch_outcome", None),
         task_intent_of=task_intent_of,
         hold_queued_crossers=config.grounding_hold_queued_crossers,
+        yield_counterflow_swap=config.grounding_yield_counterflow_swap,
     )
 
 

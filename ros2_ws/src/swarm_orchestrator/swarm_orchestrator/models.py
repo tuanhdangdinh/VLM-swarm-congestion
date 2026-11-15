@@ -524,6 +524,15 @@ class OrchestratorConfig(BaseModel):
     # every command, plan verdict and artifact byte-identical; a no-op in
     # derived mode and for junction or dynamic geometry.
     grounding_hold_queued_crossers: bool = False
+    # Counterflow yielder feasibility (2026-11-15, convoy non-arrival): a
+    # LEGACY-mode single-corridor yield whose crossing order (with the hold's
+    # added robots) has a crosser waiting on the yielder's park side is handed
+    # to another named robot whose crossers all start opposite it, or refused
+    # (`command_grounder.counterflow_yield_outcome`); the model's choice is
+    # recorded as `yield_robot_grounded_from`. Default off = every command,
+    # plan verdict and artifact byte-identical; a no-op in derived mode and
+    # for junction or dynamic geometry.
+    grounding_yield_counterflow_swap: bool = False
     # prereg-v3 R3.4 contradiction trigger (closed-loop item); default off.
     contradiction_trigger: ContradictionTriggerConfig = Field(
         default_factory=ContradictionTriggerConfig
@@ -1125,7 +1134,8 @@ def plan_order_status_line(config: OrchestratorConfig) -> str | None:
     Logged so a run's log alone shows whether the VLM recede-order channel
     (`plan_dispatch_order_source`) and its prompt conditions were live. None
     (nothing new logged) unless one of the three keys, the held-robot state
-    condition or the queued corridor-crosser hold is off its default.
+    condition, the queued corridor-crosser hold or the counterflow yielder
+    swap is off its default.
 
     Args:
         config: The loaded orchestrator config.
@@ -1139,6 +1149,7 @@ def plan_order_status_line(config: OrchestratorConfig) -> str | None:
         and not config.prompt_candidate_options
         and not config.prompt_held_robot_state
         and not config.grounding_hold_queued_crossers
+        and not config.grounding_yield_counterflow_swap
     ):
         return None
     line = (
@@ -1153,6 +1164,8 @@ def plan_order_status_line(config: OrchestratorConfig) -> str | None:
         line += " prompt_held_robot_state=True"
     if config.grounding_hold_queued_crossers:
         line += " grounding_hold_queued_crossers=True"
+    if config.grounding_yield_counterflow_swap:
+        line += " grounding_yield_counterflow_swap=True"
     return line
 
 
