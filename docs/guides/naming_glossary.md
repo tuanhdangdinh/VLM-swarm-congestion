@@ -6,6 +6,7 @@
 
 - Initial draft: canonical reader-facing names for scenes, experiments, arms, system parts, outcome labels, distances, analysis terms and safety mechanisms; identifier scheme; replace list; exceptions; how-to-read notes for the three most-cited reports.
 - Rev 2: thesis snapshot updated to HEAD `9b71aa3`; facts softened to the sources (pilot dates, MC context, TurtleBot3 model, earlier intersection pilots, demonstration dates in UTC and UTC+7); provenance row added to the replace list; "preregistration" removed from it.
+- Rev 3 (2026-11-15): reader-facing name for Layer 2 changed from "central layer" to "coordination layer" (owner decision of 2026-11-15, relayed by the report-writer session); added the distinction from M4's "coordination command" and "coordination exemption"; all derived forms updated.
 
 ---
 
@@ -31,7 +32,7 @@ The full list of thesis lines that still use internal shorthand, with replacemen
 3. **Scenes: robot count first.** "Four-robot intersection", never "the intersection" alone at first use in a chapter.
 4. **Dates in full**: "13 November 2026" in prose, "13 Nov 2026" in tables. Dates are UTC, as in the run reports; say so when a series crosses midnight (the demonstration campaign is 14–15 Nov UTC, all 15 Nov in local time UTC+7).
 5. **Never bare** in reader text: "tranche", "tranche 1", "prereg", "prereg-v3", "IB10", "S1b", "Arm A/B/C", "batch N", "ER2LIVE", "T1/T2", "S1/S2/S3", "A33" and module codes M1–M6 without their role.
-6. **Kept as defined abbreviations** (in the thesis abbreviation list, then usable): ER-2, VLM, Nav2, GT (ground truth), Layer 1 and Layer 2 (defined in Chapter 1 and Chapter 3; use "central layer" in headings, captions and table headers), M1–M6 (always with the role at first use in a chapter, and in every heading and caption).
+6. **Kept as defined abbreviations** (in the thesis abbreviation list, then usable): ER-2, VLM, Nav2, GT (ground truth), Layer 1 and Layer 2 (defined in Chapter 1 and Chapter 3; use "coordination layer" in headings, captions and table headers), M1–M6 (always with the role at first use in a chapter, and in every heading and caption).
 7. **Stays as written**: branch names, file paths, commit hashes, config keys, scene file names, bundle and take labels, on-screen log lines. These are verbatim records; section 5 lists them and gives their meaning.
 8. **Registered vs confirmatory.** Almost every study here was registered (written down before it ran): both intersection runs, the demonstration campaign and the offline replays included. Only the five-robot pilot of 21 October 2026 was registered **as confirmatory**. Write "registered as confirmatory" when that is what is meant, and "registered before it ran" for the rest.
 
@@ -56,9 +57,9 @@ Listed in the order a reader meets them in the thesis. "Episode" = one simulated
 
 | Reader-facing name | Internal ids and aliases | One-line plain definition | Canonical evidence |
 |---|---|---|---|
-| **Registered five-robot pilot** (21 Oct 2026; 5 seed pairs, 10 episodes) | prereg-v3 tranche 1; tranche 1; "confirmatory tranche"; `batch6`, `p10` kit; `confirmatory=1`, `tag=confirmatory_t1`; seed pairs E27–E31, each with an Arm A and an Arm B episode | Central layer on against central layer off on seed positions 1–5 of the five-robot scene, registered **as confirmatory**: its analysis plan was fixed before it ran. Reported as a pilot because only 5 of the 20 planned seed pairs ran (the owner decided on 13 Nov 2026 not to run the rest). Never pooled with any later or earlier run. 0 of 10 episodes completed their tasks. | v7j `docs/reports/2026-10-21-s1b-confirmatory-tranche1.md` sections 2–9 |
-| **Exploratory five-robot pilots** (October 2026, series reports dated 10–17 Oct; 21 episodes) | ER-2 pilots; pilots E6–E26; series `churn_wave` (E6), `live_batch` (E7, E8, E10), `resume` (E9, E11), `batch2` (E12–E17), `batch3` (E18–E20), `batch4` (E21–E23), `batch5` (E24–E26); kits p3–p9; "A22 live batch", "A27/A30 mini-batch" | Central layer on only, with the live VLM, on the five-robot scene, while the v3 design was being tuned. Exploratory; six (E10, E17, E23–E26) were cut short by the pilots' early-stop rule. E5 (scripted echo model) is excluded everywhere. | v7j `docs/reports/2026-11-15-failure-cause-rubric-and-robot5.md` section 5.2 |
-| **Intersection run 1: central layer on vs off** (13 Nov 2026; 5 + 5 counted episodes) | IB10 live resolution; IB10 run 1; first IB10 run; `IBL`; `ib10_live`; slots e01–e10 (E01–E10), labels `ib10L_eNN_armX_aN`; Arm A vs Arm B | Full pipeline against the central layer switched off, on the four-robot intersection, registered before it ran, exploratory. Resolved 4 of 5 with the central layer on, 0 of 5 off. One excluded attempt (e01 a1). | v7a `docs/reports/2026-11-13-ib10-live-resolution-results.md` |
+| **Registered five-robot pilot** (21 Oct 2026; 5 seed pairs, 10 episodes) | prereg-v3 tranche 1; tranche 1; "confirmatory tranche"; `batch6`, `p10` kit; `confirmatory=1`, `tag=confirmatory_t1`; seed pairs E27–E31, each with an Arm A and an Arm B episode | Coordination layer on against coordination layer off on seed positions 1–5 of the five-robot scene, registered **as confirmatory**: its analysis plan was fixed before it ran. Reported as a pilot because only 5 of the 20 planned seed pairs ran (the owner decided on 13 Nov 2026 not to run the rest). Never pooled with any later or earlier run. 0 of 10 episodes completed their tasks. | v7j `docs/reports/2026-10-21-s1b-confirmatory-tranche1.md` sections 2–9 |
+| **Exploratory five-robot pilots** (October 2026, series reports dated 10–17 Oct; 21 episodes) | ER-2 pilots; pilots E6–E26; series `churn_wave` (E6), `live_batch` (E7, E8, E10), `resume` (E9, E11), `batch2` (E12–E17), `batch3` (E18–E20), `batch4` (E21–E23), `batch5` (E24–E26); kits p3–p9; "A22 live batch", "A27/A30 mini-batch" | Coordination layer on only, with the live VLM, on the five-robot scene, while the v3 design was being tuned. Exploratory; six (E10, E17, E23–E26) were cut short by the pilots' early-stop rule. E5 (scripted echo model) is excluded everywhere. | v7j `docs/reports/2026-11-15-failure-cause-rubric-and-robot5.md` section 5.2 |
+| **Intersection run 1: coordination layer on vs off** (13 Nov 2026; 5 + 5 counted episodes) | IB10 live resolution; IB10 run 1; first IB10 run; `IBL`; `ib10_live`; slots e01–e10 (E01–E10), labels `ib10L_eNN_armX_aN`; Arm A vs Arm B | Full pipeline against the coordination layer switched off, on the four-robot intersection, registered before it ran, exploratory. Resolved 4 of 5 with the coordination layer on, 0 of 5 off. One excluded attempt (e01 a1). | v7a `docs/reports/2026-11-13-ib10-live-resolution-results.md` |
 | **Intersection run 2: live VLM vs scripted default plan** (14 Nov 2026; 5 + 5 slots, plus one post hoc re-run) | IB10 safety default arm; IB10 grounder-default arm/run; IB10 run 2; second IB10 run; `IBS`; `ib10_safety`; labels `ib10S_eNN_armX_aN`; Arm A vs Arm C; re-run "e02 a2" | Live-VLM arm against a scripted arm that skips the VLM call and runs the grounder's default plan, with the safety-exemption fix on and the hard-contact floor armed. Exploratory. Live VLM 5 of 5 (including the first check episode); scripted 4 of 4 valid, 5 of 5 after the post hoc re-run of slot e02. Never pooled with run 1. | v7d `docs/reports/2026-11-14-ib10-safety-default-arm-results.md` |
 | **Earlier intersection pilots** (reports of 2 and 8 Oct 2026) | IB10 composite smoke, lead-flip diagnosis, remedy validation, closure | Development and validation runs of the intersection remedy before the two runs above; the thesis cites them only as "the earlier live pilot". Not part of any reported comparison. | v7a `docs/reports/2026-10-0{2,8}-ib10-*.md` |
 | **Demonstration campaign** (14–15 Nov 2026 UTC, all on 15 Nov in local time UTC+7; 12 valid takes in four scenes) | demo campaign; `DC`; `demo_campaign/`; takes `ibD_t0N_aN`, `cvD_*`, `cvH_*`, `hoD_*`, `m5D_*` | Live takes of the full pipeline, to show what it does, not how well. Caps 12 machine-hours and $10. Write "demonstration take N of M" per scene (intersection 5, convoy 5, head-on 1, five robots 1). Illustrative only; no rates. | v7j `docs/reports/2026-11-15-demo-campaign-results.md`, Final Summary |
@@ -100,26 +101,26 @@ Numbered items (the letter A is shared by v1 amendments and v3 addenda; never ci
 | v3 addendum A15 | "latch-on-pass" registered as the five-robot conflict class |
 | v3 addendum A32 | freeze of the five-robot scene configuration |
 | v3 addendum A33 | the registered measure definitions (scoring rules for every five-robot measure) |
-| v3 addendum A34 | owner rulings R6–R11 on A33's proposals; redefined the control as central layer off |
-| v3 addendum A35 | the central-layer-off switch (`reasoning_enabled: false`) |
+| v3 addendum A34 | owner rulings R6–R11 on A33's proposals; redefined the control as coordination layer off |
+| v3 addendum A35 | the coordination-layer-off switch (`reasoning_enabled: false`) |
 | v3 addendum A36 | outcome record of the registered pilot and one deviation; tranche 2 left to the owner |
 
 ### 2.4 Arms (Conditions)
 
 | Reader-facing name | Internal ids | Plain definition | Where used |
 |---|---|---|---|
-| **Central layer on (live VLM)** | Arm A; Layer 2 on; "live-VLM arm"; `armA` | Full pipeline: stall trigger, VLM call (Gemini Robotics-ER 2), grounding, phased dispatch. | Registered pilot; both intersection runs; every demonstration take |
-| **Central layer off** | Arm B; Layer 2 off; Layer-2-off; `reasoning_enabled: false`; `armB` | The orchestrator returns before the congestion detector; no analysis, no model call, no dispatch; local navigation and the task stream still run. | Registered pilot; intersection run 1 |
+| **Coordination layer on (live VLM)** | Arm A; Layer 2 on; "live-VLM arm"; `armA` | Full pipeline: stall trigger, VLM call (Gemini Robotics-ER 2), grounding, phased dispatch. | Registered pilot; both intersection runs; every demonstration take |
+| **Coordination layer off** | Arm B; Layer 2 off; Layer-2-off; `reasoning_enabled: false`; `armB` | The orchestrator returns before the congestion detector; no analysis, no model call, no dispatch; local navigation and the task stream still run. | Registered pilot; intersection run 1 |
 | **Scripted default-plan arm (no VLM call)** | Arm C; grounder-default arm; scripted mock; `armC` | A scripted backend answers "no congestion", then `junction_clear` for all four robots with no plan, then "no congestion"; the grounder builds and labels its own default plan. Handed strategy and robot set, so it isolates plan content only. | Intersection run 2 only |
 
-**Warnings.** "Arm A" means central layer on in every experiment, but its comparison arm differs (central layer off in the registered pilot and intersection run 1; scripted default plan in intersection run 2). "Arm B" had two earlier meanings (v1: classical reasoner; v2: "no congestion" mock); only "central layer off" applies to reported data.
+**Warnings.** "Arm A" means coordination layer on in every experiment, but its comparison arm differs (coordination layer off in the registered pilot and intersection run 1; scripted default plan in intersection run 2). "Arm B" had two earlier meanings (v1: classical reasoner; v2: "no congestion" mock); only "coordination layer off" applies to reported data.
 
 ### 2.5 System Parts and Models
 
 | Reader-facing name | Internal ids | Plain definition |
 |---|---|---|
 | **Local navigation (Layer 1)** | Layer 1; Nav2 stack | Each robot's own navigation stack, 20–50 Hz target. |
-| **Central layer (Layer 2)** | Layer 2; L2; "coordination layer" in some reports | The slow centralised loop (0.5–2 Hz target): stall trigger, VLM call, grounding, dispatch. "Coordination" is not used for it because M4's "coordination command" and "coordination exemption" already mean something else. |
+| **Coordination layer (Layer 2)** | Layer 2; L2; "central layer" (the glossary's first choice, replaced) | The slow centralised loop (0.5–2 Hz target): stall trigger, VLM call, grounding, dispatch. Reader-facing name set by the owner on 2026-11-15 (an earlier draft chose "central layer" to avoid a clash). "Coordination layer" names this slow reasoning layer only; "coordination command" and "coordination exemption" remain M4's execution-level terms and are not renamed. |
 | **Perception and robot tracking (M1)** | M1; `swarm_perception` | Overhead camera, ArUco tracking, scene state and annotated frame. |
 | **VLM reasoning (M2)** | M2; backend | Builds the request, calls the model, validates the decision. |
 | **The grounder (M3)** (grounding and plan verification) | M3; RAG grounding; "plan verifier", "verify-and-repair" | Deterministic, geometry-driven: turns a decision into commands, audits and repairs or replaces the model's plan, refuses infeasible manoeuvres. |
@@ -195,7 +196,7 @@ All were written after the evaluated runtime and are off by default unless state
 | **Queued-robot hold** (convoy) | `grounding_hold_queued_crossers` | The grounder holds unnamed robots outside the corridor whose goals lie past its far end. | Used in convoy takes 4–5, both unresolved |
 | **Plan-dispatch mismatch record** | `plan_dispatch_mismatch_visibility` | Writes a companion record when the dispatched command contradicts the audited plan; never changes the plan-audit label. | Built (v7r), logging only |
 | **Plan-order switch** | `plan_dispatch_order_source: model_when_verified` | Lets a verified model plan set the intersection's back-out order. | Demonstration campaign only |
-| **Central-layer-off switch** | `reasoning_enabled: false` | Turns the central layer off (control arm). | Registered pilot, intersection run 1 |
+| **Coordination-layer-off switch** | `reasoning_enabled: false` | Turns the coordination layer off (control arm). | Registered pilot, intersection run 1 |
 
 ---
 
@@ -205,14 +206,14 @@ The thesis already numbers the intersection runs ("IB10 run 1", "IB10 run 2") an
 
 | Use in tables | Stands for |
 |---|---|
-| Intersection run 1 (13 Nov) | Intersection run 1: central layer on vs off |
+| Intersection run 1 (13 Nov) | Intersection run 1: coordination layer on vs off |
 | Intersection run 2 (14 Nov) | Intersection run 2: live VLM vs scripted default plan |
 | Registered pilot (21 Oct) | Registered five-robot pilot |
 | Exploratory pilots (10–17 Oct) | Exploratory five-robot pilots, E6–E26 |
 | Demo take N of M | Demonstration take N of M of one scene |
-| On / Off / Scripted | Central layer on / central layer off / scripted default-plan arm, as column headers when the table caption names the run |
+| On / Off / Scripted | Coordination layer on / coordination layer off / scripted default-plan arm, as column headers when the table caption names the run |
 
-Episode ids stay as ids, defined once: "pilot episodes E6–E26", "seed pairs E27–E31 of the registered pilot (each one central-layer-on and one central-layer-off episode)", "intersection slots e01–e10".
+Episode ids stay as ids, defined once: "pilot episodes E6–E26", "seed pairs E27–E31 of the registered pilot (each one coordination-layer-on and one coordination-layer-off episode)", "intersection slots e01–e10".
 
 ---
 
@@ -234,11 +235,11 @@ For search-and-replace by a human. Always read the sentence; several terms are a
 | S1b | the five-robot pickup-and-delivery scene | keep `mapd_5_s1b` once as the file name |
 | S1 family, S1 scene | the five-robot scene family | |
 | S1, S2, S3 (failure-cause text) | the persistent-state link / start-inside rule / extra-inputs sensitivity analysis | AMBIGUOUS with the S1 scene family |
-| Arm A | central layer on (live VLM) | the comparison arm differs between runs |
-| Arm B | central layer off | v1 and v2 meanings are history only |
+| Arm A | coordination layer on (live VLM) | the comparison arm differs between runs |
+| Arm B | coordination layer off | v1 and v2 meanings are history only |
 | Arm C | scripted default-plan arm (no VLM call) | intersection run 2 only |
-| Layer 2 on / off, Layer-2-on / -off | central layer on / off | mandatory in headings, captions and table headers |
-| Layer 2 | the central layer (Layer 2) | defined term; prose may keep it after Chapter 1 |
+| Layer 2 on / off, Layer-2-on / -off | coordination layer on / off | mandatory in headings, captions and table headers |
+| Layer 2 | the coordination layer (Layer 2) | defined term; prose may keep it after Chapter 1 |
 | M3-default resolution | grounder-default resolution | on-screen video text keeps the old label |
 | `vlm_verbatim` / `repaired` / `m3_default` | accepted unchanged / repaired / grounder default | keep the code in monospace once |
 | provenance | plan-audit label (provenance) | define at first use; may stay where it names the recorded field |
@@ -284,11 +285,11 @@ Counted from the thesis evidence index: the registered-pilot report (17 citation
 ### 6.1 `docs/reports/2026-10-21-s1b-confirmatory-tranche1.md` (v7j; the registered five-robot pilot)
 
 - "S1b Confirmatory Tranche 1", "tranche", "the tranche" = the registered five-robot pilot of 21 Oct 2026. "Confirmatory" was its registered status; the thesis reports it as a pilot.
-- "E27"–"E31" = seed pairs for seed positions 1–5 ("s1"–"s5"); each has an "A" (central layer on) and a "B" (central layer off) episode; "a1"/"a2" are attempts.
+- "E27"–"E31" = seed pairs for seed positions 1–5 ("s1"–"s5"); each has an "A" (coordination layer on) and a "B" (coordination layer off) episode; "a1"/"a2" are attempts.
 - "A32"–"A36" = v3 addenda (section 2.3); "R6"–"R11" = owner rulings recorded in A34; "A33(7)" = paragraph 7 of the measure definitions.
 - "RECORD = 0" = a dataset tag passed to the launcher, nothing more (A34 R6); "`batch6`", "p10" = the run-kit folders.
 - "MC context" (section 1.9) = an offline pre-run check that grounded each seed's first conflict with a scripted echo decision; the report calls it an upper bound, not a prediction.
-- "COND line", "silence gate" = the per-arm condition gates; "`degenerate_arm_b`" = per-conflict measures are undefined for central layer off by construction.
+- "COND line", "silence gate" = the per-arm condition gates; "`degenerate_arm_b`" = per-conflict measures are undefined for coordination layer off by construction.
 - "r1"–"r5" = `robot_1`–`robot_5`; "T_end" = end of observation; "GT closest pair" = minimum ground-truth centre distance.
 
 ### 6.2 `docs/reports/2026-11-15-demo-campaign-results.md` (v7j; the demonstration campaign)
