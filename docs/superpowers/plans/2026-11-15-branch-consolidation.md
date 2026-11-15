@@ -447,7 +447,7 @@ Run sequentially at about 15:40Z with `git merge-tree --write-tree --name-only -
 - Inherited: the plan's four-file Stage 7 conflict between `feat/v4-refusal-feedback` and the demo line, now also seen through the hold and the scripted safety-test branch.
 - Trivial: `docs/implementation_notes.md` in most pairs (keep both sides' bullets, newest first, as in section 3).
 
-**A textually clean merge is not a verified one.** `reasoning/rag/command_grounder.py` merged without conflict in every pair checked (the escort and reverse guards, the hold, the mismatch record and the in-progress yielder fix all edit it), but each stage still needs the unit tests of every feature that touches it and a zero-delta full suite. The mismatch report (section 7) already notes that a kit carrying another branch's `command_grounder.py` must merge its one `"plan=overridden": None` entry by hand. Every kit md5 table in the reports (v7l §8.9, v7p §8, v7r §7) describes one branch's files and goes stale after any merge.
+**A textually clean merge is not a verified one.** `reasoning/rag/command_grounder.py` merged without conflict in every pair checked (the escort and reverse guards, the hold, the mismatch record and the yielder fix (in progress at 13:49Z, committed since; A.2.1) all edit it), but each stage still needs the unit tests of every feature that touches it and a zero-delta full suite. The mismatch report (section 7) already notes that a kit carrying another branch's `command_grounder.py` must merge its one `"plan=overridden": None` entry by hand. Every kit md5 table in the reports (v7l §8.9, v7p §8, v7r §7) describes one branch's files and goes stale after any merge.
 
 ### A.3 Order After the Addendum
 
