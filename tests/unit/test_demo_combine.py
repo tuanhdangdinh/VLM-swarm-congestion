@@ -21,6 +21,7 @@ from scripts.demo_panel.combine import (
     card_lines,
     combine,
     letterbox_rect,
+    outcome_card_lines,
     output_size,
     parse_manifest,
     probe_clip,
@@ -189,3 +190,50 @@ def test_combine_fails_before_encoding_on_missing_clip(tmp_path: Path) -> None:
     with pytest.raises(ManifestError, match="not found"):
         combine(man, out)
     assert not out.exists()
+
+
+def test_after_mode_leaves_outcome_off_card_and_bar() -> None:
+    spec = _spec(note="n")
+    t = resolve_trim(spec, 10.0)
+    assert all(OUTCOMES[0] not in text for _, text in card_lines(spec, "after"))
+    assert OUTCOMES[0] not in caption_text(spec, t, 200, "after")
+    assert OUTCOMES[0] in caption_text(spec, t, 200)
+
+
+def test_outcome_card_names_outcome_take_and_fixed_line() -> None:
+    rows = outcome_card_lines(_spec(outcome_note="2 of 2 arrived"))
+    assert ("body", f"Outcome: {OUTCOMES[0]}") in rows
+    assert ("note", "2 of 2 arrived") in rows and rows[-1] == ("fixed", DISCLAIMER)
+
+
+def test_manifest_rejects_unknown_reveal_mode() -> None:
+    with pytest.raises(ManifestError):
+        parse_manifest({"clips": [_clip()], "outcome_reveal": "never"})
+
+
+def test_combine_after_mode_appends_outcome_card_and_records_it(tmp_path: Path) -> None:
+    a = tmp_path / "a.mp4"
+    _write_video(a, (320, 240), 10, 30)
+    man = tmp_path / "m.json"
+    man.write_text(
+        json.dumps(
+            {
+                "outcome_reveal": "after",
+                "clips": [_clip(path="a.mp4", end=2.0, outcome_card=True, outcome_note="x")],
+            }
+        )
+    )
+    sidecar, dur = combine(man, tmp_path / "o.mp4", fps=10, card_sec=1.0)
+    side = json.loads(sidecar.read_text())
+    assert side["outcome_reveal"] == "after" and side["clips"][0]["outcome_card"] is True
+    assert dur == pytest.approx(1.0 + 2.0 + 1.0)
+
+
+def test_sidecar_default_mode_has_no_reveal_keys(tmp_path: Path) -> None:
+    a = tmp_path / "a.mp4"
+    _write_video(a, (320, 240), 10, 20)
+    man = tmp_path / "m.json"
+    man.write_text(json.dumps({"clips": [_clip(path="a.mp4")]}))
+    sidecar, _ = combine(man, tmp_path / "o.mp4", fps=10, card_sec=1.0)
+    side = json.loads(sidecar.read_text())
+    assert "outcome_reveal" not in side and "outcome_card" not in side["clips"][0]

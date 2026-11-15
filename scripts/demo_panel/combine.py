@@ -7,6 +7,11 @@ encoding) so it can be unit-tested without video files.
 Per clip the output shows a plain title card, then the clip letterboxed (never
 cropped) into a content area, with a thin caption bar above that area. The bar
 is outside the content area, so nothing is drawn over the clip's own pixels.
+
+With `"outcome_reveal": "after"` in the manifest, the title cards and caption
+bars leave the outcome label out, and a clip marked `"outcome_card": true` is
+followed by an outcome card, so the label is shown only after the excerpt
+(the default, `"before"`, keeps the label on the card and the bar).
 """
 
 from __future__ import annotations
@@ -56,6 +61,8 @@ class ClipSpec(BaseModel):
     start: float | None = Field(default=None, ge=0)
     end: float | None = Field(default=None, gt=0)
     note: str | None = None
+    outcome_card: bool = False
+    outcome_note: str | None = None
 
 
 class Manifest(BaseModel):
@@ -64,6 +71,7 @@ class Manifest(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     clips: list[ClipSpec] = Field(min_length=1)
+    outcome_reveal: Literal["before", "after"] = "before"
 
 
 @dataclass(frozen=True)
@@ -203,7 +211,7 @@ def trim_text(trim: Trim) -> str:
     return f"excerpt {_sec(trim.start)}-{_sec(trim.end)} s of {_sec(trim.source_duration)} s"
 
 
-def caption_text(spec: ClipSpec, trim: Trim, max_chars: int) -> str:
+def caption_text(spec: ClipSpec, trim: Trim, max_chars: int, reveal: str = "before") -> str:
     """One-line caption: scenario title, outcome label, take label, trim.
 
     Only the scenario title is shortened (with `...`) when the line is too
@@ -213,11 +221,13 @@ def caption_text(spec: ClipSpec, trim: Trim, max_chars: int) -> str:
         spec: Manifest entry.
         trim: Resolved excerpt.
         max_chars: Characters that fit on the bar.
+        reveal: `before` (outcome on the bar) or `after` (outcome left out).
 
     Returns:
         The caption line.
     """
-    tail = f" | {spec.outcome} | {spec.take} | {trim_text(trim)}"
+    outcome = f" | {spec.outcome}" if reveal == "before" else ""
+    tail = f"{outcome} | {spec.take} | {trim_text(trim)}"
     room = max_chars - len(tail)
     title = spec.title
     if len(title) > room:
@@ -225,18 +235,38 @@ def caption_text(spec: ClipSpec, trim: Trim, max_chars: int) -> str:
     return title + tail
 
 
-def card_lines(spec: ClipSpec) -> list[tuple[str, str]]:
+def card_lines(spec: ClipSpec, reveal: str = "before") -> list[tuple[str, str]]:
     """Title-card content as `(role, text)` rows.
+
+    Args:
+        spec: Manifest entry.
+        reveal: `before` (outcome on the card) or `after` (outcome left out).
+
+    Returns:
+        Rows in display order; roles are `title`, `body`, `note` and `fixed`.
+    """
+    rows = [("title", spec.title)]
+    if reveal == "before":
+        rows.append(("body", spec.outcome))
+    rows.append(("body", spec.take))
+    if spec.note:
+        rows.append(("note", spec.note))
+    rows.append(("fixed", DISCLAIMER))
+    return rows
+
+
+def outcome_card_lines(spec: ClipSpec) -> list[tuple[str, str]]:
+    """Outcome-card content shown after a clip in `after` mode.
 
     Args:
         spec: Manifest entry.
 
     Returns:
-        Rows in display order; roles are `title`, `body`, `note` and `fixed`.
+        Rows: the title, `Outcome: <label>`, take, optional outcome note, fixed line.
     """
-    rows = [("title", spec.title), ("body", spec.outcome), ("body", spec.take)]
-    if spec.note:
-        rows.append(("note", spec.note))
+    rows = [("title", spec.title), ("body", f"Outcome: {spec.outcome}"), ("body", spec.take)]
+    if spec.outcome_note:
+        rows.append(("note", spec.outcome_note))
     rows.append(("fixed", DISCLAIMER))
     return rows
 
@@ -321,6 +351,7 @@ def build_sidecar(
     fps: float,
     card_sec: float,
     entries: Sequence[tuple[ClipSpec, Path, str, ClipInfo, Trim]],
+    reveal: str = "before",
 ) -> dict:
     """Sidecar JSON content.
 
@@ -330,11 +361,12 @@ def build_sidecar(
         fps: Output frame rate.
         card_sec: Title card length.
         entries: Per clip: spec, resolved path, md5, probed info, trim.
+        reveal: Manifest `outcome_reveal`; `after` adds its keys to the sidecar.
 
     Returns:
         A JSON-serialisable dict.
     """
-    return {
+    side = {
         "output": out.name,
         "output_size": list(size),
         "output_fps": fps,
@@ -357,10 +389,18 @@ def build_sidecar(
                 "outcome": spec.outcome,
                 "take": spec.take,
                 "note": spec.note,
+                **(
+                    {"outcome_card": spec.outcome_card, "outcome_note": spec.outcome_note}
+                    if reveal == "after"
+                    else {}
+                ),
             }
             for spec, path, md5, info, trim in entries
         ],
     }
+    if reveal == "after":
+        side["outcome_reveal"] = "after"
+    return side
 
 
 def probe_clip(path: Path) -> ClipInfo:
@@ -405,7 +445,10 @@ def _wrap_words(text: str, font: ImageFont.FreeTypeFont, max_px: int) -> list[st
 
 
 def render_card(
-    spec: ClipSpec, size: tuple[int, int], font_override: str | None = None
+    spec: ClipSpec,
+    size: tuple[int, int],
+    font_override: str | None = None,
+    rows: list[tuple[str, str]] | None = None,
 ) -> np.ndarray:
     """Draw a plain title card.
 
@@ -413,6 +456,7 @@ def render_card(
         spec: Manifest entry.
         size: Frame `(width, height)`.
         font_override: Monospace font file name or path.
+        rows: Card rows; default `card_lines(spec)`.
 
     Returns:
         RGB frame.
@@ -422,7 +466,7 @@ def render_card(
     sizes = {"title": 40, "body": 30, "note": 26, "fixed": 24}
     colors = {"title": CAPTION_RGB, "body": CAPTION_RGB, "note": DIM_RGB, "fixed": DIM_RGB}
     margin = size[0] // 10
-    rows = card_lines(spec)
+    rows = card_lines(spec) if rows is None else rows
     laid: list[tuple[str, str, ImageFont.FreeTypeFont]] = []
     total = 0
     for role, text in rows:
@@ -551,19 +595,24 @@ def combine(
     writer = H264Writer(out, (cw, total_h), fps, crf)
     total = 0.0
     try:
+        reveal = manifest.outcome_reveal
         for spec, path, _md5, info, trim in entries:
-            card = render_card(spec, (cw, total_h), font)
+            card = render_card(spec, (cw, total_h), font, card_lines(spec, reveal))
             for _ in range(frame_count(card_sec, fps)):
                 writer.write(card)
             total += frame_count(card_sec, fps) / fps
-            bar = render_bar(caption_text(spec, trim, capacity), cw, font)
+            bar = render_bar(caption_text(spec, trim, capacity, reveal), cw, font)
             for content in iter_clip_frames(path, info, trim, fps, (cw, ch)):
                 writer.write(np.vstack([bar, content]))
                 total += 1 / fps
+            if reveal == "after" and spec.outcome_card:
+                oc = render_card(spec, (cw, total_h), font, outcome_card_lines(spec))
+                for _ in range(frame_count(card_sec, fps)):
+                    writer.write(oc)
+                total += frame_count(card_sec, fps) / fps
     finally:
         writer.close()
     sidecar = out.with_name(f"{out.stem}_sources.json")
-    sidecar.write_text(
-        json.dumps(build_sidecar(out, (cw, total_h), fps, card_sec, entries), indent=1) + "\n"
-    )
+    side = build_sidecar(out, (cw, total_h), fps, card_sec, entries, manifest.outcome_reveal)
+    sidecar.write_text(json.dumps(side, indent=1) + "\n")
     return sidecar, total
