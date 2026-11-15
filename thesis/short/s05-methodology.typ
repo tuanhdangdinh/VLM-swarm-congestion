@@ -1,4 +1,6 @@
 #import "../lib.typ": *
+#import "../figures/scene-s1b.typ": s1b-figure
+#import "../figures/scene-ib10.typ": ib10-figure
 
 = Methodology <sec:s-method>
 
@@ -44,7 +46,31 @@ Every scored episode ran in Isaac Sim. The studies differ in what they can show,
 
 == Scenes, Arms and Measures <sec:s-method-scenes>
 
-*Scenes.* The *four-robot intersection* stages a jam at the centre of a cross aisle, one robot per arm, each bound for the opposite arm #ev("5.16"). The *five-robot pickup-and-delivery scene* has two rack islands and a stream of five tasks per robot, in which conflicts arise on their own #ev("1.14"). The demonstration campaign adds a *four-robot convoy counterflow* scene (a counter-flow robot meets a platoon of three in a narrow gap) and a *two-robot head-on corridor with an obstacle*, where only one robot has room to back out #ev("5.52").
+*Scenes.* The *four-robot intersection* stages a jam at the centre of a cross aisle, one robot per arm, each bound for the opposite arm #ev("5.16"). The *five-robot pickup-and-delivery scene* has two rack islands and a stream of five tasks per robot, in which conflicts arise on their own #ev("1.14"). The demonstration campaign adds a *four-robot convoy counterflow* scene (a counter-flow robot meets a platoon of three in a narrow gap) and a *two-robot head-on corridor with an obstacle*, where only one robot has room to back out #ev("5.52"). @fig:s-ib10 and @fig:s-s1b show the layouts of the two scenes of the live comparisons, and @fig:s-scene-frames the camera view of three scenes.
+
+#figure(
+  placement: auto,
+  ib10-figure(),
+  caption: flex-caption([Layout of the four-robot intersection.], [Layout of the four-robot intersection, cropped to the cross aisle and the tracked band.#fig-source("5.16")]),
+) <fig:s-ib10>
+
+#figure(
+  placement: auto,
+  s1b-figure(),
+  caption: flex-caption([Layout of the five-robot pickup-and-delivery scene.], [Layout of the five-robot pickup-and-delivery scene: tracked band, rack islands, start poses and first goals (G$n$ is robot $n$'s first goal; G2 and G4 share one point).#fig-source("5.13")]),
+) <fig:s-s1b>
+
+#figure(
+  grid(
+    columns: (1fr, 1fr, 1fr),
+    column-gutter: 6pt,
+    image("../assets/images/fig_intersection_jam_t30p10.png"),
+    image("../assets/images/fig_convoy_standoff_t28p00.png"),
+    image("../assets/images/fig_headon_standoff_t26p00.png"),
+  ),
+  caption: flex-caption([Overhead camera frames of three scenes before any command.], [Raw overhead camera frames before any command. Left: four-robot intersection jammed at simulated time 30.1 s (`robot_1` left, `robot_2` right, `robot_3` bottom, `robot_4` top). Middle: four-robot convoy counterflow scene at 28.0 s: `robot_4` and `robot_3` queue behind `robot_1`, which faces `robot_2` in the gap between the barrier blocks. Right: two-robot head-on corridor with obstacle at 26.0 s; the box at the left blocks `robot_1`'s retreat, so only `robot_2` can yield. Frames from demonstration takes (illustrative).#fig-source("6.01")]),
+) <fig:s-scene-frames>
+
 
 *Arms.* The control in every live comparison is the *coordination layer off* on identical code: only each robot's local navigation runs. Intersection run 2 adds a *scripted default-plan arm* that skips the VLM call, is handed `junction_clear` for all four robots and runs the grounder's own default plan #ev("5.20"). It therefore isolates the content of the model's plan, not its choice of strategy.
 

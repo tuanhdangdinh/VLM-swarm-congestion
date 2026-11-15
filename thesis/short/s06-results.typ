@@ -1,6 +1,11 @@
 #import "../lib.typ": *
 #import "../figures/vlm-flow-take5-simple.typ": vlm-flow-simple-figure
 
+#let demo-frame(path) = layout(size => {
+  let w = size.width
+  box(width: w, height: w * 871 / 1182, clip: true, place(top + left, dy: -w * 86 / 1182, image(path, width: w)))
+})
+
 = Results <sec:s-results>
 
 Each section names its evidence grade (@tab:s-studies); nothing is pooled across studies. The Extended Report, Chapter 6, gives every result in full.
@@ -189,4 +194,14 @@ The simulator's ground-truth contact lists were hard-coded empty in the evaluate
 
 == Physical Demonstration <sec:s-res-physical>
 
-In the kept run of each of four staged arrangements on the physical robots the model chose `reverse` #ev("6.48"). Earlier attempts in which it chose `priority_override` or `reroute` produced only waits or timed-out backups, and two unparsable replies, and are not counted #ev("4.31"). With two head-on pairs all four robots recorded `COMPLETED`; in a triangle of three with a fourth robot outside, the model named only the three, all `COMPLETED`; with four robots facing a shared centre, all four; in a tighter dual-lane variant three `COMPLETED` and `robot_3` `FAILED` #ev("4.30") #ev("4.38"). The robots had no navigation goals, so `COMPLETED` means the back-out finished, not that a conflict was resolved #ev("4.29"). *Caveat:* one run per arrangement; illustrative, not an evaluation.
+In the kept run of each of four staged arrangements on the physical robots (@fig:s-physical) the model chose `reverse` #ev("6.48"). Earlier attempts in which it chose `priority_override` or `reroute` produced only waits or timed-out backups, and two unparsable replies, and are not counted #ev("4.31"). With two head-on pairs all four robots recorded `COMPLETED`; in a triangle of three with a fourth robot outside, the model named only the three, all `COMPLETED`; with four robots facing a shared centre, all four; in a tighter dual-lane variant three `COMPLETED` and `robot_3` `FAILED` #ev("4.30") #ev("4.38"). The robots had no navigation goals, so `COMPLETED` means the back-out finished, not that a conflict was resolved #ev("4.29"). *Caveat:* one run per arrangement; illustrative, not an evaluation.
+
+#figure(
+  grid(
+    columns: (1fr, 1fr),
+    column-gutter: 8pt,
+    demo-frame("../assets/images/scenario_a_two_parallel_deadlocks.png"),
+    demo-frame("../assets/images/scenario_c_three_robot_triangle.png"),
+  ),
+  caption: flex-caption([Annotated perception frames from the physical demonstration.], [Annotated perception frames saved by the physical demonstration run on 12 November 2026 (illustrative, one run per arrangement). Left: scenario A, two simultaneous head-on pairs. Right: scenario C, a three-robot triangle with a fourth robot outside the cluster.#fig-source("4.30")]),
+) <fig:s-physical>
