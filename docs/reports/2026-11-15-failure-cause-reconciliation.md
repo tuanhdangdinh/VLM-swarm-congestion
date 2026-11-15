@@ -5,6 +5,7 @@
 **Revision history:**
 
 - Initial draft: reconciliation of the two finished rating passes (55 failure units, 33 episodes, three strata), sensitivities S1, S2 and S3, rule properties, the interception table for three mechanisms with the stall-abort column recomputed from the committed detector, and the thesis placeholder values.
+- Rev 2 (2026-11-15, review): the stall-abort recompute equals the provisional TSV line for line after sorting, not byte for byte (bundle order differs); latch-held reasons keyed by command and robot, which removes two never-admitted escorts from the latch-held list; S2 m5D onset row reason corrected; added that S1's robot branch cannot fire for a conflict unit, the R-X3T timing facts with the split if that ruling were left undecided, and that neither escort-guard refusal's backup is chain-linked.
 
 ---
 
@@ -119,6 +120,9 @@ Computed on the codes before reconciliation. Kappa is n/a where it is undefined:
   - **Rater A's reading.**
     - In E29A FU2 the completion at 71.695 precedes B's V1 at t0 72.673.
     - In E7 FU2 the completion at 29.712 precedes the Nav2 abort at 32.516. The pair became non-exempt 0.03 s after completion and stayed pinned and non-exempt from 38.0 to censoring.
+  - **In both units the pair entered `min_distance_m` only after the completion.** In E29A FU2 the encounter opens at 72.673 and the pair is close and stopped from 72.97, about 1 s after the completion. In E7 FU2 the onset is 37.80 and close-and-stopped starts at 38.0, about 8 s after.
+    - Both raters still treat X3 as present (B lists it at 72.97 and 38.0). The disagreement is only where it sits.
+    - If R-X3T were treated as undecided, the split would be 1 decided by the text (E26 FU1) and 4 U: E29A FU2 (registered Arm A) and E7 FU2 would join the two tie units. Tranche 1 Arm A would then read X 2, V 2, G 1, U 3, and pilots horizon X 6, U 10.
 - **R-G1W (a refusal turned into dispatched waits): decided.**
   - G1: "refused a decision that is contract-consistent and T2-feasible".
   - At E26 D1 (14.267) the grounder refused every action of the decision ("reverse refused: both robots outside the corridor on the same side") and substituted waits. C1 is False and T2 at D1 is True.
@@ -288,6 +292,7 @@ The reconciled contributing set is the intersection: codes both raters recorded 
   - **No new cause code is assigned.** The change is not mechanical under the rule: the walk from 70.93 needs re-rating.
   - This is the case the protocol's "known consequence" names, and the validation case passes.
 - No other Layer-2-on unit gains a link. Arm B dispatches nothing, so S1 is n/a there.
+- **The robot branch cannot fire for a conflict unit.** Suppose a unit robot stayed within 0.45 m of another robot from a motion end up to t0. That pair interval shares a robot with the unit and overlaps its onset, so A33 merges it into the same conflict episode. The episode's onset would then precede the motion end. This branch could fire only for a lone stall, and every lone stall here is a parked robot that is not a unit. In this data, S1 is therefore the box branch only, and "1 unit" does not measure how often robots stay close to each other for more than 60 s.
 
 ### 5.3 S2: Start-Inside Straight-Move Check (Computed Mechanically)
 
@@ -302,7 +307,7 @@ The reconciled contributing set is the intersection: codes both raters recorded 
 
 | Snapshot | Decision status | Can the unit's code change? |
 |---|---|---|
-| m5D FU2 t0 | onset | No. Step 3 continues whenever T1 is non-empty, whatever T2 says; T1 is non-empty here. The unit stays `U:T1_fidelity`. |
+| m5D FU2 t0 | onset | No. The unit is `U:T1_fidelity` because the as-written T1 gate fails at onset, which both raters treat as deciding at step 3 whatever T2 is (A's R1, B's B2). EG1 needs T2 false and T1 empty, and G7 needs T1 empty, so a T2 change cannot assign either. |
 | m5D FU2 D8 (243.37) | withheld, "no feasible yielder" | Not the primary: the unit is decided at step 3. G1 becomes testable as a contributing code. |
 | E20 FU2 D7 (236.77) | withheld, "no shared lane" | Not the primary: the unit's G5 (agreed) comes earlier. G1 becomes testable as a contributing code. |
 | E29A FU2 D2 (22.40) | published (chain start) | No. G1 needs a refusal. |
@@ -339,7 +344,7 @@ The reconciled contributing set is the intersection: codes both raters recorded 
 - **Escort and reverse guards.** These come from the v7l replays already in `replay/`. A guard refuses a whole command, so every leg of a refused command is refused.
 - **Stall abort, recomputed.**
   - Committed detector at v7p `1016e0b`, through `scripts/stall_abort_replay.py`, read-only, over all 28 Layer-2-on bundles.
-  - The output is **byte-identical to the provisional TSV**: 100 primitives in 25 bundles, 10 fires.
+  - The output has **the same lines as the provisional TSV after sorting** (100 primitives in 25 bundles, 10 fires). The files differ only in bundle order (md5 `f3b066fe…` against `5d8bd8be…`).
   - No leg's stall-abort value differs from the provisional column.
   - Time to abort, from primitive start, for the 8 fires among the 57 legs:
 
@@ -402,7 +407,7 @@ Columns: L = refused or aborted legs; J = justified (contact/pinned + graze); F 
   - Caught by two mechanisms (escort guard and stall abort): m5D `a15f3fc5` r3.
   - Only the stall abort: E20 `6cf402ed` r3, an escort pushing the parked yielder; the guards cannot see robots.
 - **Failed, pinned, stalled or deadline legs that nothing catches (9, all pilots):**
-  - 7 escorts with no motion. 5 were never admitted: E10 `63f8d1ce`, E13 `984e3bdf`, E14 `c5a5e687`, E17 `6745a136` r4, E17 `6d37a549` r3. 2 were admitted but never cleared, with no terminal line: E15 `8066f542`, E22 `07da775d`. The stall-abort report lists `63f8d1ce`, `984e3bdf`, `8066f542` and `07da775d` as latch-held.
+  - 7 escorts with no motion and no terminal line, so the stall abort has nothing to judge. 5 were never admitted: E10 `63f8d1ce` r5, E13 `984e3bdf` r4, E14 `c5a5e687` r4, E17 `6745a136` r4, E17 `6d37a549` r3. 2 were admitted but never cleared: E15 `8066f542` r5 and E22 `07da775d` r5. The stall-abort report (§6.4) lists only these two as latch-held escorts; its `63f8d1ce` and `984e3bdf` entries are the robot_1 yield backups, not these escorts.
   - 2 legs that failed latch-held without contact: E17 `150b95a6` r3 (a reverse the guard admits, 0.37 m from boxes) and E18 `56b599af` r3 (escort failed after 1.16 m, 0.37 m from boxes). The stall abort is idle while the latch zeroes the wheels (stall-abort report §6.4).
   - The latch-at-face legs E10 `d5541ff0` r2 and E13 `ea23b1a7` r1 are silent under the stall abort, but the reverse guard refuses them.
 
@@ -440,6 +445,7 @@ Categories: *intercepted* (a linked leg would be refused or aborted); *linked, n
   - November: V 1.
 - **The 19 pilot units with no linked leg** are U 9, X 5, V 3 and G 2.
 - **Outside the 57-leg set,** the stall abort also fires on the yield backup E11 `7a47f2f7` r4, which is chain-linked to E11 FU1 (U). That unit counts as "no linked leg" above.
+- **The two escort-guard refusals also cancel the yielder's backup** (E18 `1feb2c4e` robot_5, m5D `a15f3fc5` robot_2). Neither backup is chain-linked to a unit, under the primary rule or under S1, so no unit count changes.
 
 ### 7.4 Caveats
 
@@ -502,7 +508,7 @@ Categories: *intercepted* (a linked leg would be refused or aborted); *linked, n
 | Meaning of rater B's B8 to B13 | inferred from B's record text |
 | S1 link set (1 unit) and its m5D validation | verified (run; GT read from the bundles) |
 | S2: as-written recompute equals all 233 sheet rows; 4 changes; no primary can change | verified (run); "no primary can change" from the walk positions in both raters' records |
-| Stall-abort recompute at `1016e0b` equals the provisional column | verified (run; byte-identical TSV) |
+| Stall-abort recompute at `1016e0b` equals the provisional column | verified (run; same TSV lines after sorting; bundle order differs) |
 | Reverse-guard blocked split equals v7l §8.6 (11 / 3 / 6) | verified (run) |
 | Episodes E9, E27A, E30A dispatched no reverse, escort or backup leg | verified (full sheets and replay output) |
 | No pre-existing evidence file changed | verified (md5 of 367 files before and after) |

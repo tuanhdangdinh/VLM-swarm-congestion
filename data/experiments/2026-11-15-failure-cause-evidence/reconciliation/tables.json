@@ -834,28 +834,28 @@
       "episode": "E10",
       "physical": "no_motion",
       "m4_terminal": null,
-      "reason": "never admitted or no terminal line; no motion to judge; robot latch-held when it stopped (stall abort idle by design, SA 6.4)"
+      "reason": "no terminal line and no motion (never admitted, or admitted and never cleared); nothing to judge"
      },
      {
       "leg_id": "984e3bdf:robot_4:escort",
       "episode": "E13",
       "physical": "no_motion",
       "m4_terminal": null,
-      "reason": "never admitted or no terminal line; no motion to judge; robot latch-held when it stopped (stall abort idle by design, SA 6.4)"
+      "reason": "no terminal line and no motion (never admitted, or admitted and never cleared); nothing to judge"
      },
      {
       "leg_id": "c5a5e687:robot_4:escort",
       "episode": "E14",
       "physical": "no_motion",
       "m4_terminal": null,
-      "reason": "never admitted or no terminal line; no motion to judge"
+      "reason": "no terminal line and no motion (never admitted, or admitted and never cleared); nothing to judge"
      },
      {
       "leg_id": "8066f542:robot_5:escort",
       "episode": "E15",
       "physical": "no_motion",
       "m4_terminal": null,
-      "reason": "never admitted or no terminal line; no motion to judge; robot latch-held when it stopped (stall abort idle by design, SA 6.4)"
+      "reason": "no terminal line and no motion (never admitted, or admitted and never cleared); nothing to judge; robot latch-held when it stopped (stall abort idle by design, SA 6.4)"
      },
      {
       "leg_id": "150b95a6:robot_3:reverse",
@@ -869,14 +869,14 @@
       "episode": "E17",
       "physical": "no_motion",
       "m4_terminal": null,
-      "reason": "never admitted or no terminal line; no motion to judge"
+      "reason": "no terminal line and no motion (never admitted, or admitted and never cleared); nothing to judge"
      },
      {
       "leg_id": "6d37a549:robot_3:escort",
       "episode": "E17",
       "physical": "no_motion",
       "m4_terminal": null,
-      "reason": "never admitted or no terminal line; no motion to judge"
+      "reason": "no terminal line and no motion (never admitted, or admitted and never cleared); nothing to judge"
      },
      {
       "leg_id": "56b599af:robot_3:escort",
@@ -890,7 +890,7 @@
       "episode": "E22",
       "physical": "no_motion",
       "m4_terminal": null,
-      "reason": "never admitted or no terminal line; no motion to judge; robot latch-held when it stopped (stall abort idle by design, SA 6.4)"
+      "reason": "no terminal line and no motion (never admitted, or admitted and never cleared); nothing to judge; robot latch-held when it stopped (stall abort idle by design, SA 6.4)"
      }
     ]
    }
@@ -1132,21 +1132,21 @@
       "episode": "E13",
       "physical": "no_motion",
       "m4_terminal": null,
-      "reason": "never admitted or no terminal line; no motion to judge; robot latch-held when it stopped (stall abort idle by design, SA 6.4)"
+      "reason": "no terminal line and no motion (never admitted, or admitted and never cleared); nothing to judge"
      },
      {
       "leg_id": "c5a5e687:robot_4:escort",
       "episode": "E14",
       "physical": "no_motion",
       "m4_terminal": null,
-      "reason": "never admitted or no terminal line; no motion to judge"
+      "reason": "no terminal line and no motion (never admitted, or admitted and never cleared); nothing to judge"
      },
      {
       "leg_id": "8066f542:robot_5:escort",
       "episode": "E15",
       "physical": "no_motion",
       "m4_terminal": null,
-      "reason": "never admitted or no terminal line; no motion to judge; robot latch-held when it stopped (stall abort idle by design, SA 6.4)"
+      "reason": "no terminal line and no motion (never admitted, or admitted and never cleared); nothing to judge; robot latch-held when it stopped (stall abort idle by design, SA 6.4)"
      },
      {
       "leg_id": "56b599af:robot_3:escort",
@@ -1160,7 +1160,7 @@
       "episode": "E22",
       "physical": "no_motion",
       "m4_terminal": null,
-      "reason": "never admitted or no terminal line; no motion to judge; robot latch-held when it stopped (stall abort idle by design, SA 6.4)"
+      "reason": "no terminal line and no motion (never admitted, or admitted and never cleared); nothing to judge; robot latch-held when it stopped (stall abort idle by design, SA 6.4)"
      }
     ]
    }
@@ -1275,7 +1275,7 @@
       "episode": "E10",
       "physical": "no_motion",
       "m4_terminal": null,
-      "reason": "never admitted or no terminal line; no motion to judge; robot latch-held when it stopped (stall abort idle by design, SA 6.4)"
+      "reason": "no terminal line and no motion (never admitted, or admitted and never cleared); nothing to judge"
      },
      {
       "leg_id": "150b95a6:robot_3:reverse",
@@ -1289,14 +1289,14 @@
       "episode": "E17",
       "physical": "no_motion",
       "m4_terminal": null,
-      "reason": "never admitted or no terminal line; no motion to judge"
+      "reason": "no terminal line and no motion (never admitted, or admitted and never cleared); nothing to judge"
      },
      {
       "leg_id": "6d37a549:robot_3:escort",
       "episode": "E17",
       "physical": "no_motion",
       "m4_terminal": null,
-      "reason": "never admitted or no terminal line; no motion to judge"
+      "reason": "no terminal line and no motion (never admitted, or admitted and never cleared); nothing to judge"
      }
     ]
    }
@@ -1384,7 +1384,7 @@
   "s1_validation_m5D_escort_links_FU2": true,
   "s2_regression_as_written_equal": true,
   "s2_snapshots": 233,
-  "stall_tsv_identical_to_provisional": true,
+  "stall_tsv_same_lines_as_provisional_sorted": true,
   "stall_tsv_bundles": 25,
   "legs_chain_window_equals_full_sheet_chain": true,
   "legs": 57,

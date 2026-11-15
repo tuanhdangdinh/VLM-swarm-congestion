@@ -167,8 +167,12 @@ S3_RESOLUTION: dict[tuple[str, str], dict[str, str]] = {
 
 # Stall-abort report (v7p 1016e0b) section 6.4: primitives silent because the
 # robot was latch-held when it stopped (wheels zeroed; detector idle by design).
-LATCH_HELD_REQ8 = {"63f8d1ce", "984e3bdf", "ede6d209", "150b95a6", "09647748", "93100ae3",
-                   "f06c33b3", "56b599af", "8066f542", "1feb2c4e", "07da775d"}
+# Keyed by command and robot: 63f8d1ce and 984e3bdf are latch-held backups of
+# robot_1, not their (never admitted) escorts.
+LATCH_HELD = {("63f8d1ce", "robot_1"), ("984e3bdf", "robot_1"), ("ede6d209", "robot_3"),
+              ("ede6d209", "robot_4"), ("150b95a6", "robot_3"), ("09647748", "robot_3"),
+              ("93100ae3", "robot_1"), ("f06c33b3", "robot_4"), ("56b599af", "robot_3"),
+              ("8066f542", "robot_5"), ("1feb2c4e", "robot_2"), ("07da775d", "robot_5")}
 LATCH_AT_FACE = {("d5541ff0", "robot_2"), ("ea23b1a7", "robot_1")}
 
 
@@ -1026,7 +1030,7 @@ def cmd_build() -> None:  # noqa: C901, PLR0912, PLR0915
     # ---- interception
     legs = json.loads((EVID / "interception/legs.json").read_text())
     stall = _read_stall(STALL_TSV)
-    checks["stall_tsv_identical_to_provisional"] = (
+    checks["stall_tsv_same_lines_as_provisional_sorted"] = (
         sorted((EVID / "replay/stall_abort_replay.tsv").read_text().splitlines())
         == sorted(STALL_TSV.read_text().splitlines()))
     checks["stall_tsv_bundles"] = len({v["bundle"] for v in stall.values()})
@@ -1056,8 +1060,9 @@ def cmd_build() -> None:  # noqa: C901, PLR0912, PLR0915
         reasons = []
         if not (esc or rev or fired) and phys != "completed_clear":
             if l.get("m4_terminal") is None:
-                reasons.append("never admitted or no terminal line; no motion to judge")
-            if req8 in LATCH_HELD_REQ8:
+                reasons.append("no terminal line and no motion (never admitted, or admitted "
+                               "and never cleared); nothing to judge")
+            if (req8, robot) in LATCH_HELD:
                 reasons.append("robot latch-held when it stopped (stall abort idle by design, SA 6.4)")
             if (req8, robot) in LATCH_AT_FACE:
                 reasons.append("reached the box face as the latch engaged (SA 6.4)")
