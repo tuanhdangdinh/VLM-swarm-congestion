@@ -6,6 +6,7 @@
 
 - Initial version (pre-declaration): written and committed before the round-2 evidence was generated and before any round-2 coding. It fixes the purpose, the evidence to be added and how, the clock-mapping method and its acceptance tolerance, the scope rule, the instruction to raters and sensitivity S3. Results (counts, validation numbers, the in-scope unit list) are added in a later dated revision line; nothing in this version is changed by that revision except where a revision line says so.
 - Rev 1 (2026-11-15, after the evidence was generated, before any round-2 coding): adds the section "Round-2 Results". The clock mapping failed the acceptance criterion declared in the initial version and is **not applied**; criterion (c) is therefore empty and the 10 units on the no-decision sheets stay `U:no_m4_clock_anchor`. The criterion is not changed. Correction to the tolerance rationale: "the rubric's own reference fit already has residuals up to 1.9 s" is wrong; the round-1 sheets record m4-fit residuals up to 4.934 s (4 of 28 bundles above 1.9 s). The round-1 facts listed below were verified against both raters' JSON files and hold as stated.
+- Rev 2 (2026-11-15, before any round-2 coding): corrects the round-2 disclosure about when rater A's output was read (the final addenda were regenerated after that read); adds the per-unit in-scope table; adds the residue of rater-named decisions without a T1 row; tells raters not to read the methods note's Round 2 section beyond its first bullets (no clock values are stated there any more).
 
 ---
 
@@ -81,7 +82,7 @@ The list is produced mechanically from the addendum and both raters' recorded wa
 - Rater A read methods-note sections that name episodes.
 - EV sheets carry epoch wall times that date the runs (already disclosed in the methods note).
 - Rater B ran one grep across all EV sheets before coding.
-- **Round 2 itself.** Round 2 happens after round-1 codes were seen. The planning session saw rater B's codes; the session that generated the addendum read rater B's ambiguity log and events records to find the missing evidence before generating it. Rater A's output was not read before the addendum was generated; it was read afterwards, with the coordinator's permission, only to build the in-scope list and to verify the facts above. The evidence code reads no rating file.
+- **Round 2 itself.** Round 2 happens after round-1 codes were seen. The planning session saw rater B's codes; the session that generated the addendum read rater B's ambiguity log and events records to find the missing evidence before generating it. Rater A's output was not read before the addendum was generated; it was read afterwards, with the coordinator's permission, only to build the in-scope list and to verify the facts above. The evidence code reads no rating file. (Superseded in part by the Rev 2 disclosure at the end of this note.)
 
 ## Round-2 Results (Rev 1)
 
@@ -112,3 +113,52 @@ All numbers below were produced by running `scripts/failure_cause_evidence.py` (
 **Leak check.** 33 addenda (JSON and Markdown) and the in-scope list: zero hits with the round-1 patterns plus every request id (full and 8-character prefix), labels, bundle names, seeds, run and session ids (`rater_round2/leak_check.json`). No epoch or monotonic time appears in a rater-facing file.
 
 **Pre-existing files.** md5 lists of all 214 files under `rater/`, `rater_gt/`, `key/`, `full/`, `interception/`, `replay/`, `inputs/` and the two top-level JSON files were taken before the run and after it, and are identical (`full_round2/md5_preexisting_{before,after}.txt`). No rating file was written.
+
+## Rev 2 Additions
+
+**Disclosure, corrected.** The first generation of the addenda (the 50 on-timeline T1 rows) ran before rater A's output was read. Rater A's records were then read, with the coordinator's permission, to build the scope list and verify the round-1 facts. Prompted by decisions both raters named in their notes, the tool was then extended to also supply rows for analyses before a unit's timeline start (23 rows, marked off the walk), and all round-2 output was regenerated from the bundles with the final tool. The first generation was not kept; that the 50 on-timeline rows are unchanged is inferred from identical gate tallies (37 / 12 / 1), not verified file by file. The evidence code still reads no rating file; only the scope script does.
+
+**Residue of rater-named decisions.** Of the decisions either rater's round-1 record names for a unit, 202 have a round-1 T1 row, 10 have a round-2 off-walk row and 6 are negative analyses (no T1 needed). 5 positive analyses have no row: each involves and commands none of the unit's robots, so it is not on that unit's timeline and the walk does not reach it (rater A: one unit; rater B: four units).
+
+**Raters and the methods note.** For round 2, raters read the addenda, this note, the rubric and the protocol. In the methods note's section "Round 2 Evidence", only the bullets on T1 at decision snapshots and S3 are needed.
+
+**In-scope units** (`rater_round2/in_scope_units.json`; (a) walk passes a decision with a new T1 row, (b) T1 at onset `U:T1_fidelity` as written, (c) none). For the 4 units in (b) only, round 2 can change only the S3 column; their as-written status is unchanged.
+
+| Sheet | Unit | Criteria |
+|---|---|---|
+| EV-072a17 | FU1 | a |
+| EV-0bdad6 | FU1 | a, b |
+| EV-0bdad6 | FU2 | a, b |
+| EV-295a3e | FU1 | a, b |
+| EV-298037 | FU1 | b |
+| EV-298037 | FU2 | a, b |
+| EV-2c719b | FU2 | a |
+| EV-344706 | FU1 | a |
+| EV-359e3d | FU1 | a |
+| EV-359e3d | FU2 | a |
+| EV-37a70e | FU1 | a, b |
+| EV-37a70e | FU2 | a, b |
+| EV-41a9d4 | FU1 | a |
+| EV-41a9d4 | FU2 | a |
+| EV-52a0c3 | FU1 | b |
+| EV-62b8d0 | FU1 | a, b |
+| EV-7bda3f | FU1 | a |
+| EV-7bda3f | FU2 | a |
+| EV-7bf1e2 | FU2 | a |
+| EV-80fb2a | FU2 | a |
+| EV-830943 | FU1 | a, b |
+| EV-a2cfc5 | FU1 | a |
+| EV-a6761e | FU1 | a, b |
+| EV-a6761e | FU2 | a, b |
+| EV-cb3996 | FU1 | a |
+| EV-cb3996 | FU2 | a |
+| EV-db0df6 | FU1 | a |
+| EV-db0df6 | FU2 | a |
+| EV-e0f9cf | FU1 | a, b |
+| EV-e0f9cf | FU2 | a, b |
+| EV-e26384 | FU1 | b |
+| EV-ef4e73 | FU1 | b |
+| EV-ef4e73 | FU2 | a, b |
+| EV-f7ab58 | FU1 | a, b |
+
+The decision ids behind each (a) are in the JSON file. Verified: for each of the 18 units whose round-1 walk started at a chain-start decision without a T1 row, the first new row is at exactly that decision's time.
