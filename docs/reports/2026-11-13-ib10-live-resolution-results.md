@@ -5,6 +5,18 @@
 **Revision history:**
 
 - Initial draft: results of the 10-episode, two-arm IB10 live resolution experiment run on 2026-11-13 under the registration in `docs/superpowers/specs/2026-11-13-ib10-live-resolution-experiment.md`.
+- Rev 2 (2026-11-15): added the erratum "2026-11-15 Erratum — Contact Wording" and scoped the "GT contact" statements to the robot-pair distance; no number or verdict changed.
+
+---
+
+## 2026-11-15 Erratum — Contact Wording
+
+Ground truth's two contact lists, `robot_static_contacts` and `robot_robot_contacts`, are hard-coded to `[]` in `isaac/vgu_sim/acceptance_logging.py:99-100`. No contact detector exists, so an empty list shows nothing. The sound channel is the logged minimum pairwise distance (`min_pairwise_distance_m` and the GT positions), a centre-to-centre robot-robot distance. Nothing in GT logs contact with static obstacles. The same caveat is in `docs/reports/2026-09-25-overnight-findings.md` (Metric correction 2 and its Rev 11 note) and `docs/reports/2026-10-08-s1-pilot.md`; the full account is section 8.7 of `docs/reports/2026-11-15-demo-campaign-results.md` (branch `demo/campaign-kits`).
+
+- **What the statements rested on.** The success criterion (Design) and the scorer are distance-based: `data/logs/vm_runs/ib10_live/kit/score_ib.py` (lines 8, 34 and 164) sets `gt_contact` to GT minimum pairwise centre distance after t0 < 0.18 m, "never the GT contacts field". The report's own "0 GT contact frames" / "zero contact frames in every GT file" does not say whether it counted frames below 0.18 m or read the empty lists. Whichever it read, the distance minima below support the same robot-robot count.
+- **Affected statements.** "0 GT contact frames" (Per-episode table intro), "no GT contact" (Pooled table, Success row), the "GT contacts" label (Pooled table) and "zero contact frames in every GT file" (Verification status). Each is now scoped in place and marked "(corrected 2026-11-15, see erratum)".
+- **What remains supported.** Robot-robot only, by distance: the lowest GT pair is 0.2633 m in Arm A (e09) and 0.2856 m in Arm B (e04); excluded e01 a1 0.3160 m. No episode came below 0.18 m. 0 floor stops. Success 4/5 vs 0/5 and every other number are unchanged.
+- **Static obstacles.** IB10 declares no static obstacles (`intersection_bottleneck.yaml`: "No obstacles"), so the gap is not material in the way it is for the S1b rack-island scenes. Contact with the warehouse rack blocks and walls that bound the aisles is not logged either and was not checked (inferred to be absent from the aisle-centreline lanes, not measured).
 
 ---
 
@@ -32,7 +44,7 @@ All times are sim-seconds unless a clock time is given. "Onset" is `formed_jam.o
 
 ### Per-episode table
 
-Episodes e01 to e10 in registered order. e01 appears twice because attempt a1 was excluded (see below). Every bundle had a valid formed jam (criterion 1) and 0 floor stops and 0 GT contact frames.
+Episodes e01 to e10 in registered order. e01 appears twice because attempt a1 was excluded (see below). Every bundle had a valid formed jam (criterion 1) and 0 floor stops, and no robot pair came below 0.18 m (robot-robot, by GT pair distance; the GT contact lists are hard-coded empty and are not evidence; corrected 2026-11-15, see erratum).
 
 | Slot | Arm | Attempt | t0 / onset | First dispatch (strategy, provenance) | Arrivals | Resolved | Time from onset | GT min pair (m, pair, t) | Est. USD |
 |---|---|---|---|---|---|---|---|---|---|
@@ -56,11 +68,11 @@ In the four resolved counted Arm A episodes the closest approach is the jam pose
 |---|---|---|
 | Counted episodes | 5 | 5 |
 | Resolved (frozen) | 4/5 | 0/5 |
-| Success (also 0 floor stops, no GT contact) | 4/5 | 0/5 |
+| Success (also 0 floor stops, GT min pair ≥ 0.18 m; corrected 2026-11-15, see erratum) | 4/5 | 0/5 |
 | Arrivals | 16/20 | 0/20 |
 | Time from onset (s) | 112.9, 115.5, 116.5, 116.6; e09 censored (271.5) | all five censored (272.4 to 272.7) |
 | Lowest GT pairwise distance | 0.2633 m (e09) | 0.2856 m (e04) |
-| Floor stops / GT contacts | 0 / 0 | 0 / 0 |
+| Floor stops / GT pair below 0.18 m (corrected 2026-11-15, see erratum) | 0 / 0 | 0 / 0 |
 | Attribution | `repaired` 4, `m3_default` 1 (e09), `vlm_verbatim` 0 | `none` 5 |
 | Est. spend, counted | $0.0629 | $0 |
 
@@ -141,7 +153,7 @@ The follow-up VM was up 3 h 20 m 34 s against a 6 h cap. Each Arm B episode took
 | Item | Status |
 |---|---|
 | Outcome, arrivals, times, GT min, cost, attribution counts | Verified: `summary/summary.json` and `summary/episodes.jsonl`; arrival-time arithmetic and GT minima recomputed from `gt/ground_truth.jsonl` |
-| 0 floor stops, 0 GT contact frames | Verified: zero stop lines in `m4.log` (startup line `hard_contact_floor_m=0.2` present in every bundle); zero contact frames in every GT file |
+| 0 floor stops, 0 GT contact frames (robot-robot, < 0.18 m pair distance; corrected 2026-11-15, see erratum) | Verified: zero stop lines in `m4.log` (startup line `hard_contact_floor_m=0.2` present in every bundle); zero contact frames in every GT file. The method of the frame count is not recorded; the GT pair minima (at least 0.2633 m) support it, the hard-coded empty GT contact lists do not |
 | e09 sequence, plans, provenance, 120.1 s idle window | Verified from bundle |
 | Arm B speeds, final distances | Verified from GT |
 | Arm B latch line counts | e02 verified; other Arm B counts copied |
