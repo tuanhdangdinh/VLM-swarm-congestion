@@ -6,6 +6,7 @@
 
 - Initial draft: inventory of local branches and worktrees, dependency diagram, staged merge proposal, conflict check, open questions and risks. Proposal only; nothing was merged, pushed, fetched or deleted.
 - Rev 2 (2026-11-15): appended the addendum "2026-11-15 Addendum: Branches Created Since This Plan" (new branches, their stages, a new pairwise conflict check, the owner's one-at-a-time rule for safety mechanisms); sections 1–5 unchanged.
+- Rev 3 (2026-11-15): addendum completed after the two jobs finished: final tips of `test/safety-mechanisms-scripted` and `fix/convoy-yielder-feasibility` in A.1, a new merge-tree check for both (A.2.1), A.3 order updated, the remaining placeholder removed. Name-only changes in sections 1–5: two stage headings and one table header use reader-facing names with the internal ids in parentheses; no content changed.
 
 ---
 
@@ -58,7 +59,7 @@ So W is ahead of the pin only in documentation. All November code descends from 
 
 Other tracked files are noted in the row. No November branch has an upstream configured, and none has a same-name remote branch, except `feat/v4-gf-cluster`, `feat/v4-vlm-bench` and `feat/v4-per-cluster`.
 
-| Branch (worktree) | Tip, date | Fork | +N | rt/t/d/s/cfg | Remote (as of last fetch) | Tree |
+| Branch (worktree) | Tip, date | Fork | +N | Files changed: runtime/tests/docs/scripts/config (rt/t/d/s/cfg) | Remote (as of last fetch) | Tree |
 |---|---|---|---|---|---|---|
 | `feat/v4-gf-cluster` (v6b) | `c16b1a7` 10-23 | pin | 18 | 0/20/6/17/0, `.gitignore` | upstream, 0/0 | clean |
 | `feat/v4-vlm-bench` (v6a) | `7850f5a` 11-12 | `v4-gf-cluster` (merged in by `8a373bb`) | 3 | 0/0/3/0/0 | same-name, 0/0 | clean |
@@ -225,7 +226,7 @@ main f2ca3c6 ── ... ── 4307aa1 ─┬─ W fix/deadlock-collision-resolu
 - **Verify after.** `tests/unit` for `swarm_execution` safety, then the full `make test` with zero delta against a pin baseline. The key defaults to False in code (`safety.py:265`). With it off, M4 behaviour must equal the pin's; the branch's key-off identity re-run over 68 bundles (`8933863`) is the existing evidence.
 - **Not into the pinned lineage.** The deployed `safety.yaml` must stay `598396622ca50baddc3e19b4608fa3e3`. Do not merge the fragment into it.
 
-### Stage 2 — Frozen IB10 Evidence Branches
+### Stage 2 — Frozen Intersection-Run Evidence Branches (IB10)
 
 - **Contains.** `feat/ib10-live-resolution`, then `feat/ib10-safety-default-arm`. Both are docs only, with registrations, reports and errata.
 - **Why here.** Every demo-line branch forks at `9ca0932` on `ib10-safety-default-arm`. Merging it next means later merges only add their own deltas.
@@ -298,7 +299,7 @@ main f2ca3c6 ── ... ── 4307aa1 ─┬─ W fix/deadlock-collision-resolu
   - the full suite at zero delta.
 - **Not into the pinned lineage.** `per_cluster_shadow: enabled: false` must stay false in the tracked `orchestrator.yaml`.
 
-### Stage 8 — Reconcile With W
+### Stage 8 — Reconcile With the Main Working Branch (W)
 
 - **Contains.** A merge of `fix/deadlock-collision-resolution` into the integration branch: its 84 docs-only commits. Then `feat/v3-design`, which has 28 commits in neither W nor the pin. Its net diff against its merge base with W (`2c81cbd`) is one file under `docs/`, and it merges into W cleanly.
 - **Expected conflicts.**
@@ -363,13 +364,13 @@ Appended 2026-11-15; sections 1–5 above are unchanged and stay as written. Nam
 | `fix/plan-dispatch-mismatch-visibility` (v7r) | `93655fc` | `8933863` | plan-dispatch mismatch record, M5/M3, key `plan_dispatch_mismatch_visibility` off | 4, last; one hand resolution of `orchestrator_node.py` (A.2) |
 | `analysis/failure-cause-classification` (v7q) | `0b6a91b` | `demo/campaign-kits@b70d925` | failure-cause classification, interception table; scripts and tests | 5, after `demo/campaign-kits` |
 | `demo/validation-guard-contacts` (v7n) | `a412949` (was `9a68539` in the plan) | `demo/campaign-kits@cc1313d` + escort guard + contact logging | five-robot validation take report | 5, item 3 as planned |
-| `test/safety-mechanisms-scripted` (v7s, **in progress**) | `99edbf3` at 13:49Z | `demo/validation-guard-contacts@a412949`, merges the reverse obstacle guard (`527707a`) and the stall abort (`af5a9df`) | scripted safety tests (kit `sft`) | 5, after `demo/validation-guard-contacts`; wait for the job |
+| `test/safety-mechanisms-scripted` (v7s, finished) | `74dd45c` (Rev 3; `99edbf3` at 13:49Z), clean | `demo/validation-guard-contacts@a412949`, merges the reverse obstacle guard (`527707a`) and the stall abort (`af5a9df`) | scripted safety tests (kit `sft`): test inputs, registration `b000103`, results report | 5, after `demo/validation-guard-contacts` |
 | `fix/convoy-hold-queued-robots` (v7o) | `d85d1ed` (no own commit in the plan) | `demo/campaign-kits@4e5476b` | queued-robot hold, key `grounding_hold_queued_crossers` off | 5, item 4 as planned |
-| `fix/convoy-yielder-feasibility` (v7t, **in progress**) | `d85d1ed`, uncommitted changes in `command_grounder.py`, `swarm_orchestrator/models.py`, `orchestrator_node.py`, `reasoning_pipeline.py` and a new test | `fix/convoy-hold-queued-robots@d85d1ed` | convoy yielder-feasibility fix | 5, after the hold; not checkable until it commits |
+| `fix/convoy-yielder-feasibility` (v7t, finished) | `272ad4a` (Rev 3; at 13:49Z `d85d1ed` with uncommitted changes), clean | `fix/convoy-hold-queued-robots@d85d1ed` | counterflow yielder correction, key `grounding_yield_counterflow_swap` off (`a0311b0`): edits `command_grounder.py`, `swarm_orchestrator/models.py`, `orchestrator_node.py`, `reasoning_pipeline.py`; tests, offline replay, report, `cvy` kit | 5, after the hold |
 
 Tips that moved since the plan's snapshot: `feat/v4-per-cluster-parity` `f39bc8c` (plan `b534d17`), `feat/demo-panel-renderer` `d43028d` (`8069734`), `demo/campaign-kits` `4cacf55` before this addendum's commit (`41f1e13`), `fix/escort-obstacle-guard` `92158d3` (`72c08c8`, now also the reverse obstacle guard), `docs/thesis` `7e589d8` (`90b03d9`, clean at 13:49Z).
 
-[[PENDING: TIPS-1 — final tips of `test/safety-mechanisms-scripted` and `fix/convoy-yielder-feasibility`, and the merge-tree rows for them against `demo/campaign-kits`, `fix/plan-dispatch-mismatch-visibility` and `feat/v4-refusal-feedback` once committed]]
+**Rev 3 (about 15:45Z), tips that moved again:** `demo/campaign-kits` `781598d` before this revision's commit (convoy rerun report and videos, glossary Rev 3, `cvy` registration; the merge-tree check below ran at `3866ec1`, and `781598d` changes only `docs/`); `feat/v4-per-cluster-parity` `2582f45`; `feat/demo-panel-renderer` `51d9b1a`, clean; `docs/thesis` `e1bbce6` (still moving; see the session wrap-up, section 10). The two finished branches are in A.1. No branch here has a remote-tracking ref; nothing was fetched, merged or pushed.
 
 ### A.2 Pairwise Conflict Check (New Pairs)
 
@@ -410,6 +411,36 @@ Each pair was run once, sequentially, with `git merge-tree --write-tree --name-o
 | **`feat/v4-per-cluster-parity` + `fix/plan-dispatch-mismatch-visibility`** | **`orchestrator_node.py`, `reasoning_pipeline.py`** | yes | **new** |
 | **`feat/v4-per-cluster-parity` + `fix/convoy-hold-queued-robots`** | **`reasoning_pipeline.py`** | yes | **new** (the hold's own change; parity against the demo line is clean) |
 
+#### A.2.1 Rev 3: The Two Finished Branches
+
+Run sequentially at about 15:40Z with `git merge-tree --write-tree --name-only --no-messages <a> <b>` from the main checkout, at these tips: `test/safety-mechanisms-scripted` `74dd45c`, `fix/convoy-yielder-feasibility` `272ad4a`, `fix/convoy-hold-queued-robots` `d85d1ed`, `fix/plan-dispatch-mismatch-visibility` `93655fc`, `fix/escort-obstacle-guard` `92158d3`, `fix/m4-stall-abort` `1016e0b`, `demo/campaign-kits` `3866ec1`, `demo/validation-guard-contacts` `a412949`, `analysis/failure-cause-classification` `0b6a91b`, `feat/gt-contact-logging` `b5eaee5`, `feat/v4-refusal-feedback` `384e948`, `feat/v4-per-cluster-parity` `2582f45`.
+
+| Pair | Real conflicts (beyond notes) | Notes conflict | New or inherited |
+|---|---|---|---|
+| `test/safety-mechanisms-scripted` + `fix/convoy-yielder-feasibility` | none | yes | — |
+| `test/safety-mechanisms-scripted` + `fix/convoy-hold-queued-robots` | none | yes | — (as at 13:49Z) |
+| **`test/safety-mechanisms-scripted` + `fix/plan-dispatch-mismatch-visibility`** | **`orchestrator_node.py`** | no | inherited: the A.2 row, re-confirmed at the final tip |
+| `test/safety-mechanisms-scripted` + `fix/escort-obstacle-guard` | none | no | — |
+| `test/safety-mechanisms-scripted` + `fix/m4-stall-abort` | none | no | — |
+| `test/safety-mechanisms-scripted` + `demo/campaign-kits` | none | yes | — |
+| `test/safety-mechanisms-scripted` + `demo/validation-guard-contacts` | none | no | — |
+| `test/safety-mechanisms-scripted` + `analysis/failure-cause-classification` | none | yes | — |
+| `test/safety-mechanisms-scripted` + `feat/gt-contact-logging` | none | no | — |
+| `test/safety-mechanisms-scripted` + `feat/v4-refusal-feedback` | `reasoning/vlm/models.py`, `reasoning/vlm/prompt_builder.py`, `swarm_orchestrator/models.py`, `reasoning_pipeline.py` | yes | inherited (the Stage 7 four-file conflict through the demo line) |
+| `test/safety-mechanisms-scripted` + `feat/v4-per-cluster-parity` | none | yes | — |
+| `fix/convoy-yielder-feasibility` + `fix/convoy-hold-queued-robots` | none | no | — (its own base) |
+| `fix/convoy-yielder-feasibility` + `fix/plan-dispatch-mismatch-visibility` | none | no | — but both edit `command_grounder.py`, `orchestrator_node.py` and `reasoning_pipeline.py`: textually clean is not verified (see below) |
+| `fix/convoy-yielder-feasibility` + `fix/escort-obstacle-guard` | none | yes | — |
+| `fix/convoy-yielder-feasibility` + `fix/m4-stall-abort` | none | no | — |
+| `fix/convoy-yielder-feasibility` + `demo/campaign-kits` | none | yes | — |
+| `fix/convoy-yielder-feasibility` + `demo/validation-guard-contacts` | none | yes | — |
+| `fix/convoy-yielder-feasibility` + `analysis/failure-cause-classification` | none | yes | — |
+| `fix/convoy-yielder-feasibility` + `feat/gt-contact-logging` | none | no | — |
+| `fix/convoy-yielder-feasibility` + `feat/v4-refusal-feedback` | the same four files | yes | inherited through `demo/campaign-kits` |
+| **`fix/convoy-yielder-feasibility` + `feat/v4-per-cluster-parity`** | **`reasoning_pipeline.py`** | yes | inherited through the hold (A.2), possibly widened, since the correction also edits that file; hunks not inspected |
+
+**Rev 3 result.** No new real conflict. The two finished branches carry only conflicts already listed in A.2 (the mismatch record's `orchestrator_node.py` against the escort-guard line; the Stage 7 four-file conflict; the hold's `reasoning_pipeline.py` against the parity branch); `docs/implementation_notes.md` conflicts in most pairs, as before. The yielder correction and the mismatch record merge textually clean although both edit `command_grounder.py`, `orchestrator_node.py` and `reasoning_pipeline.py`; that merge needs both features' unit tests and a full-suite comparison before it counts as verified.
+
 **Real conflicts, summarised.**
 
 - New: `orchestrator_node.py` between the mismatch record and the escort obstacle guard (and every branch that contains the check: validation take, scripted safety tests); `orchestrator_node.py` and `reasoning_pipeline.py` between the mismatch record and both v4 branches; `reasoning_pipeline.py` between the queued-robot hold and the parity branch.
@@ -421,7 +452,7 @@ Each pair was run once, sequentially, with `git merge-tree --write-tree --name-o
 ### A.3 Order After the Addendum
 
 - **Stage 4:** `fix/escort-obstacle-guard` → `feat/gt-contact-logging` → `fix/m4-stall-abort` → `fix/plan-dispatch-mismatch-visibility` (resolve `orchestrator_node.py` here, once, by someone who knows both features).
-- **Stage 5:** `demo/vlm-order-channel` → `demo/campaign-kits` → `analysis/failure-cause-classification` → `demo/validation-guard-contacts` → `test/safety-mechanisms-scripted` (after its job) → `fix/convoy-hold-queued-robots` → `fix/convoy-yielder-feasibility` (after its job).
+- **Stage 5:** `demo/vlm-order-channel` → `demo/campaign-kits` → `analysis/failure-cause-classification` → `demo/validation-guard-contacts` → `test/safety-mechanisms-scripted` → `fix/convoy-hold-queued-robots` → `fix/convoy-yielder-feasibility` (both jobs finished; Rev 3). The full unit suites of the safety-test merged tree, the yielder correction, the mismatch record and the stall abort's post-review commit are still pending; run them before or at the stage that merges each.
 - **Stage 7:** unchanged in order, but the v4 merges now also meet the mismatch record (`orchestrator_node.py`, `reasoning_pipeline.py`) and the hold (`reasoning_pipeline.py`).
 - Stages 0–3, 6 and 8 are unchanged.
 
