@@ -1065,7 +1065,7 @@ Nothing has been rendered (another agent owns the renderer).
 
 **Status.** An audience version of the same five takes, for judges and lecturers. Offline post-processing only: no VM and no API call; the bundles were read, never written. **The engineering cuts (sections 5.6, 6.5, 7.3, 8.5, 9 and 11.5) remain the record.** Re-hashed after this work, unchanged: `ibD_t05_a1_panel.mp4` `fdf07a82…`, `cvD_t01_a1_panel.mp4` `82431944…`, `hoD_t01_a1_panel.mp4` `2aa6534a…`, `m5D_t01_a1_panel.mp4` `33e9f5ee…`, `ER2LIVE_20260930_panel.mp4` `93cbfe71…`, `demo_campaign_combined.mp4` `de8cb6ed…`. Every take stays an illustrative demo, not controlled experimental evidence.
 
-**Renderer.** v7g `feat/demo-panel-renderer`, `render --profile presentation` (commits `bb37be0`, `7cae7b8`, `e8c609f`, `0e799d6`, `a4bbbce`, `575b396`, `74dfe63`). The default profile is unchanged: its transcripts for the five bundles regenerate equal to the stored ones, apart from the `time_map.method` wording that `0212306` changed earlier. Unit tests `test_demo_panel.py` and `test_demo_combine.py`: 108 passed (53 before); ruff clean. Method: v7g `docs/guides/demo_panel_video.md`, section "Presentation Profile". Every caption, card line and zoom crop: v7g `config/demo_presentation/<label>.json`.
+**Renderer.** v7g `feat/demo-panel-renderer`, `render --profile presentation` (commits `bb37be0`, `7cae7b8`, `e8c609f`, `0e799d6`, `a4bbbce`, `575b396`, `74dfe63`, `da5c416`). The default profile is unchanged: its transcripts for the five bundles regenerate equal to the stored ones, apart from the `time_map.method` wording that `0212306` changed earlier. Unit tests `test_demo_panel.py` and `test_demo_combine.py`: 108 passed (53 before); ruff clean. Method: v7g `docs/guides/demo_panel_video.md`, section "Presentation Profile". Every caption, card line and zoom crop: v7g `config/demo_presentation/<label>.json`.
 
 ### 13.1 Files (v7g `data/demo/campaign/presentation/`, git-ignored)
 
@@ -1076,9 +1076,9 @@ ffprobe (verified): all H.264, yuv420p, 24 fps. No `_small` copy was needed (all
 | `ibD_t05_a1_presentation.mp4` | `8c09f71fa34b727b82d6757692df76d7` | 9.9 MB | 3152, 131.33 s |
 | `cvD_t01_a1_presentation.mp4` | `f96210bc7958884a49b8f17ca7bc287e` | 27.6 MB | 9095, 378.96 s |
 | `hoD_t01_a1_presentation.mp4` | `32176fba6aeb7411a0036da51baf34f1` | 5.6 MB | 2706, 112.75 s |
-| `m5D_t01_a1_presentation.mp4` | `f8e6da69a1dd97389a0acab3b9a76dd9` | 20.2 MB | 7007, 291.96 s |
-| `ER2LIVE_20260930_presentation.mp4` | `30e514a9eca0e03b80cd17d4732d1780` | 6.0 MB | 2677, 111.54 s |
-| `presentation_combined.mp4` (1920x1124) | `a48bd2d0db222056f4f9d1e994ee1ec7` | 23.3 MB | 9373, 390.54 s |
+| `m5D_t01_a1_presentation.mp4` | `a51992a27877f2d801cb56f522ab34a6` | 20.2 MB | 7007, 291.96 s |
+| `ER2LIVE_20260930_presentation.mp4` | `cfabf6cda7424d511e3cf3dc9f762722` | 6.0 MB | 2677, 111.54 s |
+| `presentation_combined.mp4` (1920x1124) | `ce8f4101b16e544372b2798cf2ce3c20` | 23.5 MB | 9373, 390.54 s |
 
 Each video is a 13 s intro card, the full take uncut (same camera segments and frame maps as the engineering cuts) and a 10 s outro card.
 
@@ -1094,7 +1094,7 @@ Each video is a 13 s intro card, the full take uncut (same camera segments and f
 - **Timing.** The sim clock holds 7 s on the model's answer and 4 s on the check. The engineering cut held one 4 s pause per block.
 - **Outside the terminal.**
   - A stage strip (Trigger, VLM request, VLM response, Check, Dispatch, Execution) driven by the log anchors in the guide.
-  - Plain-language header and captions, revealed at their anchor lines. A caption is never shown before its event, and the outcome line appears only at the last arrival (or the end for unresolved takes).
+  - Plain-language header and captions, revealed at their anchor lines. The outcome line appears only at the last arrival (or the end for unresolved takes). A few captions name the step about to happen (for example "robot_3 will be escorted past it") or keep the report's wording that runs ahead (the five-robot escort line).
   - A legend for verbatim terms.
   - A zoom inset beside the camera: a 4:3 crop of the same frame, ×2.7 to ×4.0, labelled. Nothing is drawn on the camera image.
   - Intro and outro cards: what was the model's and what was the system's.
@@ -1119,7 +1119,7 @@ Log items were compared by source (`m5.log:N` / `m4.log:N`) with the stored engi
 
 ### 13.4 Combined Presentation Video
 
-Manifest `presentation_combined_manifest.json` (md5 `e2eb5c3b660e8d6ac8ebe4718b427fe1`), sidecar `presentation_combined_sources.json`, `--crf 26`. New combine mode `outcome_reveal: "after"`: title cards and the caption bar carry no outcome label. Three outcome cards follow the last excerpt of cv, ER2LIVE and m5. The ib and ho excerpts end 3 s after their own outcome line. Clip order follows v3, with excerpts:
+Manifest `presentation_combined_manifest.json` (md5 `da190783a2b2343362a55de927d9cf9f`), sidecar `presentation_combined_sources.json`, `--crf 26`. New combine mode `outcome_reveal: "after"`: title cards and the caption bar carry no outcome label. Three outcome cards follow the last excerpt of cv, ER2LIVE and m5. The ib and ho excerpts end 3 s after their own outcome line. Clip order follows v3, with excerpts:
 
 1. ib 35.8–116.4 s;
 2. cv 17.9–55.0 s;
@@ -1138,3 +1138,6 @@ Each take's excerpts contain the call, the answer, the check, the dispatch (for 
 - The camera pane is blank after the last recorded frame (cv after sim 259.97 s, m5 after 600.23 s), as in the engineering cut.
 - The five-robot escort caption (kept wording) says the escort later timed out, about 55 sim-s before that happens.
 - The robot ids in the zoom are the perception overlay's own small red labels. They are legible at ×2.7–×4 but low in contrast.
+- The combined video's ER2LIVE outcome card carries the selection reason and every ER2LIVE caveat in about 75 words on a 3 s card. That is too short to read aloud; pause there when presenting.
+- The five-robot intro says "a limitation demonstration" (kept wording), which hints at the ending.
+- "Call, response, check, dispatch and outcome" holds per take across its excerpts, not per excerpt.
