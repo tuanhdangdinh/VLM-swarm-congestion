@@ -37,6 +37,7 @@ Rules for maintaining it:
 
 ## Congestion-Resolution Experiment (research program: M2/M3/M5)
 
+- **2026-11-15** — **Thesis evidence register and S1b grounding-bottleneck report: contact wording scoped (docs only; erratum, no number or verdict changed).** GT's `robot_static_contacts` and `robot_robot_contacts` are hard-coded `[]` (`isaac/vgu_sim/acceptance_logging.py:99-100`), so empty lists are not evidence; the sound channel is the GT robot-pair centre distance, and nothing logs static contact (account: `docs/reports/2026-11-15-demo-campaign-results.md` section 8.7, branch `demo/campaign-kits`). `docs/reports/2026-11-13-thesis-evidence-register.md` Rev 6: the priority "zero contacts" (method unstated in its source) is marked not evidence; the IB10 rows are scoped to robot-robot pair distance; the tranche-1 "contact gate PASS 10/10" stays as a robot-robot gate and is marked as not covering the S1b rack islands. `docs/reports/2026-11-13-s1b-grounding-bottleneck.md` Rev 2: "0/47 withheld scenes had a GT contact" read the empty `robot_robot_contacts` (`gt_freespace.py` line 60); the same rows' `min_pairwise_distance_m` is at least 0.217 m (read from `gt_freespace.json`).
 - **2026-11-13** — **Owner decisions of 2026-11-13** (recorded in `docs/reports/2026-11-13-thesis-evidence-register.md`):
   - prereg-v3 tranche 2 will not be run, and tranche 1 (E27-E31) is reported as a PILOT;
   - the focus moves to 4-robot scenes;

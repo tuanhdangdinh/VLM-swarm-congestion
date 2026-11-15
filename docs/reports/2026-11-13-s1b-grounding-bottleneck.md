@@ -5,6 +5,16 @@
 **Revision history:**
 
 - Initial draft: refusal taxonomy, offline re-grounding parity, repeats, GT free space, counterfactuals and ranked remedies over 12 recorded S1b Arm A episodes.
+- Rev 2 (2026-11-15): added the erratum "2026-11-15 Erratum — Contact Wording" and scoped the "0/47 GT contact" line; no other number or conclusion changed.
+
+---
+
+## 2026-11-15 Erratum — Contact Wording
+
+Ground truth's two contact lists, `robot_static_contacts` and `robot_robot_contacts`, are hard-coded to `[]` in `isaac/vgu_sim/acceptance_logging.py:99-100`. No contact detector exists. The sound channel is the logged minimum pairwise distance (`min_pairwise_distance_m`), a centre-to-centre robot-robot distance; nothing in GT logs contact with static obstacles. Full account: section 8.7 of `docs/reports/2026-11-15-demo-campaign-results.md` (branch `demo/campaign-kits`).
+
+- **Affected statement.** "0/47 withheld scenes had a GT contact at the analysis time" (section "Was There Room to Move?"). It rested on the empty list: `gt_freespace.py` (line 60) copies `robot_robot_contacts`, and that field is `[]` in all 47 rows of `gt_freespace.json`. It is not evidence.
+- **What remains supported.** The same 47 rows' `min_pairwise_distance_m` is at least 0.217 m (read from `gt_freespace.json`, 2026-11-15), so no robot pair was in contact at those analysis times. Robot-static contact at those times is not logged; S1b has rack islands, so this gap is material. The free-space counts (47/47, 45/47) are unchanged.
 
 ---
 
@@ -157,7 +167,7 @@ closer to another robot than min(0.45 m, the starting separation).
 
 - **47/47:** at least one involved robot has >= 0.5 m of free reverse
   travel. With a 0.05 m box margin: 45/47.
-- **0/47** withheld scenes had a GT contact at the analysis time.
+- **0/47** withheld scenes had a GT contact at the analysis time. That count read the hard-coded empty `robot_robot_contacts` list and is not evidence; by GT pair distance (at least 0.217 m in all 47 rows) no robot pair was in contact; robot-static contact is not logged (corrected 2026-11-15, see erratum).
 - M1 heading error vs GT is a few degrees (for example −3.6 to +2.1 deg in
   pos25), so lane ambiguity is not an M1 artefact.
 
