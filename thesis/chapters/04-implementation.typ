@@ -114,6 +114,50 @@ The three relevant pins differ in decoding control #ev("4.07"). `gpt-4o-2024-08-
 - the output schema, with a bounded free-text `reasoning` field placed before every classification field;
 - a closing instruction to write only the JSON object.
 
+@fig:impl-prompt-excerpt shows an abridged excerpt of one such prompt, recorded at an analysis of an IB10 episode in which the four robots were jammed in the junction.
+
+#figure(
+  kind: raw,
+  supplement: [Listing],
+  block(width: 100%)[
+    #show raw: set text(size: 7.5pt)
+    ```text
+You are a warehouse swarm robotics traffic controller. Analyze the overhead camera view […]
+
+Robot states:
+- robot_id=robot_1, x=-0.36, y=0.00, theta=0.00, status=STOPPED, goal_x=1.75, goal_y=0.00, […]
+- robot_id=robot_2, x=0.22, y=0.00, theta=3.14, status=STOPPED, goal_x=-1.75, goal_y=0.00, […]
+- robot_id=robot_3, x=0.02, y=-0.38, theta=1.50, status=STOPPED, goal_x=0.00, goal_y=1.75, […]
+- robot_id=robot_4, x=0.01, y=0.23, theta=-1.42, status=SLOW, goal_x=0.00, goal_y=-1.75, […]
+
+Pairwise geometry (faces = heading within 60° of the direction to the other robot):
+- robot_1 <-> robot_2: distance 0.58 m; robot_1 faces robot_2: yes; robot_2 faces robot_1: yes
+[… four more pairs …]
+- robot_2 <-> robot_4: distance 0.31 m; robot_2 faces robot_4: yes; robot_4 faces robot_2: yes
+
+Known robot IDs: ["robot_1", "robot_2", "robot_3", "robot_4"]
+
+Guidance:
+- Robots are roughly 0.3 m wide; treat any two robots within ~0.5 m of each other […]
+[… five more guidance lines, the plan invitation and the plan grammar …]
+Produce a JSON object with exactly these fields:
+- "reasoning": one to three sentences of your analysis, written before you commit […]
+- "congestion_detected": true or false
+- "type": "none" | "deadlock" | "bottleneck" | "crowding" | "anomaly"
+[…]
+- "strategy": one of
+  - "none": no congestion to resolve
+  - "yield": one robot (yield_robot) backs up and steps aside while the others pass
+  [… five more strategy glosses …]
+  - "junction_clear": multi-robot junction recovery: some robots first back out, […]
+[… yield_robot, blocker_kind, crossing_order, proposed_plan and three rules …]
+
+Write ONLY the final JSON object, with no surrounding text or markdown.
+    ```
+  ],
+  caption: flex-caption([Abridged excerpt of a recorded v3.4 user prompt.], [Abridged excerpt of a recorded user prompt, prompt version 3.4, from an analysis in episode 3 of the first IB10 run (Layer 2 on, four robots jammed in the junction, three `STOPPED` and one `SLOW`, robots listed in ascending identifier order). Cuts are marked "[…]"; every kept line, or the kept start of a line, is verbatim. The annotated overhead image is sent after the text. The full prompt, the system prompt and the model's answer are given in @sec:app-prompts.#fig-source("4.39")]),
+) <fig:impl-prompt-excerpt>
+
 The rendered baseline user prompt is 5,804 characters long, and its SHA-256 digest is pinned by a test, so any edit shows up as a new prompt version #ev("4.17"). Several prompt channels are experimental switches that are recorded in every artifact. Examples are the order in which robots are listed (ascending identifier, descending identifier, or a random draw per episode), the pairwise geometry block, static obstacles and annotation overlays #ev("4.11").
 
 *Output validation.* The reply is parsed into a JSON object and validated against the decision schema. The schema requires a congestion flag; a type from `none`, `deadlock`, `bottleneck`, `crowding` and `anomaly`; the involved robots; and a strategy from `none`, `yield`, `reroute`, `convoy`, `priority_override`, `temporary_wait`, `reverse` and `junction_clear`. A yielder, a blocker kind, a crossing order and a proposed plan are optional. A reply that fails parsing or validation spends an attempt. When all attempts fail, the result carries no decision, M5 records the stage at which it failed, and nothing is dispatched.

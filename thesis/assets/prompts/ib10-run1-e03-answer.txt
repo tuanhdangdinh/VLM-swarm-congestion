@@ -1,0 +1,20 @@
+```json
+{
+  "reasoning": "All four robots are converged at the center of the intersection from four different directions and are blocking each other, creating a multi-robot deadlock. To resolve this four-way conflict, robots in the horizontal lane should reverse to clear the junction, allowing the vertical-moving robots to cross first.",
+  "congestion_detected": true,
+  "type": "deadlock",
+  "involved_robots": ["robot_1", "robot_2", "robot_3", "robot_4"],
+  "root_cause": "Four robots have entered the intersection simultaneously from all four directions, blocking each other's path.",
+  "strategy": "junction_clear",
+  "justification": "Using a junction_clear strategy allows the horizontal robots to back out of the intersection so that the vertical robots can cross, preventing a permanent lockup.",
+  "yield_robot": null,
+  "blocker_kind": "robot",
+  "crossing_order": ["robot_3", "robot_4", "robot_1", "robot_2"],
+  "proposed_plan": [
+    {"robot_id": "robot_1", "action": "reverse"},
+    {"robot_id": "robot_2", "action": "reverse"},
+    {"robot_id": "robot_3", "action": "cross"},
+    {"robot_id": "robot_4", "action": "cross"}
+  ]
+}
+```

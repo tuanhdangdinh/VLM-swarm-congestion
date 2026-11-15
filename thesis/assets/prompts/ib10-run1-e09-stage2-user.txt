@@ -1,0 +1,18 @@
+You are a warehouse swarm robotics traffic controller. robot_1 will yield so that robot_2 can pass: it backs up, then steps aside to one of the lettered retreat positions below. Every position has already been checked to keep a safe distance from the listed robots along the whole path.
+
+Robots (world frame, metres):
+- robot_1: x=-0.15, y=0.03 (yielding)
+- robot_2: x=0.13, y=-0.02 (passing)
+- robot_3: x=0.02, y=-0.43
+- robot_4: x=-0.00, y=0.43
+
+Retreat positions for robot_1 (world frame, metres):
+- B: x=-1.02, y=0.39 (back up 0.87 m, then step 0.36 m aside)
+- A: x=-1.02, y=-0.33 (back up 0.87 m, then step 0.36 m aside)
+
+Each position is marked on the image by its letter in a white disc, inside a ring the size of the robot. The image shows the scene as it is now, including anything not listed above.
+
+Choose the marked retreat position that best clears the conflict while preserving the passage space the other robots need and avoiding visible obstacles or traffic.
+
+Respond with ONLY a JSON object, no other text:
+{"retreat_choice": "<one of B, A>", "justification": "<one clause>"}

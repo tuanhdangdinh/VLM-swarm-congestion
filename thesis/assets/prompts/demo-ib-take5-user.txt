@@ -1,0 +1,77 @@
+You are a warehouse swarm robotics traffic controller. Analyze the overhead camera view together with the robot states below and detect congestion patterns such as deadlocks, bottlenecks, crowding, or anomalies.
+
+Robot states:
+- robot_id=robot_1, x=-0.23, y=-0.00, theta=-0.07, status=STOPPED, goal_x=1.75, goal_y=0.00, task=cross_intersection, linear_velocity=0.00
+- robot_id=robot_2, x=0.36, y=-0.01, theta=3.12, status=MOVING, goal_x=-1.75, goal_y=0.00, task=cross_intersection, linear_velocity=0.05
+- robot_id=robot_3, x=0.03, y=-0.22, theta=1.47, status=STOPPED, goal_x=0.00, goal_y=1.75, task=cross_intersection, linear_velocity=0.00
+- robot_id=robot_4, x=0.01, y=0.23, theta=-1.40, status=STOPPED, goal_x=0.00, goal_y=-1.75, task=cross_intersection, linear_velocity=0.00
+
+Pairwise geometry (faces = heading within 60° of the direction to the other robot):
+- robot_1 <-> robot_2: distance 0.59 m; robot_1 faces robot_2: yes; robot_2 faces robot_1: yes
+- robot_1 <-> robot_3: distance 0.33 m; robot_1 faces robot_3: yes; robot_3 faces robot_1: yes
+- robot_1 <-> robot_4: distance 0.33 m; robot_1 faces robot_4: yes; robot_4 faces robot_1: yes
+- robot_2 <-> robot_3: distance 0.39 m; robot_2 faces robot_3: yes; robot_3 faces robot_2: yes
+- robot_2 <-> robot_4: distance 0.42 m; robot_2 faces robot_4: yes; robot_4 faces robot_2: yes
+- robot_3 <-> robot_4: distance 0.45 m; robot_3 faces robot_4: yes; robot_4 faces robot_3: yes
+
+Known robot IDs: ["robot_1", "robot_2", "robot_3", "robot_4"]
+
+Guidance:
+- Robots are roughly 0.3 m wide; treat any two robots within ~0.5 m of each other as physically conflicting. Use the pairwise geometry above; do not re-derive distances or facing from the coordinates.
+- theta is heading in radians: 0=east(+x), π/2=north(+y), π or -π=west(-x), -π/2=south(-y). Opposite headings alone do NOT mean head-on: two robots are head-on only when each faces the other (pairwise geometry) AND they are within ~0.5 m. Robots heading away from each other are diverging, not conflicting.
+- deadlock: two or more robots each blocked by the other. The most common case is a head-on standoff — two robots within ~0.5 m, each facing the other, in the same narrow aisle, both STOPPED or STALE, unable to pass. This IS a deadlock even with only two robots. Two robots that are stopped but farther apart than ~0.5 m, or not facing each other, are NOT deadlocked — answer congestion_detected=false unless another pattern applies. bottleneck: several robots queued waiting behind one slow robot or blocked passage (one-way congestion, not opposing). crowding: many robots packed into a small area. anomaly: unexpected or unsafe configuration.
+- For head-on deadlock (two stopped/stale robots within ~0.5 m, each facing the other): classify as type="deadlock" and strategy="yield" (the robot named in yield_robot backs up) or strategy="reverse" (both back up to clear).
+- For a simple bottleneck (robots queued in the same direction): classify as type="bottleneck" and strategy="temporary_wait" or "yield".
+- Decide from the robot states (including their stated goals and tasks) and the image; do not assume intentions beyond what is stated.
+
+Plan actions the system's verifier accepts for each robot in the current scene (a plan leg outside these is repaired or the plan is replaced):
+- robot_1: yield, cross, wait, reroute
+- robot_2: yield, cross, wait, reroute
+- robot_3: yield, reverse (south arm), cross, wait, reroute
+- robot_4: yield, reverse (north arm), cross, wait, reroute
+
+You may also propose the full multi-robot resolution yourself, as "proposed_plan" below: an ordered list naming every known robot. The system verifies it and, if needed, minimally repairs it before anything is dispatched; omitting it (or setting it to null) lets the system derive the resolution for you instead.
+Plan actions, for "proposed_plan":
+- "yield": back up, step aside, and hold until the passing robots have cleared
+- "reverse": back straight out along its own lane
+- "cross": proceed through in its assigned turn (the plan's list order)
+- "wait": hold in place
+- "reroute": take an alternative path
+- "continue": proceed unchanged; not part of the resolution
+The list order is the execution order — the robot that acts first comes first.
+Name each robot exactly once: its one leg is its whole role in the resolution.
+A "cross" leg must come after the "yield" leg that releases it.
+A plan with any "cross" leg must also contain a "yield" leg listed before it; a "reverse" or "wait" leg does not release a crossing.
+A proposed plan must refine the chosen strategy; a plan that does not is ignored and the system derives the resolution instead:
+- strategy "yield": exactly one "yield" leg, and the plan must agree with your own yield_robot and crossing_order answers
+- strategy "temporary_wait": at least one "wait" leg
+- strategy "reroute": at least one "reroute" leg
+- strategy "junction_clear": at least one "reverse" or "yield" leg
+- any other strategy: no constraint on the legs
+Produce a JSON object with exactly these fields:
+- "reasoning": one to three sentences of your analysis, written before you commit to the fields below (what you see, why it is or is not congestion, and your plan if any)
+- "congestion_detected": true or false
+- "type": "none" | "deadlock" | "bottleneck" | "crowding" | "anomaly"
+- "involved_robots": list of robot_id strings, from the known IDs only
+- "root_cause": one sentence
+- "strategy": one of
+  - "none": no congestion to resolve
+  - "yield": one robot (yield_robot) backs up and steps aside while the others pass
+  - "reroute": a robot takes an alternative path around the blockage
+  - "convoy": robots heading the same way pass through in single file, in order, while an opposing robot gives way
+  - "priority_override": the higher-priority robot passes first; the others give way
+  - "temporary_wait": the involved robots hold in place until the way clears
+  - "reverse": the involved robots back straight out along their own lanes
+  - "junction_clear": multi-robot junction recovery: some robots first back out, one inside robot yields, then an ordered crossing
+- "justification": one or two sentences
+- "yield_robot": the robot that should yield, or null when the strategy is not "yield"
+- "blocker_kind": what is blocking the involved robots: "robot" when it is one of the robots listed above, "object" when it is a fixed obstacle, "transient" when it is a temporary obstruction expected to clear on its own; null when congestion_detected is false
+- "crossing_order": when three or more robots must be ordered, every involved robot ID in the order they should pass, first to pass first (a robot that yields passes after the robots it yields to); otherwise null
+- "proposed_plan": optional; your full proposed resolution as an ordered list of {"robot_id": ..., "action": ...}, action one of "yield", "reverse", "cross", "wait", "reroute", "continue" ("continue" for a known robot not part of the resolution); omit it, or set it to null, to let the system derive one for you
+
+Rules:
+- Only use robot IDs from the known list above.
+- When congestion_detected is false: set type="none", strategy="none", involved_robots=[].
+- When congestion_detected is true: type and strategy must not be "none", and involved_robots must be non-empty.
+
+Write ONLY the final JSON object, with no surrounding text or markdown.

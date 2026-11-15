@@ -1,0 +1,20 @@
+```json
+{
+  "reasoning": "Four robots are deadlocked in a tight four-way intersection, all facing toward each other and blocked. To resolve this, robot_3 and robot_4 need to reverse into their respective arms, while robot_1 yields to let robot_2 cross first.",
+  "congestion_detected": true,
+  "type": "deadlock",
+  "involved_robots": ["robot_1", "robot_2", "robot_3", "robot_4"],
+  "root_cause": "Four robots arrived at the same intersection simultaneously from all four directions, causing a mutual deadlock.",
+  "strategy": "junction_clear",
+  "justification": "A junction clear strategy is required to have robots 3 and 4 back out of the intersection, allowing robot 2 to cross while robot 1 yields.",
+  "yield_robot": null,
+  "blocker_kind": "robot",
+  "crossing_order": ["robot_2", "robot_1", "robot_3", "robot_4"],
+  "proposed_plan": [
+    {"robot_id": "robot_3", "action": "reverse"},
+    {"robot_id": "robot_4", "action": "reverse"},
+    {"robot_id": "robot_1", "action": "yield"},
+    {"robot_id": "robot_2", "action": "cross"}
+  ]
+}
+```
