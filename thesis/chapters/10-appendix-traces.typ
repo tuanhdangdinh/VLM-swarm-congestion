@@ -60,6 +60,25 @@ The stills below complete the demonstration takes of @sec:res-demo and the earli
   caption: flex-caption([Earlier head-on run: the model's yielder kept and executed.], [Two-robot head-on corridor with obstacle, earlier recorded head-on run (30 Sep 2026, older code, not part of the demonstration campaign), simulated time 86.3 s. `robot_2`, the yielder the model named and the feasibility gate kept, has backed out and parked beside the lane, and `robot_1` is escorted past it. The model named the second-listed robot, and its second-stage retreat pick was the first-listed of two mirror-equivalent options. 2 of 2 arrived, `robot_2` only after a navigation-stack stall and recovery. n = 1, chosen because the model's yielder was kept.#fig-source("6.38")]),
 ) <fig:ch6-er2live>
 
+== Safety-Exemption Key <sec:app-sx>
+
+@tab:res-sx lists what the scoped safety-exemption key changes in the coordination exemption (@sec:res-safety).
+
+#figure(
+  table(
+    columns: (1.4fr, 1.2fr, 1.4fr),
+    align: left,
+    stroke: 0.4pt + luma(160),
+    fill: (_, y) => if y == 0 { luma(235) },
+    table.header([*Exemption path*], [*Key off (evaluated runtime)*], [*Key on*]),
+    [Robots the plan marks `continue`], [exempt, also in other clusters], [not honoured],
+    [A leg rejected before it started], [still a member, still exempt], [not a partner],
+    [Bystander waiver at command start], [unhonoured partner counts as own], [both count as third robots; the waiver ends once the gap closes by more than 0.05 m on 3 readings],
+    [Mutual waivers, own-command scope], [unchanged], [unchanged],
+  ),
+  caption: flex-caption([What the safety-exemption key changes.], [The execution and safety monitor's (M4) coordination exemption with the scoped-exemption key off and on (@sec:res-safety). Unit tests and offline replay; on in intersection run 2 (never fired) and in the demonstration takes (firings not counted); not validated live.#fig-source("6.50")]),
+) <tab:res-sx>
+
 == Demonstration Videos <sec:app-videos>
 
 The demonstration videos are kept outside the repository, on the owner's machine; each is identified by its file name and md5 (@tab:app-videos). Each video is an illustrative demo, not controlled evidence. The panel videos show the annotated camera stream beside the run's own log lines, as in @fig:ch6-demo-panel #ev("6.01").

@@ -3,11 +3,11 @@
 
 = Results <sec:res>
 
-This chapter reports what the studies of Chapter 5 found. Each result carries the evidence grade given in @tab:ch5-studies (exploratory pilot, registered pilot, decision-level offline, or illustrative demonstration), and nothing is pooled across studies or between the two intersection runs #ev("6.16"). The coordination layer (Layer 2) is the slow loop that detects a stall, asks the VLM, and passes the decision to the grounder (M3), which turns it into commands. Safety evidence throughout is the ground-truth (GT) robot-pair centre distance, because the simulator's contact lists were hard-coded empty in the evaluated runtime #ev("6.20") (@sec:res-safety).
+This chapter reports what the studies of Chapter 5 found. Each result carries the evidence grade given in @tab:ch5-studies (exploratory pilot, registered pilot, decision-level offline, or illustrative demonstration), and nothing is pooled across studies or between the two intersection runs #ev("6.16"). The coordination layer (Layer 2) is the slow loop that detects a stall, asks the VLM, and passes the decision to the grounder (M3), which turns it into commands for the execution and safety monitor (M4). Safety evidence throughout is the ground-truth (GT) robot-pair centre distance, because the simulator's contact lists were hard-coded empty in the evaluated runtime #ev("6.20") (@sec:res-safety).
 
 == Intersection Run 1: Coordination Layer On vs Off <sec:res-ib10-ab>
 
-Intersection run 1 (13 November 2026) compared the full pipeline with Gemini Robotics-ER 2 (ER-2) against the coordination layer switched off, on the four-robot intersection, five counted episodes per arm #ev("6.05").
+Intersection run 1 (13 November 2026) compared the full pipeline with Gemini Robotics-ER 2 (ER-2) against the coordination layer switched off, on the four-robot intersection, five counted episodes per arm (@tab:res-ib10-ab) #ev("6.05").
 
 #figure(
   table(
@@ -33,7 +33,7 @@ No dispatched plan was accepted unchanged, and re-grounding every repaired decis
 
 == Intersection Run 2: Live VLM vs Scripted Default Plan <sec:res-ib10-c>
 
-Intersection run 2 (14 November 2026), never pooled with run 1, compared the live-VLM arm with a scripted default-plan arm that skips the VLM call and hands the grounder `junction_clear` for all four robots, so that it runs its own default plan; the safety-exemption fix was on #ev("6.06").
+Intersection run 2 (14 November 2026), never pooled with run 1, compared the live-VLM arm with a scripted default-plan arm that skips the VLM call and hands the grounder `junction_clear` for all four robots, so that it runs its own default plan; the safety-exemption fix was on (@tab:res-ib10-c) #ev("6.06").
 
 #figure(
   table(
@@ -59,7 +59,7 @@ Every live-VLM first dispatch re-grounds to exactly the plan the scripted arm ex
 
 == Registered Five-Robot Pilot <sec:res-t1>
 
-The registered five-robot pilot (21 October 2026) ran five seed pairs on the five-robot pickup-and-delivery scene, coordination layer on and off, interleaved and counterbalanced as registered #ev("6.14"). It was registered as confirmatory and is reported as a pilot, because only 5 of the 20 planned seed pairs ran.
+The registered five-robot pilot (21 October 2026) ran five seed pairs on the five-robot pickup-and-delivery scene, coordination layer on and off, interleaved and counterbalanced as registered (@tab:res-t1) #ev("6.14"). It was registered as confirmatory and is reported as a pilot, because only 5 of the 20 planned seed pairs ran.
 
 #figure(
   table(
@@ -80,7 +80,7 @@ The registered five-robot pilot (21 October 2026) ran five seed pairs on the fiv
     [Analyses dispatched / withheld per seed], [5/4, 2/2, 2/3, 1/4, 2/1], [n/a], [],
     [Robot-pair gate (GT centre distance ≥ 0.18 m, no floor stop)], [PASS 5/5], [PASS 5/5], [GT minimum 0.225–0.424 m over all ten],
   ),
-  caption: flex-caption([Registered five-robot pilot: registered measures.], [Registered five-robot pilot (21 Oct 2026), coordination layer on and off, five seed pairs. The interval is the registered paired percentile bootstrap over seed pairs; no direction was registered. Dispatched and withheld counts are corrected against the M4 command log. Registered pilot.#fig-source("6.14")]),
+  caption: flex-caption([Registered five-robot pilot: registered measures.], [Registered five-robot pilot (21 Oct 2026), coordination layer on and off, five seed pairs. The interval is the registered paired percentile bootstrap over seed pairs; no direction was registered. Dispatched and withheld counts are corrected against the command log of the execution and safety monitor (M4). Registered pilot.#fig-source("6.14")]),
 ) <tab:res-t1>
 
 No episode completed all 25 tasks, so completeness is "failed" and makespan is censored in all ten #ev("6.35"). The throughput interval includes zero; the delay interval excludes it by 0.6 s, on-arm lower #ev("6.14"). With the layer on, 9 of 11 GT conflicts were detected with a mean latency of 17.6 s, and none of 26 positive analyses was a false positive #ev("6.35"). The source report counted a refused yield, which degrades to a wait, as dispatched; the table's per-seed counts are corrected against the commands M4 received #ev("6.14"). An offline recomputation beside the registered results finds 1 of the 2 recorded accepted-unchanged plans dispatched as written; in the other a `reroute` rerouted a different robot than the plan named #ev("6.51"). *Caveat:* five pairs, every episode censored and no registered direction, so these are interval estimates for this scene only, not a test; the robot-pair gate does not cover the rack islands.
@@ -91,7 +91,7 @@ No episode completed all 25 tasks, so completeness is "failed" and makespan is c
 #show figure.where(kind: table): set block(breakable: true)
 #set par(justify: false)
 
-This post hoc classification (@sec:ch5-failure-cause) covers 33 episodes in strata that are never pooled: the registered pilot (10), the exploratory five-robot pilots of October 2026 (21, split into those that ran to the horizon and those the pilots' early-stop rule ended) and two November takes. It explains outcomes reported elsewhere without changing them; the registered pilot's 0 of 10 complete stands #ev("6.14"). The two raters coded the same 55 failure units and listed the same 3 robots that had finished their tasks and are not units #ev("6.63").
+This post hoc classification (@sec:ch5-failure-cause) covers 33 episodes in strata never pooled: the registered pilot (10), the exploratory five-robot pilots of October 2026 (21, split by whether the pilots' early-stop rule ended them) and two November takes. It changes no reported outcome; the registered pilot's 0 of 10 stands #ev("6.14"). The two raters coded the same 55 failure units and listed the same 3 robots that had finished their tasks and are not units #ev("6.63").
 
 #figure(
   table(
@@ -134,7 +134,7 @@ This post hoc classification (@sec:ch5-failure-cause) covers 33 episodes in stra
     [November takes], [4], [1.000], [1.000], [1.000], [0], [0],
     [All strata (agreement statistic only; no outcome is pooled)], [55], [0.964], [0.948], [0.909], [5], [2],
   ),
-  caption: flex-caption([Agreement between the two raters, by stratum.], [Agreement between the two independent raters before reconciliation, on each rater's final codes (second round for the 34 units in its scope, first round otherwise). Kappa is n/a where undefined (with the layer off every unit falls in one code). Disagreements are counted on the full code; the last column gives those reconciled as undetermined. A measure of rating quality only.#fig-source("6.63")]),
+  caption: flex-caption([Agreement between the two raters, by stratum.], [Agreement of the two independent raters before reconciliation, on final codes (second round for the 34 units in its scope, first round otherwise); kappa is n/a where undefined; disagreements on the full code. Rating quality only.#fig-source("6.63")]),
 ) <tab:ch6-fc-agree>
 
 *No dominant cause.* In the registered pilot's on arm and in the exploratory pilots taken together, the two raters' own codes put different classes first (execution against decision; execution against grounding), and after reconciliation the determined units of both spread over execution, decision and grounding (@tab:ch6-fc-primary); the two determined November units, both decision, are too few to be a finding #ev("6.63").
@@ -221,7 +221,7 @@ This post hoc classification (@sec:ch5-failure-cause) covers 33 episodes in stra
 
 == Head-on Yielder Choice <sec:res-headon>
 
-In the two-robot head-on corridor with obstacle, only one robot has room to back out. A post hoc, decision-level re-score covered every recorded live analysis of the head-on scene family, first positive analysis per run #ev("6.08"); the correct yielder is `robot_2` in the west variants and `robot_1` in the east ones #ev("6.36").
+In the two-robot head-on corridor with obstacle, only one robot has room to back out. A post hoc, decision-level re-score covered every recorded live analysis of the head-on scene family, first positive analysis per run (@tab:res-headon) #ev("6.08"); the correct yielder is `robot_2` in the west variants and `robot_1` in the east ones #ev("6.36").
 
 #figure(
   table(
@@ -238,9 +238,9 @@ In the two-robot head-on corridor with obstacle, only one robot has room to back
   caption: flex-caption([Head-on yielder: model against trivial baselines.], [Head-on scene family, yielder correct at run level, against always naming `robot_1` and the scene manifest's first-come-first-served label. Post hoc, decision-level re-score of recorded live decisions; not pre-registered.#fig-source("6.08")]),
 ) <tab:res-headon>
 
-In no row does the model beat the better baseline #ev("6.36"); its east-side edge over the manifest rule is its `robot_1` preference meeting a variant where `robot_1` is correct. With the yield feasibility gate in `swap` mode the grounded yielder was correct in 79 of 79 runs, and in 37 the gate overturned the model's pick #ev("6.08"); that column comes from artefact fields, not M4 logs, and the gate was off at the intersection #ev("6.49"). In one earlier recorded head-on run (30 September 2026, older code), selected because it qualifies, the gate kept the model's yielder `robot_2` and it was executed, arriving only after about 22 sim-s of navigation stall and recovery (@fig:ch6-er2live) #ev("6.38"); in the campaign's head-on take the gate swapped an infeasible yielder (@sec:res-demo-headon) #ev("6.37").
+In no row does the model beat the better baseline; its east-side edge is its `robot_1` preference meeting a variant where `robot_1` is correct #ev("6.36"). With the yield feasibility gate in `swap` mode the grounded yielder was correct in 79 of 79 runs, and in 37 the gate overturned the model's pick #ev("6.08"); that column comes from artefact fields, not M4 logs, and the gate was off at the intersection #ev("6.49"). In one earlier recorded head-on run (30 September 2026, older code), selected because it qualifies, the gate kept the model's yielder `robot_2` and it was executed, arriving only after about 22 sim-s of navigation stall and recovery (@fig:ch6-er2live) #ev("6.38"); in the campaign's head-on take the gate swapped an infeasible yielder (@sec:res-demo-headon) #ev("6.37").
 
-Three offline replays asked whether a model chooses the yielder from the scene rather than from labels or listing order (first decision only, nothing executed, never pooled with live data).
+Three offline replays asked whether a model chooses the yielder from the scene rather than from labels or listing order (@tab:res-replay; first decision only, nothing executed, never pooled with live data).
 
 #figure(
   table(
@@ -250,7 +250,7 @@ Three offline replays asked whether a model chooses the yielder from the scene r
     fill: (_, y) => if y == 0 { luma(235) },
     table.header([*Replay*], [*Model*], [*Result*], [*Verdict*]),
     [Swapped-ID replay (pre-registered)], [gpt-4o], [follows the first-listed slot in 85 of 96 grey-pair yields], [scene-use rule not met],
-    [], [ER-2], [answers `reverse` in 129 of 144 runs in the label-swap arms], [scene-use rule not met],
+    [], [ER-2], [answers `reverse` in 129 of 144 runs in the original- and swapped-label arms], [scene-use rule not met],
     [], [Sonnet 5.5], [refused 30 of 48 real-frame runs], [not assessable],
     [JSON-only replay (pre-registered)], [Sonnet 5.5], [146 of 146 answered, 0 refusals; 46 of 96 correct in the grey pair; names `robot_2` in 76 of 96], [scene use not supported],
     [], [ER-2], [50 of 96 runs completed (provider limit)], [not assessable],
@@ -263,7 +263,7 @@ No tested model met the pre-registered scene-use rule #ev("6.09") #ev("6.11"). T
 
 == Plan Influence <sec:res-plan>
 
-The plan-audit label (provenance) records how an audited plan relates to the model's proposal. A trace of every live four-robot congestion analysis asked whether the plan changed the commands M4 received #ev("6.02").
+The plan-audit label (provenance) records how an audited plan relates to the proposal; a trace of every live four-robot congestion analysis asked whether the plan changed the commands M4 received (@tab:res-plan) #ev("6.02").
 
 #figure(
   table(
@@ -285,7 +285,7 @@ The plan changed the dispatched commands in none of the 39 gated analyses: in th
 
 == Demonstration Campaign <sec:res-demo>
 
-The demonstration campaign (14–15 November 2026) ran live ER-2 takes in four scenes to show the pipeline end to end on video (format in @fig:ch6-demo-panel, Appendix B) #ev("6.01"), with a later prompt and, at the intersection, the plan-order switch, so it is not the evaluated runtime #ev("6.39"). It is illustrative: 1 to 5 takes per scene, the intersection take shown was selected for its label, and nothing is a rate #ev("6.45").
+The demonstration campaign (14–15 November 2026) ran live ER-2 takes in four scenes to show the pipeline end to end on video (format in @fig:ch6-demo-panel, Appendix B) #ev("6.01"), with a later prompt and, at the intersection, the plan-order switch, so it is not the evaluated runtime #ev("6.39"). It is illustrative: 1 to 5 takes per scene, the intersection take shown was selected for its label, and nothing is a rate (@tab:res-demo, @tab:res-threeway) #ev("6.45").
 
 #figure(
   table(
@@ -330,11 +330,11 @@ Take 1 was unresolved: a one-frame identity glitch in perception (M1) triggered 
   caption: flex-caption([Simplified decision flow of one live intersection take.], [Four-robot intersection, demonstration take 5 of 5, selected as the only take labelled VLM-driven execution: what the VLM proposed, what the grounder verified and computed, and what was executed. The model's contribution was the back-out order only (filled box), a near-tie: back-out costs 0.981 m (`robot_3`) and 0.971 m (`robot_4`) differ by 0.010 m, within the verifier's 0.15 m tolerance; the distances in the figure are commanded distances, and the reason for the difference was not established. An end-to-end execution example, not controlled evidence of improved performance: the default plan resolved the same scene in takes 2 to 4. Safety rested on robot-pair distance only; no stage checked paths against obstacles #ev("6.43") #ev("6.13").#fig-source("6.01")]),
 ) <fig:ch6-flow-take5-simple>
 
-The order changed only when the two back-outs started (`robot_3` at 32.9 s, `robot_4` at 41.9 s; @fig:ch6-ib-backout); pockets, cross phase, release and crossing order stayed on the grounder's ranking, and everything after both back-outs is the default's (@fig:ch6-ib-arrived). The prompt offered `reverse` only to `robot_3` and `robot_4`, so the model chose among offered actions; offline the same prompt produced such an event in 7 of 27 first triggers, no rate for the live takes #ev("6.03"). The order is ascending robot id, inseparable from a slot prior (@sec:res-exploratory). *Caveat:* one take of five, chosen for its label, and a near-tie by construction #ev("6.39").
+The order changed only when the two back-outs started (`robot_3` at 32.9 s, `robot_4` at 41.9 s; @fig:ch6-ib-backout); pockets, cross phase, release and crossing order stayed on the grounder's ranking, and everything after both back-outs is the default's (@fig:ch6-ib-arrived). The prompt offered `reverse` only to `robot_3` and `robot_4`, so the model chose among offered actions; offline the same prompt produced such an event in 7 of 27 first triggers, no rate for the live takes #ev("6.03"). The order is ascending robot id, inseparable from a slot prior (@sec:res-exploratory). *Caveat:* one take of five, chosen for its label; any accepted order that differs from the default is a near-tie by construction #ev("6.39").
 
 #figure(
   image("../assets/images/fig_intersection_robot3_backing_t36p97.png", width: 75%),
-  caption: flex-caption([Intersection take 5: `robot_3` backs out first.], [Four-robot intersection, demonstration take 5 of 5 (labelled VLM-driven execution), simulated time 37.0 s: `robot_3` (green, moving) backs out along its arm while the others (red, stopped) wait; `robot_4` follows at 41.9 s. Only the timing of the two back-outs changed. Isaac Sim, annotated overhead camera; box colours show perception status. Illustrative take, chosen for its label.#fig-source("6.39")]),
+  caption: flex-caption([Intersection take 5: `robot_3` backs out first.], [Four-robot intersection, demonstration take 5 of 5 (labelled VLM-driven execution), simulated time 37.0 s: `robot_3` (green, moving) backs out along its arm while the others (red, stopped) wait; `robot_4` follows at 41.9 s. Isaac Sim, annotated overhead camera; box colours show perception status. Illustrative take, chosen for its label.#fig-source("6.39")]),
 ) <fig:ch6-ib-backout>
 
 === Convoy Counterflow <sec:res-demo-convoy>
@@ -365,12 +365,12 @@ Decision 2's straight escort segment crossed rack island `obstacle_2`: `robot_3`
 
 #figure(
   image("../assets/images/fig_fiverobot_robot3_island_t147p30.png", width: 75%),
-  caption: flex-caption([Five-robot take: an escort drives `robot_3` into a rack island.], [Five-robot pickup-and-delivery scene (scene file `mapd_5_s1b`, seed position 21), demonstration take 1 of 1 (unresolved), simulated time 147.3 s: `robot_3` against the east face of rack island `obstacle_2`, driven there by an unchecked straight escort segment. The box is perception's last track before the island hid the marker; the contact rests on GT poses, not on this image. Isaac Sim, annotated overhead camera. Illustrative take, n = 1.#fig-source("6.42")]),
+  caption: flex-caption([Five-robot take: an escort drives `robot_3` into a rack island.], [Five-robot pickup-and-delivery scene (scene file `mapd_5_s1b`, seed position 21), demonstration take 1 of 1 (unresolved), simulated time 147.3 s: `robot_3` against the east face of rack island `obstacle_2`, driven there by an unchecked straight escort segment. The contact rests on GT poses, not on this image, whose box is perception's last track before the island hid the marker. Isaac Sim, annotated overhead camera. Illustrative take, n = 1.#fig-source("6.42")]),
 ) <fig:ch6-m5-escort>
 
 == Safety Findings <sec:res-safety>
 
-The simulator's GT contact lists were hard-coded empty in the evaluated runtime, so every zero read from them shows nothing #ev("6.20"). Safety evidence is the GT robot-pair centre distance; an offline footprint-gap recompute, pending validation, is in @tab:app-contacts.
+The simulator's GT contact lists were hard-coded empty in the evaluated runtime, so every zero read from them shows nothing #ev("6.20"). Safety evidence is the GT robot-pair centre distance; an offline footprint-gap recompute, pending validation, is in @tab:app-contacts. @tab:res-safety gives the evidence per study.
 
 #figure(
   table(
@@ -385,31 +385,16 @@ The simulator's GT contact lists were hard-coded empty in the evaluated runtime,
     [Demonstration campaign], [lowest 0.2176 m (head-on take, before any command); convoy takes 4 and 5: 0.276 m and 0.370 m], [0], [one sustained contact confirmed (five-robot escort, @fig:ch6-m5-escort); otherwise offline recompute pending validation],
     [Five-robot validation take (n = 1)], [0.3101 m], [0], [contact fields logged on all 6001 rows and reproduced offline; partially validated],
   ),
-  caption: flex-caption([Safety evidence per study and its measurement status.], [Safety evidence per study: GT robot-pair centre distance, floor stops in M4's log, and the status of robot-obstacle contact measurement. The hard-contact floor (0.20 m) and the 0.18 m gate threshold are on centre distance.#fig-source("6.20")]),
+  caption: flex-caption([Safety evidence per study and its measurement status.], [Safety evidence per study: GT robot-pair centre distance, floor stops in the log of the execution and safety monitor (M4), and the status of robot-obstacle contact measurement. The hard-contact floor (0.20 m) and the 0.18 m gate threshold are on centre distance.#fig-source("6.20")]),
 ) <tab:res-safety>
 
 The pair values come from the studies' own reports #ev("6.05") #ev("6.06") #ev("6.14") #ev("6.37") #ev("6.41") #ev("6.17"). Most minima occurred during the standoff or jam, before any command; run 1's e09 #ev("6.31"), run 2's first check episode #ev("6.32") and convoy take 5 #ev("6.41") are exceptions. No campaign take logged a floor stop #ev("6.39") #ev("6.40") #ev("6.42").
 
-*Obstacles.* The confirmed five-robot contact #ev("6.42") exposed a gap: the grounder checked neither escort segments nor `reverse` legs against static obstacles (only the yielder's retreat room and candidates use the declared boxes), and the execution and safety monitor (M4) ignores obstacles #ev("6.43"). The validation take came within 5.5 mm of a declared box under a `reverse` #ev("6.17"), and October `reverse` legs pinned robots against box faces #ev("6.18"). The offline recompute is a 10 Hz footprint proximity, not a physics contact, pending validation, because no robot was pinned in the validation take #ev("6.12") #ev("6.17").
+*Obstacles.* The five-robot contact (@sec:res-demo-five) #ev("6.42") exposed a gap: the grounder checked neither escort segments nor `reverse` legs against static obstacles (only the yielder's retreat room and candidates use the declared boxes), and the execution and safety monitor (M4) ignores obstacles #ev("6.43"). The validation take came within 5.5 mm of a declared box under a `reverse` #ev("6.17"), and October `reverse` legs pinned robots against box faces #ev("6.18"). The offline recompute (10 Hz footprint proximity) stays pending validation, because no robot was pinned in the validation take #ev("6.12") #ev("6.17").
 
-*Safety-exemption fix.* A coordination command exempts its robots from each other in M4's proximity check, and that exemption proved wider than intended. A fix behind a key that is off by default narrows it (@tab:res-sx) #ev("6.50"); 64 unit tests and a replay over 68 bundles show identical timelines with the key off and 6 exemptions lost with it on #ev("6.07"). It was on in intersection run 2, where it never fired #ev("6.06"), and in the demonstration takes, where its firings were not counted #ev("5.51"), so it is not validated live.
+*Validation state of the later safety changes,* all off by default. The safety-exemption fix, which narrows the exemption a coordination command gives its own robots in M4's proximity check (@tab:res-sx in Appendix B) #ev("6.50"), passed 64 unit tests and a replay over 68 bundles (identical with the key off, 6 exemptions lost with it on) #ev("6.07"); it was on in intersection run 2, where it never fired #ev("6.06"), and in the demonstration takes, where its firings were not counted #ev("5.51"), so it is not validated live.
 
-#figure(
-  table(
-    columns: (1.4fr, 1.2fr, 1.4fr),
-    align: left,
-    stroke: 0.4pt + luma(160),
-    fill: (_, y) => if y == 0 { luma(235) },
-    table.header([*Exemption path*], [*Key off (evaluated runtime)*], [*Key on*]),
-    [Robots the plan marks `continue`], [exempt, also in other clusters], [not honoured],
-    [A leg rejected before it started], [still a member, still exempt], [not a partner],
-    [Bystander waiver at command start], [unhonoured partner counts as own], [both count as third robots; the waiver ends once the gap closes by more than 0.05 m on 3 readings],
-    [Mutual waivers, own-command scope], [unchanged], [unchanged],
-  ),
-  caption: flex-caption([What the safety-exemption key changes.], [M4's coordination exemption with the scoped-exemption key off and on. Unit tests and offline replay; not validated live.#fig-source("6.50")]),
-) <tab:res-sx>
-
-*Guards built later, each off by default.* The escort obstacle guard refuses an escort whose straight segment crosses a declared obstacle; offline it refuses the five-robot escort and one earlier escort and no other campaign escort, with no M4 backstop #ev("6.13"); live it ran once, armed, without firing, because no escort was grounded #ev("6.17"). The reverse obstacle guard has unit tests and an offline replay of 17 reverse commands, no live run #ev("6.13"). The stall abort (M4) has unit and node tests and an offline replay of 221 primitives, no live run #ev("6.18"). The queued-robot hold ran in convoy takes 4 and 5 only #ev("6.19"). *Caveat:* no comprehensive obstacle-safety claim follows.
+The escort obstacle guard refuses offline the five-robot escort and one earlier escort and no other campaign escort, sees declared obstacles only, has no M4 backstop #ev("6.13"), and ran live once, armed, without firing, because no escort was grounded #ev("6.17"). The reverse obstacle guard (offline replay of 17 reverse commands) #ev("6.13") and the stall abort (offline replay of 221 primitives) #ev("6.18") have unit tests and no live run; the queued-robot hold ran in convoy takes 4 and 5 only #ev("6.19"). *Caveat:* no comprehensive obstacle-safety claim follows.
 
 == Offline Decision Benchmark and Live Per-Group Shadow Run <sec:res-bench>
 
@@ -419,9 +404,9 @@ The live per-group shadow run asked the per-cluster question beside the ordinary
 
 == Exploratory Findings <sec:res-exploratory>
 
-*Presentation order.* In pilot probes gpt-4o's yielder followed the first-listed robot, also the lowest id under ascending listing; the first registered design (v1) randomised the order #ev("1.12"), yet the later live studies listed robots ascending #ev("1.15"). Offline the swapped-ID replay ties gpt-4o to the slot #ev("6.09"); the re-score finds a `robot_1` preference for both models #ev("6.08"), and take 5's order is ascending #ev("6.39"). No live result separates an identifier prior from a slot prior.
+*Presentation order.* In pilot probes gpt-4o's yielder followed the first-listed robot, also the lowest id under ascending listing; the first registered design (v1) randomised the order #ev("1.12"), yet the later live studies listed robots ascending #ev("1.15"). With the slot result of the swapped-ID replay (@tab:res-replay) #ev("6.09"), the `robot_1` preference (@tab:res-headon) #ev("6.08") and take 5's ascending order #ev("6.39"), no live result separates an identifier prior from a slot prior.
 
-*Refusals.* An earlier offline replay found gpt-4o's refusals triggered by the real camera frame, not the prompt text or the overlay, which motivated the grey-image fallback after two refusals #ev("4.37"). Sonnet 5.5 refused 30 of 48 real-frame runs under the original prompt ending #ev("6.09") and none of 146 under a JSON-only ending #ev("6.11"). ER-2 returned a valid answer in every campaign analysis #ev("6.44").
+*Refusals.* An earlier offline replay found gpt-4o's refusals triggered by the real camera frame, not the prompt text or the overlay, which motivated the grey-image fallback after two refusals #ev("4.37"). Sonnet 5.5 refused 30 of 48 real-frame runs under the original ending #ev("6.09") and none of 146 under a JSON-only ending #ev("6.11"); ER-2 answered validly in every campaign analysis #ev("6.44").
 
 == Physical Demonstration <sec:res-physical>
 
