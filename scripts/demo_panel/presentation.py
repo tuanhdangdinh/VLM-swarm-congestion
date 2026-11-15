@@ -66,7 +66,7 @@ RESPONSE_CAPTION = "PAUSED (sim clock held) so the model's answer can be read"
 CHECK_CAPTION = "PAUSED (sim clock held) so the check result can be read"
 
 _DISPATCH_RX = re.compile(r"dispatch request=|command received")
-_EXEC_RX = re.compile(r"crossing_chain|phase advance|arrived at base goal")
+_EXEC_RX = re.compile(r"crossing_chain|phase advance")
 _CHECK_RX = re.compile(GATE_PATTERN + r"|no dispatch")
 _END_CHECK_RX = re.compile(r"no dispatch|refusal withheld")
 _REQ_IN_LINE = re.compile(r"request=([0-9a-f]{8})")
@@ -216,7 +216,8 @@ def item_stage(tag: str, text: str) -> tuple[str | None, bool]:
     - `no dispatch`, `refusal withheld` -> Check, ending the cycle (idle later)
     - `dispatch request=`, `command received` -> Dispatch (shown as Execution
       `DISPATCH_SEC` after the last one)
-    - `crossing_chain`, `phase advance`, `arrived at base goal` -> Execution
+    - `crossing_chain`, `phase advance` -> Execution (arrivals anchor nothing:
+      one can land while a new model call is in flight)
 
     Args:
         tag: Item tag from `collect_items` (`log`, `marker`, `poll`, `<req>:<role>`).

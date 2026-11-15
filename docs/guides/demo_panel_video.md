@@ -164,9 +164,9 @@ The strip above both panes lights one stage. Each item anchors a stage; other it
 | `check` commands, `yield re-grounded`, `yield refused` | Check |
 | `no dispatch`, `refusal withheld` | Check; the strip goes blank 4 s later |
 | `dispatch request=`, `command received` | Dispatch, then Execution after 3 s |
-| `crossing_chain`, `phase advance`, `arrived at base goal` | Execution |
+| `crossing_chain`, `phase advance` | Execution |
 
-Before the first trigger no stage is lit. `exempt pairs changed`, safety stops, markers and `cost.log` polls anchor nothing.
+Before the first trigger no stage is lit. `arrived at base goal` (it can land while a new model call is in flight), `exempt pairs changed`, safety stops, markers and `cost.log` polls anchor nothing.
 
 ### Captions, Zoom, Cards (Outside the Terminal)
 

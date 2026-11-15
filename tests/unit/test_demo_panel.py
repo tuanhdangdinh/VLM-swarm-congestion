@@ -622,7 +622,7 @@ def test_present_style_dims_safety_stops_and_highlights_actions_and_checks():
         ("log", "orchestrator: dispatch request=1 command=c robot=r", "Dispatch"),
         ("log", "command_bus: command received command=c robot=r action=yield", "Dispatch"),
         ("log", "command_bus: crossing_chain gate_admit command=c", "Execution"),
-        ("log", "orchestrator: robot robot_1 arrived at base goal (0, 0)", "Execution"),
+        ("log", "orchestrator: robot robot_1 arrived at base goal (0, 0)", None),
         ("log", "safety_monitor: safety stop robot=robot_1 reason=x", None),
         ("log", "safety_monitor: exempt pairs changed pairs=-", None),
         ("poll", "02:19:49 analyses=1", None),
