@@ -1,0 +1,901 @@
+# Rater B: Phase 2 Events Coding
+
+Rater B, coding alone, in descending sheet-id order. This file is the readable form of `phase2_events.json`. Interpretation choices are in `ambiguities.md` (A1-A4, B1-B16). `alt_primary` is the code under the alternative reading of the one ambiguity named in `alt_basis`.
+
+## Summary
+
+- Sheets: 33. Failure units coded: 55. Parked-finished lone stalls not coded: 3 (EV-35eb04 FU2, EV-7e1fa5 FU3, EV-133a4a FU3).
+- Primary codes: G1 3, G2 1, G4 2, G5 2, U:T1_fidelity 5, U:T1_not_run 18, U:no_m4_clock_anchor 10, V1 4, V4 3, X1 1, X2 3, X3 2, X5 1
+- By class: G 8, U 33, V 7, X 7
+- Where the code was decided: step 3 + rule-7 U clause: 5, step 4 (first deviation): 22, step 4 + rule-7 U clause: 18, step 7 (fallback U): 10
+- Alternative-reading primaries: G1 3, G2 2, G4 9, G5 3, G6 4, U:no_deviation_found 3, V1 2, V3 1, V4 3, X1 5, X2 11, X3 7, X4 1, X5 1
+
+## Per Unit
+
+| Sheet | FU | Primary | Decided at | Contributing | Confidence | Alt primary (basis) |
+|---|---|---|---|---|---|---|
+| EV-f7ab58 | FU1 | U:T1_not_run | step 4 + rule-7 U clause | G4, X4, V3, G1, V4, V4j, X3, X6 | medium | G4 (B2) |
+| EV-ef4e73 | FU1 | U:T1_fidelity | step 3 + rule-7 U clause | X3 | medium | X3 (B2) |
+| EV-ef4e73 | FU2 | G5 | step 4 (first deviation) | X4, X3, G2, X2 | high | G5 (no deciding ambiguity) |
+| EV-e26384 | FU1 | U:T1_fidelity | step 3 + rule-7 U clause | X3, G1, G2, X6 | medium | X3 (B2) |
+| EV-e0f9cf | FU1 | U:T1_not_run | step 4 + rule-7 U clause | G4, V1, X1, X3, X6 | medium | G4 (B2) |
+| EV-e0f9cf | FU2 | U:T1_not_run | step 4 + rule-7 U clause | G4, V1, G6, G5, X1, V6, X2, X3, X6 | medium | G4 (B2) |
+| EV-db0df6 | FU1 | V4 | step 4 (first deviation) | G4, X3, G1, G2 | high | V4 (no deciding ambiguity) |
+| EV-db0df6 | FU2 | V4 | step 4 (first deviation) | V4j, G6, X3, G1 | high | V4 (no deciding ambiguity) |
+| EV-cb3996 | FU1 | U:T1_not_run | step 4 + rule-7 U clause | G5, EG2, X1, X3, V3, G1, G2 | medium | G5 (B2) |
+| EV-cb3996 | FU2 | X2 | step 4 (first deviation) | X3, G1, G2, V3 | medium | X3 (B4) |
+| EV-c49058 | FU1 | U:no_m4_clock_anchor | step 7 (fallback U) | N0 | low-medium | X2 (B6/B4 (tool X2 input as given)) |
+| EV-c49058 | FU2 | U:no_m4_clock_anchor | step 7 (fallback U) | N0 | low-medium | X2 (B6/B4 (tool X2 input as given)) |
+| EV-b13ac7 | FU1 | X1 | step 4 (first deviation) | X3, X2, G1, G2, V3, G6 | high | X1 (no deciding ambiguity) |
+| EV-a6761e | FU1 | U:T1_not_run | step 4 + rule-7 U clause | G6, X3, G1, G2 | medium | G6 (B2) |
+| EV-a6761e | FU2 | U:T1_not_run | step 4 + rule-7 U clause | G6, V1, X3 | medium | G6 (B2) |
+| EV-a2cfc5 | FU1 | U:T1_not_run | step 4 + rule-7 U clause | X3, V3, G1, G2, X1, X4 | medium | X3 (B2) |
+| EV-830943 | FU1 | U:T1_not_run | step 4 + rule-7 U clause | G6, X3, G1, G2, V4, X2, X1 | medium | G6 (B2) |
+| EV-80fb2a | FU1 | V1 | step 4 (first deviation) | X3 | medium | U:no_deviation_found (B8) |
+| EV-80fb2a | FU2 | G4 | step 4 (first deviation) | G5, EG2, X1, X2, X3, G1, G2 | high | G4 (no deciding ambiguity) |
+| EV-7e1fa5 | FU1 | X2 | step 4 (first deviation) | G1, G2, X3 | low-medium | G1 (B4) |
+| EV-7e1fa5 | FU2 | V1 | step 4 (first deviation) | - | medium | U:no_deviation_found (B8) |
+| EV-7bf1e2 | FU1 | G2 | step 4 (first deviation) | X3 | high | G2 (no deciding ambiguity) |
+| EV-7bf1e2 | FU2 | U:T1_not_run | step 4 + rule-7 U clause | G4, X3, G1, G2 | medium | G4 (B2/B9) |
+| EV-7bda3f | FU1 | G1 | step 4 (first deviation) | X3, G2, V3, V4, V4j, G4, G6, X6 | medium-high | G1 (no deciding ambiguity) |
+| EV-7bda3f | FU2 | G4 | step 4 (first deviation) | X3, V1, X6 | high | G4 (no deciding ambiguity) |
+| EV-6f1277 | FU1 | G1 | step 4 (first deviation) | G2, X3 | medium-high (G1 vs G2 tie convention B13) | G2 (B13) |
+| EV-6f1277 | FU2 | V1 | step 4 (first deviation) | - | medium | U:no_deviation_found (B8) |
+| EV-69a2ea | FU1 | U:no_m4_clock_anchor | step 7 (fallback U) | N0 | low-medium | X2 (B6/B4 (tool X2 input as given)) |
+| EV-69a2ea | FU2 | U:no_m4_clock_anchor | step 7 (fallback U) | N0 | low-medium | X2 (B6/B4 (tool X2 input as given)) |
+| EV-62b8d0 | FU1 | U:T1_not_run | step 4 + rule-7 U clause | X1, X3, V4, V4j, G4, G6, G5, EG2, V3, G1 | medium | X1 (B2) |
+| EV-52a0c3 | FU1 | U:T1_fidelity | step 3 + rule-7 U clause | X2, G4, X3, V3, G1 | medium | X2 (B2) |
+| EV-478db7 | FU1 | X3 | step 4 (first deviation) | V3, G1, G6, X6 | medium | V3 (B14) |
+| EV-41a9d4 | FU1 | U:T1_not_run | step 4 + rule-7 U clause | X1, V4, G6, X3, G1, G2 | medium | X1 (B2) |
+| EV-41a9d4 | FU2 | U:T1_not_run | step 4 + rule-7 U clause | X4, V1, X3, G1, G2 | medium | V1 (B2 (with B16, B8)) |
+| EV-3e6d9b | FU1 | U:no_m4_clock_anchor | step 7 (fallback U) | N0 | low-medium | X2 (B6/B4 (tool X2 input as given)) |
+| EV-3e6d9b | FU2 | U:no_m4_clock_anchor | step 7 (fallback U) | N0 | low-medium | X2 (B6/B4 (tool X2 input as given)) |
+| EV-37a70e | FU1 | U:T1_not_run | step 4 + rule-7 U clause | X5, G5, X1, X3, V3, G1, G2 | medium | X5 (B2) |
+| EV-37a70e | FU2 | V4 | step 4 (first deviation) | G6, X3, X4, V1 | high | V4 (no deciding ambiguity) |
+| EV-35eb04 | FU1 | X3 | step 4 (first deviation) | G1, G2, V3 | medium | G1 (B14) |
+| EV-359e3d | FU1 | X5 | step 4 (first deviation) | X1, X3, G6, V3, G1 | medium | X1 (B4) |
+| EV-359e3d | FU2 | U:T1_not_run | step 4 + rule-7 U clause | X1, X3, G1 | medium | X1 (B2) |
+| EV-344706 | FU1 | U:T1_not_run | step 4 + rule-7 U clause | G4, X1, X3, V3, G1, X6 | medium | G4 (B2) |
+| EV-3233e2 | FU1 | U:no_m4_clock_anchor | step 7 (fallback U) | N0 | low-medium | X2 (B6/B4 (tool X2 input as given)) |
+| EV-3233e2 | FU2 | U:no_m4_clock_anchor | step 7 (fallback U) | N0 | low-medium | X2 (B6/B4 (tool X2 input as given)) |
+| EV-2c719b | FU1 | G1 | step 4 (first deviation) | G2, V3 | medium-high | X3 (B11) |
+| EV-2c719b | FU2 | G5 | step 4 (first deviation) | EG2, X3, G1, G2, X4, V3, V1 | high | G5 (no deciding ambiguity) |
+| EV-298037 | FU1 | U:T1_fidelity | step 3 + rule-7 U clause | X4, V3, G4, X3, G1, G2 | medium | X4 (B2) |
+| EV-298037 | FU2 | V1 | step 4 (first deviation) | X3 | medium | X3 (B8) |
+| EV-295a3e | FU1 | U:T1_not_run | step 4 + rule-7 U clause | G4, X3, G5, EG2, X1, X2, V3, G1, X5, G2 | medium | G4 (B2) |
+| EV-133a4a | FU1 | U:no_m4_clock_anchor | step 7 (fallback U) | N0 | low-medium | X2 (B6/B4 (tool X2 input as given)) |
+| EV-133a4a | FU2 | U:no_m4_clock_anchor | step 7 (fallback U) | N0 | low-medium | X2 (B6/B4 (tool X2 input as given)) |
+| EV-0bdad6 | FU1 | U:T1_not_run | step 4 + rule-7 U clause | G6, X3, G1, G2, V3, X4 | medium | G6 (B2) |
+| EV-0bdad6 | FU2 | U:T1_fidelity | step 3 + rule-7 U clause | V1, X2, X4, X5 | medium | V1 (B2 (with B16, B8)) |
+| EV-072a17 | FU1 | U:T1_not_run | step 4 + rule-7 U clause | G4, X3, V3, G1 | medium | G4 (B2) |
+| EV-072a17 | FU2 | X2 | step 4 (first deviation) | X3 | medium | X3 (B4) |
+
+## Evidence per Unit
+
+### EV-f7ab58 FU1: U:T1_not_run
+
+- Step: 4 (deciding T1 absent, rule 7 U clause per ambiguity B2)
+- Evidence: Step 1 gate all True. Step 2 fires: chain.rubric=[D1:robot_1:backup], dispatched 13.033 < t0 14.903 (robot_1 in FU); walk starts 13.033, step 3 skipped. First walk event D1 (13.033): involved [robot_1, robot_5] misses FU robots robot_2/3/4 (V2 non-T1 half) and named yield_robot robot_5 refused for room ('robot_5 has 0.00 m retreat room < 0.77 m required', V3 non-T1 half); D1 not in analyses_on_fu (matched_conflict_index 0) so no T1 row at D1 snapshot. Same event's grounding is G4 (G4_role_change_tags yield_robot=regrounded, grounded_from robot_5; dispatch robot_1:yield vs decision yield_robot robot_5).
+- Event codes:
+  - D1@13.033: V2?/V3? (T1 not run); G4
+  - robot_1 STALE 45.167 (10.73 s): X4
+  - D2@47.2: V3 (named yielder robot_2 refused for room 0.15<0.77; T1 D2 Y-yielders incl robot_1/3/4); G1 (withheld refusal_no_action; contract clean; T2(D2) True)
+  - D1:robot_1:backup end 55.972: COMPLETED frac 1.044 (no X1); X3 (after completion non-exempt pairs r2-r3 from 23.4, r3-r4 from 15.1, r1-r4 from 101.6 close and stopped to censoring; exempt cleared 56.017)
+  - D3@97.833: G1? (reverse refused: corridor-side reason, waits dispatched; contract clean; T2 True); no V3 (refusal is corridor side, not room)
+  - robot_1 STALE 102.933 (39.03 s): X4
+  - D4@110.8: V3 (yielder robot_4 refused for room 0.15); G1
+  - D5@129.233: V4 (C1 True: reverse legs [robot_2,robot_3] vs involved 4 robots); V4j (justification: robot_4 and robot_1 'pass through'); G4 (swap edit robot_2<->robot_4)
+  - D6@142.0: V3 (reversers robot_1/robot_4 refused for room; T1 D6 R: all FU robots); G1
+  - censor: X6 (stop_flag)
+- Contributing: G4, X4, V3, G1, V4, V4j, X3, X6
+- Confidence: medium: primary hinges on ambiguity B2 (T1 not computed at a chain-start decision outside analyses_on_fu)
+- Alternative: G4 (basis B2)
+- Notes: alt_reading2: G4 (D1 grounding swap). T1(t0) as written U:T1_fidelity (D1 as-written differs); not used since step 3 skipped. X2 inputs robot_2/3/4 safety_stop_cover 0.99 -> latch-covered, not X2 (B4). X6 added for stop_flag censoring (7.6).
+
+### EV-ef4e73 FU1: U:T1_fidelity
+
+- Step: 3 (T1(t0) U, deciding between G7 and continue; rule 7 U clause)
+- Evidence: Gate all True. Step 2 does not fire: chain.rubric=[] (D4:robot_2:backup ended 164.0, dispatched 92.7, >60 s before t0 184.407). Step 3: T2(t0)=True (robot_4 0.01 m @0); T1(t0) as written fidelity 'U:T1_fidelity' (episode as_written usable False; +intents column also U:T1_fidelity), so G7-vs-continue cannot be decided.
+- Event codes:
+  - D6@206.2: none (temporary_wait, m3_default with plan absent -> not G2; must-act intersection empty -> no V2)
+  - D6 waits COMPLETED 217.16: X3 (pairs r2-r5 from 184.61, r4-r5 from 195.11 close and stopped to censoring; exempt '-' since 164.0)
+  - X2 input r2/r4/r5 from 217.21: latch-covered (cover 1.0) -> not X2 per B4
+- Contributing: X3
+- Confidence: medium: depends on B2 (T1(t0) U deciding at step 3)
+- Alternative: X3 (basis B2)
+- Notes: alt_reading2: X3 (step 4 walk with T1(t0) motion list 47/237 treated as non-empty; first deviation = X3 after D6 waits completed 217.16) or U:no_deviation_found if waits are not 'commands that complete'. T1 D6 as written pass 54/237.
+
+### EV-ef4e73 FU2: G5
+
+- Step: 4
+- Evidence: Gate all True. Step 2 fires: chain.rubric=[D5:robot_1:backup, D5:robot_3:escort, D5:robot_3:wait], dispatch 171.7 (47.3 s before t0 219.007); walk starts 171.7. D5 analysis: yield, involved [robot_1, robot_3] = FU, C2 False, provenance vlm_verbatim, dispatch_matches_plan True, no G4/G6 flags -> no V/G. Legs D5:robot_1:backup (175.6-235.587) and D5:robot_3:escort (204.634-235.635): min_robot_gap -0.0003 m with each other, contacts_in_window robot:robot_3 [222.91,235.51]; GT contact robot_1|robot_3 from 222.31 to censoring. Recomputed GT gap of a commanded leg < 0.005 m -> G5 (precedes X5 of same leg by step 5).
+- Event codes:
+  - D5@171.7: none
+  - D5 legs, contact 222.31: G5; (X5 not coded: attributable to G5 leg)
+  - robot_1/robot_3 STALE 231.667 (339.1 s): X4
+  - D5 legs COMPLETED 235.6: X3 (r1-r3 close and stopped from 223.01 to censoring; exempt robot_1+robot_3 cleared 235.627)
+  - D7@236.767: G2 (m3_default with plan present; mech flag G2 True); no G1 (T2(D7) False); no V3 (refusal 'no shared lane', not room)
+  - nav2 robot_3 aborts from 261.69: X2 (Nav2 abort lines)
+- Contributing: X4, X3, G2, X2
+- Confidence: high
+- Alternative: G5 (basis no deciding ambiguity)
+- Notes: T1(t0) U:T1_fidelity irrelevant (step 3 skipped). T1 D7 as written pass 3/88.
+
+### EV-e26384 FU1: U:T1_fidelity
+
+- Step: 3 (T1(t0) U, deciding; rule 7 U clause)
+- Evidence: Gate all True. chain.rubric=[] -> step 2 does not fire. Step 3: T2(t0)=True (robot_1 0.03 m @0); T1(t0) as written 'U:T1_fidelity' (episode as_written usable False: D4 differs). G7 vs continue undecidable.
+- Event codes:
+  - D1@16.733: none (temporary_wait verbatim)
+  - D1 waits COMPLETED 26.235: X3 (r1-r5 close and stopped from 15.31 to censoring; no exempt pair)
+  - D2@29.4: G1 (withheld refusal_no_action 'no shared lane'; contract C2 False; T2(D2) True); G2 (m3_default with plan present); no V3 (refusal not for room)
+  - D3@34.2: G1; G2
+  - censor: X6 (stop_flag)
+- Contributing: X3, G1, G2, X6
+- Confidence: medium: B2
+- Alternative: X3 (basis B2)
+- Notes: alt_reading2: X3 (walk from t0 with as-written T1(t0) motion 7/88 non-empty; first deviation X3 after D1 waits complete 26.235). +intents column: episode_gate_pass, T1(t0) 7/88 non-empty. X2 input latch-covered (1.0).
+
+### EV-e0f9cf FU1: U:T1_not_run
+
+- Step: 4 (deciding T1 absent at chain-start decision; B2)
+- Evidence: Gate all True. Step 2 fires: chain.rubric=[D1:robot_1:backup], dispatched 13.7 (t0 28.303); walk from 13.7. First event D1: involved [robot_1, robot_5] misses FU robot robot_3 (V2 non-T1 half met); D1 not in analyses_on_fu (empty) -> no T1 at D1 snapshot. Same event grounding G4 (G4_role_change_tags node_handoff robot_1->robot_5 / regrounded robot_5->robot_1; swap edit). No V3 (handoff, not a room refusal).
+- Event codes:
+  - D1@13.7: V2? (T1 not run); G4
+  - t0 28.303 (FU-level): V1 (v1_input a33_matched_positive_analyses 0)
+  - D1:robot_1:backup FAILED 56.272: X1 (FAILED, deadline True, frac 0.726, stalled_clear)
+  - after 56.279 (exempt cleared): X3 (r1-r3 close and stopped from 28.6 to censoring)
+  - censor: X6 (stop_flag)
+- Contributing: G4, V1, X1, X3, X6
+- Confidence: medium: B2
+- Alternative: G4 (basis B2)
+- Notes: alt_reading2: G4 (D1 grounding handoff swap). Backend_failed analyses D3-D40 (99.2-207.9) carry no robots and are not on this FU's timeline; noted, not coded on FU1. X2 inputs latch-covered.
+
+### EV-e0f9cf FU2: U:T1_not_run
+
+- Step: 4 (deciding T1 absent at chain-start decision; B2)
+- Evidence: Gate all True. Step 2 fires: chain.rubric=[D1:robot_5:escort, D1:robot_5:wait, D2:robot_2:reverse]; earliest dispatch D1 13.7 (t0 67.003, 53.3 s before); walk from 13.7. First event D1: involved [robot_1, robot_5] misses FU robots robot_2, robot_4 (V2 non-T1 half); no T1 row at D1 (analyses_on_fu empty). Same event grounding G4 (handoff swap).
+- Event codes:
+  - D1@13.7: V2? (T1 not run); G4
+  - D1:robot_5:escort: escort_not_admitted (no gate_admit) - not coded (neither FAILED nor timed out)
+  - D2@60.067: no V4 (C1 False); G4 (G4_robots_dropped robot_4; handoff tag); G6 (vlm_verbatim contradicted True)
+  - D2:robot_2:reverse contact 66.5: G5 (GT gap -0.0014 to declared obstacle_2 during commanded leg; pinned_on_declared_box)
+  - D2:robot_2:reverse FAILED 97.918: X1 (FAILED, deadline True, not_executed <50%)
+  - after 97.97: X3 (r2-r4 from 68.8, r4-r5 from 100.7 to censoring; exempt cleared)
+  - D3-D40 from 99.2: V6 (backend_failed ConnectionError)
+  - nav2 robot_5 102.944: X2 (Nav2 abort line)
+  - t0 (FU-level): V1 (matched positives 0)
+  - censor: X6
+- Contributing: G4, V1, G6, G5, X1, V6, X2, X3, X6
+- Confidence: medium: B2
+- Alternative: G4 (basis B2)
+- Notes: alt_reading2: G4 (D1). If D1 were excluded as not touching the unit's conflict, next deviation would be D2 G4/G6 then G5. X2 inputs latch-covered (>=0.978).
+
+### EV-db0df6 FU1: V4
+
+- Step: 4
+- Evidence: Gate all True. Step 2 fires: chain.rubric=[D3:robot_1/2/3:reverse], dispatched 30.067 (t0 54.607); walk from 30.067. D3 analysis: strategy reverse, involved [robot_1..robot_4], proposed_plan reverse legs [robot_3, robot_4] -> contract C1 True (C1_detail) -> V4 (C1). V2 not met (involved covers FU), no room refusal (V3 not met), so absence of a T1 row at D3 does not decide.
+- Event codes:
+  - D3@30.067: V4 (C1 True); G4 (G4_robots_dropped robot_4; node_handoff tag; substitute edits cross->wait)
+  - D3 legs COMPLETED 44.5 (frac ~0.93): no X1
+  - after 44.694 exempt cleared: X3 (r2-r3 close and stopped from 54.91, r1-r2 from 96.61 to censoring)
+  - D5@68.033: G1 (withheld; 'no declared junction', contract C2 False, T2(D5) True); G2 (m3_default with plan); no V3 (not a room refusal)
+  - D6@71.333: G1; G2
+  - D7@74.6: G1 (reverse refused corridor-side; C1 False; T2 True)
+  - D8@87.233: G1
+  - D9@99.767: G1 (withheld junction_clear, plan absent, T2 True)
+- Contributing: G4, X3, G1, G2
+- Confidence: high
+- Alternative: V4 (basis no deciding ambiguity)
+- Notes: T1(t0) episode_gate_pass 10/237 (not used: step 3 skipped). X2 inputs latch-covered (>=0.999).
+
+### EV-db0df6 FU2: V4
+
+- Step: 4
+- Evidence: Gate all True. Step 2 fires: chain.rubric=[D4:robot_4:reverse, D4:robot_5:reverse], dispatched 49.067 (t0 73.507); walk from 49.067. D4: strategy reverse, involved [robot_4, robot_5], plan reverse legs [robot_4] (robot_5 continue) -> C1 True -> V4.
+- Event codes:
+  - D4@49.067: V4 (C1 True); V4j (justification: 'Robot 4 must reverse ... so that Robot 5 can continue'); G6 (vlm_verbatim, dispatch reverses robot_5 too; G6 flag True)
+  - D4 legs COMPLETED 63.2/63.4: no G5 (robot_4 min static gap 0.0055 > 0.005)
+  - after 63.41: X3 (r4-r5 close and stopped from 73.61 to censoring)
+  - D7@74.6: G1 (reverse refused corridor-side; C1 False; T2 True)
+  - D8@87.233: G1
+  - D9@99.767: G1
+- Contributing: V4j, G6, X3, G1
+- Confidence: high
+- Alternative: V4 (basis no deciding ambiguity)
+- Notes: V4j recorded as contributing flag only (free-text judgement).
+
+### EV-cb3996 FU1: U:T1_not_run
+
+- Step: 4 (deciding T1 absent at chain-start decision; B2)
+- Evidence: Gate all True. Step 2 fires: chain.rubric=[D1:robot_2:reverse, D1:robot_4:reverse], dispatched 13.4 (t0 31.603); walk from 13.4. First event D1: reverse, involved [robot_1..robot_4] misses FU robot robot_5 (V2 non-T1 half met); D1 not in this FU's analyses_on_fu ([D4]) -> no T1 row at D1 for FU1. D1 grounding clean (vlm_verbatim, match True, C1 False).
+- Event codes:
+  - D1@13.4: V2? (T1 not run)
+  - D1:robot_4:reverse GT contact rack/NW_west 22.0-54.4: G5 (recomputed GT gap -0.0 of commanded leg); EG2 (rack/NW_west is undeclared builder box)
+  - D1:robot_4:reverse FAILED 60.453: X1 (deadline True, not_executed <50%)
+  - after 60.47 exempt cleared: X3 (r2-r5 from 31.9, r2-r4 from 64.0 to censoring)
+  - D4@66.233: V3 (named yielder robot_2 refused for room 0.00<0.77; T1 D4 yielders feasible robot_4, robot_5); G1 (contract clean, T2(D4) True, withheld); G2 (m3_default with plan)
+- Contributing: G5, EG2, X1, X3, V3, G1, G2
+- Confidence: medium: B2
+- Alternative: G5 (basis B2)
+- Notes: alt_reading2: G5 (D1:robot_4:reverse contact 22.0). X2 inputs latch-covered.
+
+### EV-cb3996 FU2: X2
+
+- Step: 4
+- Evidence: Gate all True. Step 2 fires: chain.rubric=[D1:robot_1:reverse, D1:robot_3:reverse], dispatched 13.4 (t0 37.803); walk from 13.4. D1 analysis: involved includes robot_1, robot_3; C1 False; grounding vlm_verbatim match True -> no V/G. Legs robot_1/robot_3 reverse COMPLETED 29.6-29.7 (frac 0.99-0.997), no contact -> no G5/X1. Next event: nav2 robot_3 '[compute_path_to_pose] [ActionServer] Aborting handle.' at 32.516 -> X2 (Nav2 abort) on an FU robot.
+- Event codes:
+  - D1@13.4: none
+  - D1 legs COMPLETED 29.6/29.7: none
+  - nav2 robot_3 32.516: X2 (Nav2 abort)
+  - 38.0: X3 (r1-r3 close and stopped from 38.0 to censoring; r1+r3 no longer exempt after 29.744)
+  - D2@57.233: G1 (yield refused 'ambiguous lane'; C2 False; T2 True); G2
+  - D3@61.733: G1; G2
+  - D4@66.233: V3 (named yielder robot_1 refused for room 0.00; T1 D4 for FU1 shows... see FU1; for this FU no D4 T1 row); G1; G2
+- Contributing: X3, G1, G2, V3
+- Confidence: medium: depends on B4 (Nav2 abort on a robot counts as walk deviation)
+- Alternative: X3 (basis B4)
+- Notes: alt_reading (only T3 command-leg codes in walk): X3 at 38.0. D4 is not in this FU's analyses_on_fu, so V3 at D4 for FU2 is not T1-verified; listed for information.
+
+### EV-c49058 FU1: U:no_m4_clock_anchor
+
+- Step: 7 (deciding X2 evidence unmapped)
+- Evidence: No decisions and no dispatched legs on the sheet (decisions [], legs [], fidelity rates 0/0); handled per 7.6 no-Layer-2 path (B6): step 1 not tripped by evidence_gate.decision_artifacts=False because no later step needs decisions; step 2 cannot fire (nothing dispatched). Step 3: T2(t0) True (robot_5 0.01 m); T1 used only as 'Layer-2 action available' (11/237 non-empty, fidelity unverifiable_in_bundle) so G7 not assignable, EG1 needs T2 false -> no. Step 4 (X only) from t0 17.173: no STALE >=10 s (robot_5 1.2 s), no Nav2 abort lines, no contacts (submargin only), X3 needs a completed command (none). X2 input present (robot_3 from 17.77 553 s, robot_4 from 17.87, robot_5 from 49.67, task traveling, no M4 leg) but safety_stop_cover_fraction 0.0 is computed against spans with from_rel None (clock 'U:no_m4_clock_anchor'; safety-stop spans for all 5 robots exist, ~130k lines each) so whether a Nav2 goal was active (latch-cancelled, B4) cannot be decided. Step 6: T1 never empty.
+- Event codes:
+  - t0 17.173: T1 Layer-2 action available: yes (11/237)
+  - X2 input robot_3/4/5: X2? (U:no_m4_clock_anchor for latch coverage)
+  - safety_stop_spans: U:no_m4_clock_anchor
+- Contributing: N0
+- Confidence: low-medium: depends on B6 (no-decision path) and B4 (latch coverage)
+- Alternative: X2 (basis B6/B4 (tool X2 input as given))
+- Notes: alt_reading_toolX2: X2 (tool X2 input as given, cover 0.0) at 17.77. alt_reading_gate: U:decision_artifacts_missing (step 1, if evidence_gate decision_artifacts False is read literally). N0 contributing per 7.6. Arm not inferred beyond empty decisions list. V1 not applicable by construction (7.6).
+
+### EV-c49058 FU2: U:no_m4_clock_anchor
+
+- Step: 7 (deciding X2 evidence unmapped)
+- Evidence: Same no-decision path as FU1 (B6). Step 3: T2(t0) True (robot_1 0.04 m); T1 29/88 non-empty (Layer-2 action available), not used for G7. Step 4 X-only from t0 54.673: no STALE, Nav2, contact (submargin only) or completed command. X2 input robot_1 from 54.67 (516 s), robot_2 from 54.77, cover 0.0 against unmapped safety-stop spans -> undecidable.
+- Event codes:
+  - X2 input robot_1/2: X2? (U:no_m4_clock_anchor)
+- Contributing: N0
+- Confidence: low-medium
+- Alternative: X2 (basis B6/B4 (tool X2 input as given))
+- Notes: alt_reading_toolX2: X2. alt_reading_gate: U:decision_artifacts_missing.
+
+### EV-b13ac7 FU1: X1
+
+- Step: 4
+- Evidence: Gate all True. chain.rubric=[] (D1 at 14.4 is after t0 12.24) -> step 2 not fired. Step 3: T2(t0) True; T1(t0) as written episode_gate_pass, 60/237 non-empty -> continue. Step 4 from t0: D1 (14.4) reverse involved [robot_3, robot_4], C1 False, vlm_verbatim match True, T1 D1 must-act intersection empty -> no V/G. D1:robot_3:reverse m4_terminal FAILED at 17.386 (moved 0.106, frac 0.082, not_executed) -> X1, first deviation.
+- Event codes:
+  - D1@14.4: none
+  - D1:robot_3:reverse FAILED 17.386: X1
+  - D1:robot_4:reverse COMPLETED 31.724; exempt cleared 31.725: X3 (r1-r3 from 17.24, r3-r4 38.94, r1-r2 40.94, r2-r5 72.74 to censoring)
+  - D2@33.467: G1 (withheld 'no shared lane'; C2 False; T2 True); G2
+  - nav2 robot_2 34.31: X2 (Nav2 abort)
+  - D3@37.467: V3 (named yielder robot_4 refused for room 0.00; T1 D3 yielders feasible robot_3, robot_5); G1; G2
+  - D4@41.7: V3 (reverser robot_4 / yielder robot_1 refused for room; T1 D4 others feasible); G1
+  - D5@45.867: V3 (reverser robot_4 refused for room; T1 D5 others feasible); G1; G6 (vlm_verbatim contradicted)
+  - D6@74.767: G1 (plan absent, withheld, T2 True)
+- Contributing: X3, X2, G1, G2, V3, G6
+- Confidence: high
+- Alternative: X1 (basis no deciding ambiguity)
+- Notes: X2 inputs latch-covered (>=0.985).
+
+### EV-a6761e FU1: U:T1_not_run
+
+- Step: 4 (deciding T1 absent at chain-start decision; B2)
+- Evidence: Gate all True. Step 2 fires: chain.rubric=[D1:robot_3:wait] (retreat-shield wait to FU robot robot_3), dispatched 12.0 (t0 12.073); walk from 12.0. D1: involved [robot_1, robot_4] misses FU robots robot_2, robot_3 (V2 non-T1 half met); D1 not in analyses_on_fu ([D2,D3,D4]) -> no T1 at D1. Same event grounding: G6_verbatim_contradicted True (vlm_verbatim, dispatch adds waits for robot_5/robot_3, dispatch_matches_plan False); G4 tag node_handoff robot_1->robot_4 present but dispatched yielder = decision yielder robot_1.
+- Event codes:
+  - D1@12.0: V2? (T1 not run); G6; handoff tag only, not G4 (B15)
+  - D1:robot_3:wait COMPLETED 68.0: X3 (r2-r3 close and stopped from 12.57 to censoring; r2+r3 never exempt)
+  - D2@71.1: G1 (withheld 'no executable retreat'; C2 False; T2(D2) True); G2 (m3_default with plan); no V3 (T1 D2 has no FU yielder in motion set)
+  - D3@75.533: G1; G2
+  - D4@101.467: G1; G2
+- Contributing: G6, X3, G1, G2
+- Confidence: medium: B2
+- Alternative: G6 (basis B2)
+- Notes: alt_reading2: G6 (D1 grounding). T1(t0) U:T1_fidelity (D1 as-written differs). X2 latch-covered.
+
+### EV-a6761e FU2: U:T1_not_run
+
+- Step: 4 (deciding T1 absent at chain-start decision; B2)
+- Evidence: Gate all True. Step 2 fires: chain.rubric=[D1:robot_1:backup, D1:robot_4:escort, D1:robot_4:wait, D1:robot_5:wait], dispatched 12.0 (t0 69.773, 57.8 s before); walk from 12.0. D1: involved [robot_1, robot_4] misses FU robot robot_5 (V2 non-T1 half); analyses_on_fu [] -> no T1 at D1. Same event grounding G6 (verbatim contradicted).
+- Event codes:
+  - D1@12.0: V2? (T1 not run); G6; handoff tag only, not G4 (B15)
+  - D1:robot_1:backup COMPLETED 67.999 (frac 1.142); escort COMPLETED 68.034: no X1
+  - after 68.116 exempt cleared: X3 (r1-r4 from 70.07, r1-r5 from 99.87 to censoring)
+  - FU-level: V1 (matched positives 0)
+- Contributing: G6, V1, X3
+- Confidence: medium: B2
+- Alternative: G6 (basis B2)
+- Notes: alt_reading2: G6 (D1). X2 latch-covered.
+
+### EV-a2cfc5 FU1: U:T1_not_run
+
+- Step: 4 (deciding T1 absent at chain-start decision; B2)
+- Evidence: Gate all True. Step 2 fires: chain.rubric=[D2:robot_2:reverse, D2:robot_4:reverse], dispatched 18.5 (t0 25.07); walk from 18.5. D2: reverse, involved [robot_2, robot_4] misses FU robots robot_1, robot_3, robot_5 (V2 non-T1 half met); D2 not in analyses_on_fu ([D3,D4]) -> no T1 row. D2 grounding clean (vlm_verbatim, C1 False, match True).
+- Event codes:
+  - D2@18.5: V2? (T1 not run)
+  - D2:robot_2:reverse COMPLETED 37.829: X3 (non-exempt pairs r3-r5 from 25.47, r3-r4 from 26.07 close and stopped to censoring; only r2+r4 exempt)
+  - D3@55.967: V3 (named yielders robot_5 0.00/robot_4 0.15 refused for room; T1 D3 FU yielders robot_1..5 feasible); G1 (T2 True, contract clean); G2
+  - D2:robot_4:reverse FAILED 62.481: X1 (deadline True, not_executed)
+  - D4@66.033: V3 (named reverser robot_5 refused for room 0.00; T1 D4 other reversers feasible); G1
+  - robot_1 STALE 66.4 (27.8 s) and later >=10 s spans: X4
+- Contributing: X3, V3, G1, G2, X1, X4
+- Confidence: medium: B2
+- Alternative: X3 (basis B2)
+- Notes: alt_reading2: X3 at 37.829 (first deviation after D2 if V2 not decided); if X3 is read as requiring the FU's own command pair, X1 at 62.481 follows D3's V3 at 55.967 -> V3. X2 latch-covered (>=0.974).
+
+### EV-830943 FU1: U:T1_not_run
+
+- Step: 4 (deciding T1 absent at chain-start decision; B2)
+- Evidence: Gate all True. Step 2 fires: chain.rubric=[D1:robot_1:backup, D1:robot_5:escort, D1:robot_5/3/4:wait], dispatched 15.433 (t0 22.803); walk from 15.433. D1: involved [robot_1, robot_5] misses FU robots robot_2, robot_3, robot_4 (V2 non-T1 half met); D1 not in analyses_on_fu ([D2,D3,D4]) -> no T1. Same event grounding G6 (vlm_verbatim contradicted True; retreat-shield waits added).
+- Event codes:
+  - D1@15.433: V2? (T1 not run); G6
+  - D1 legs COMPLETED 70.2: X3 (r2-r3 close and stopped from 23.3; r2-r4 81.3, r1-r2 84.0, r1-r5 102.3; exempt cleared 70.353)
+  - D2@74.667: G1 (withheld empty_reroute after yield infeasible; C2 False; T2 True); G2; no V3 (T1 D2 no FU yielder in motion set)
+  - D3@79.267: V4 (C3 True: no reroute leg on involved[0] robot_2); G6 (verbatim contradicted)
+  - nav2 robot_2 105.501: X2
+  - D3:robot_2:reroute FAILED 106.14: X1
+  - D4@104.633: G1; G2
+- Contributing: G6, X3, G1, G2, V4, X2, X1
+- Confidence: medium: B2
+- Alternative: G6 (basis B2)
+- Notes: alt_reading2: G6 (D1). X2 inputs latch-covered.
+
+### EV-80fb2a FU1: V1
+
+- Step: 4
+- Evidence: Gate all True. chain.rubric=[] (D2 dispatched 52.467, legs ended 109.5, >60 s before t0 148.937 and not executing at t0; end_window variant not used). Step 3: T2(t0) True; T1(t0) as written episode_gate_pass, 30/88 non-empty -> continue. Step 4 from t0: v1_input a33_matched_positive_analyses 0 and analyses_on_fu [] -> V1 (missed), placed at t0 (B8); no other analysis touches robot_2/robot_4 after t0.
+- Event codes:
+  - t0 148.937: V1
+  - 149.24: X3 (r2-r4 close and stopped to censoring after D2 commands completed 109.5; r2+r4 exempt cleared 109.49)
+- Contributing: X3
+- Confidence: medium: V1 timing in the walk (B8)
+- Alternative: U:no_deviation_found (basis B8)
+- Notes: alt_reading (V1 not a timed walk event; X3 needs a completion inside the walk): U:no_deviation_found; alt (X3 condition counts): X3. X2 latch-covered (1.0).
+
+### EV-80fb2a FU2: G4
+
+- Step: 4
+- Evidence: Gate all True. Step 2 fires: chain.rubric=[D4:robot_3:reverse, D4:robot_5:reverse], dispatched 133.667 (t0 162.237); walk from 133.667. D4 analysis: reverse, involved [robot_1, robot_3, robot_5] = FU (no V2), plan absent (C1 not evaluable), no room refusal (no V3) -> no V code; T1 not deciding. D4 grounding: G4_robots_dropped [robot_1], tag node_handoff robot_3->robot_1; dispatch reverses only robot_3, robot_5 -> G4.
+- Event codes:
+  - D4@133.667: G4 (robot_1 dropped)
+  - D4:robot_3:reverse contact rack/SW_south from 143.54: G5 (GT gap -0.0015 of commanded leg); EG2 (rack/SW_south undeclared)
+  - D4:robot_5:reverse COMPLETED 149.252: none
+  - D4:robot_3:reverse FAILED 171.656: X1 (deadline True, pinned_on_undeclared_box)
+  - nav2 robot_3 172.986: X2
+  - after 171.741: X3 (r1-r5 from 166.34, r1-r3 from 173.54 to censoring)
+  - D5@174.667: G1 (no shared lane; C2 False; T2(D5) True); G2
+- Contributing: G5, EG2, X1, X2, X3, G1, G2
+- Confidence: high
+- Alternative: G4 (basis no deciding ambiguity)
+- Notes: Earlier GT contact robot_3|rack/SW_west 20.84-49.84 (D1 leg, before walk) noted only.
+
+### EV-7e1fa5 FU1: X2
+
+- Step: 4
+- Evidence: Gate all True. chain.rubric=[] -> step 2 not fired. Step 3: T2(t0) True; T1(t0) episode_gate_pass 29/88 non-empty -> continue. Step 4 from t0 14.97: first event nav2 robot_4 '[follow_path] [ActionServer] Aborting handle.' at 14.978 (wall-mapped) -> X2 (Nav2 abort) on an FU robot (B4).
+- Event codes:
+  - nav2 robot_4 14.978: X2
+  - D1@16.567: G1 (withheld 'ambiguous lane'; C2 False; T2(D1) True); G2 (m3_default with plan); no V3 (not a room refusal)
+  - D2@20.4: G1 (reverse refused corridor-side, waits dispatched; C1 False; T2 True)
+  - D2 waits COMPLETED 29.85: X3 (r3-r4 close and stopped from 15.57 to censoring, no exempt pairs)
+  - D3@33.3, D4@59.867, D5@64.0: G1; G2
+- Contributing: G1, G2, X3
+- Confidence: low-medium: X2 at 0.008 s after t0 relies on wall->sim fit (residual noted in clock) and on B4
+- Alternative: G1 (basis B4)
+- Notes: alt_reading (Nav2 abort not a walk deviation, or ordered after D1 within clock residual): G1 (D1 16.567). X2 inputs safety_stop_cover 0.903 -> latch-covered per B4 threshold 0.9 (borderline).
+
+### EV-7e1fa5 FU2: V1
+
+- Step: 4
+- Evidence: Gate all True. chain.rubric=[]. Step 3: T2(t0) True; T1(t0) episode_gate_pass 2/88 non-empty -> continue. Step 4 from t0 30.67: v1_input matched positives 0, analyses_on_fu [] -> V1 at t0 (B8). Nav2 aborts of robot_1 at 16.6-16.7 precede t0 (outside walk).
+- Event codes:
+  - t0 30.67: V1
+- Contributing: none
+- Confidence: medium: B8
+- Alternative: U:no_deviation_found (basis B8)
+- Notes: alt_reading (V1 not timed): U:no_deviation_found (no command for robot_1/robot_5; X3 needs a completed command; X2 inputs cover 0.90/0.903 latch-covered borderline). If X2 inputs counted as given: X2 at 30.67+.
+
+### EV-7bf1e2 FU1: G2
+
+- Step: 4
+- Evidence: Gate all True. chain.rubric=[] -> no step 2. Step 3: T2(t0) True; T1(t0) episode_gate_pass 21/237 non-empty -> continue. Step 4 from t0 11.203: robot_1 STALE 5.57 s (<10 s, not X4); D2 (48.8) temporary_wait involved [robot_1, robot_2, robot_5] = FU, T1 D2 must-act intersection empty (no V2), no named yielder (no V3); grounding provenance m3_default with plan present (rejection 'repair distance exceeds bound 4'; mech flag G2_m3_default_with_plan True) -> G2.
+- Event codes:
+  - D2@48.8: G2
+  - D2 waits COMPLETED 58.79: X3 (r1-r5 from 11.9, r1-r2 from 28.6 close and stopped to censoring; no exempt)
+- Contributing: X3
+- Confidence: high
+- Alternative: G2 (basis no deciding ambiguity)
+- Notes: X2 inputs latch-covered (1.0).
+
+### EV-7bf1e2 FU2: U:T1_not_run
+
+- Step: 4 (deciding T1 absent at chain-start decision; B2/B9)
+- Evidence: Gate all True. Step 2 fires: chain.rubric=[D1:robot_3:backup, D1:robot_4:escort, D1:robot_4:wait], dispatched 13.767 (t0 63.803); walk from 13.767. D1: yield, named yielder robot_4 refused ('robot_4 has no retreat candidate surviving the sweep') and swapped to robot_3 -> V3 non-T1 half met (retreat-room refusal, B9); D1 not in analyses_on_fu ([D3]) -> no T1 at D1. Same event grounding G4 (yield_robot=sweep_regrounded robot_4->robot_3).
+- Event codes:
+  - D1@13.767: V3? (T1 not run); G4
+  - D1 legs COMPLETED 63.35/63.39: none
+  - after 63.381: X3 (r3-r4 close and stopped from 64.3 to censoring)
+  - D3@67.1: G1 (no shared lane; C2 False; T2 True); G2
+- Contributing: G4, X3, G1, G2
+- Confidence: medium: B2 and B9 (whether 'no retreat candidate surviving the sweep' is a room refusal)
+- Alternative: G4 (basis B2/B9)
+- Notes: alt_reading2: G4 (D1). If the sweep refusal is not 'for room', V3 non-T1 half unmet -> G4 primary.
+
+### EV-7bda3f FU1: G1
+
+- Step: 4
+- Evidence: Gate all True. chain.rubric=[]. Step 3: T2(t0) True; T1(t0) episode_gate_pass 61/237 -> continue. Step 4 from t0 12.277: D1 (14.267) reverse involved [robot_2, robot_3]; T1 D1 must-act intersection empty (no V2); refusal is corridor-side, not room (no V3, B9); C1 False. Grounding refused the reverse ('both robots outside the corridor on the same side') and dispatched waits; contract clean; T2(D1) True -> G1 (B10).
+- Event codes:
+  - D1@14.267: G1
+  - D1 waits COMPLETED 23.7: X3 (r2-r3 from 12.78, r3-r4 from 34.98 to censoring; no exempt FU pair)
+  - D2@27.2: G2 (m3_default with plan); V3? (named yielders robot_1/robot_2 refused for room; D2 not in this FU's analyses_on_fu, no T1)
+  - D4@81.333: V3 (yield_robot/reverser robot_2 refused for room 0.00; T1 D4 yielders robot_3, robot_4 feasible); G1
+  - D5@85.867: V4 (C1 True: reverse legs [robot_2] vs involved 3); V4j ('allowing robot_3 and robot_4 to proceed'); G4 (swap edit robot_2<->robot_4)
+  - D6@99.433: V3 (reverser robot_4 refused for room 0.15; T1 D6 other reversers feasible); G1; G6 (vlm_verbatim contradicted)
+  - censor: X6 (stop_flag)
+- Contributing: X3, G2, V3, V4, V4j, G4, G6, X6
+- Confidence: medium-high: depends on B10 (G1 for refusal converted to waits)
+- Alternative: G1 (basis no deciding ambiguity)
+- Notes: X2 inputs latch-covered (1.0).
+
+### EV-7bda3f FU2: G4
+
+- Step: 4
+- Evidence: Gate all True. Step 2 fires: chain.rubric=[D3:robot_5:backup, D3:robot_1:escort, D3:robot_1:wait], dispatched 36.567 (t0 81.177, 44.6 s before); walk from 36.567. D3: yield, involved [robot_1, robot_5] = FU (no V2); named yielder robot_1 re-grounded by heading ('dispatch yields robot_5, not robot_1 (grounding=heading_regrounded:robot_1->robot_5)'), not a room refusal (no V3); C2 False -> no V code, T1 not deciding. Grounding: swap edit + G4_role_change_tags heading_regrounded robot_1->robot_5 -> G4.
+- Event codes:
+  - D3@36.567: G4
+  - D3 legs COMPLETED 77.36 (frac 1.044 / 0.988): none
+  - after 77.398: X3 (r1-r5 close and stopped from 81.28 to censoring)
+  - FU-level: V1 (matched positives 0)
+  - censor: X6
+- Contributing: X3, V1, X6
+- Confidence: high
+- Alternative: G4 (basis no deciding ambiguity)
+- Notes: -
+
+### EV-6f1277 FU1: G1
+
+- Step: 4
+- Evidence: Gate all True. chain.rubric=[]. Step 3: T2(t0) True; T1(t0) episode_gate_pass 6/88 -> continue. Step 4 from t0 17.273: D1 (19.267) yield robot_5, C2 False; refusal 'no executable retreat' (room-type, B9) but T1 D1 shows no other FU robot (robot_4) feasible as yielder -> no V3; no V2. Grounding withheld refusal_no_action; contract clean; T2(D1) True -> G1; same event also G2 (m3_default with plan). Within-class tie G1/G2 resolved to the lower code (B13).
+- Event codes:
+  - D1@19.267: G1; G2
+  - D2@23.767, D3@27.933, D4@64.433: G1; G2
+  - D5@68.667: G1 (reverse refused corridor-side, waits; C1 False; T2 True)
+  - D5 waits COMPLETED 78.33: X3 (r4-r5 close and stopped from 17.77 to censoring; no exempt)
+  - D6@81.467, D7@124.633: G1; G2
+- Contributing: G2, X3
+- Confidence: medium-high (G1 vs G2 tie convention B13)
+- Alternative: G2 (basis B13)
+- Notes: X2 inputs cover 0.96 -> latch-covered.
+
+### EV-6f1277 FU2: V1
+
+- Step: 4
+- Evidence: Gate all True. chain.rubric=[]. Step 3: T2(t0) True; T1(t0) episode_gate_pass 80/237 -> continue. Step 4 from t0 23.473: v1_input matched positives 0, analyses_on_fu [] -> V1 at t0 (B8). No command dispatched to robot_1/2/3.
+- Event codes:
+  - t0 23.473: V1
+  - D5 waits (robot_4/robot_5) COMPLETED 78.33: not this FU's event -> no X3 (B11 revised)
+- Contributing: none
+- Confidence: medium: B8
+- Alternative: U:no_deviation_found (basis B8)
+- Notes: alt_reading (V1 not timed): U:no_deviation_found. Under B11-literal (any completion), X3. X2 inputs cover 0.955-0.964 latch-covered.
+
+### EV-69a2ea FU1: U:no_m4_clock_anchor
+
+- Step: 7 (deciding X2 evidence unmapped)
+- Evidence: No decisions and no legs (fidelity rates 0/0); 7.6 no-Layer-2 path (B6). Step 2 cannot fire. Step 3: T2(t0) True (robot_1 0.06 m @45); T1 5/88 non-empty used only as 'Layer-2 action available'; no EG1. Step 4 X-only from t0 15.97: STALE robot_1 0.7 s only, no Nav2 abort, no contact, no completed command (no X3). X2 input robot_1 from 16.37 (554 s), robot_4 from 16.57, cover 0.0 computed against unmapped safety-stop spans (clock U:no_m4_clock_anchor) -> undecidable (B4).
+- Event codes:
+  - X2 input robot_1/robot_4: X2? (U:no_m4_clock_anchor)
+- Contributing: N0
+- Confidence: low-medium
+- Alternative: X2 (basis B6/B4 (tool X2 input as given))
+- Notes: alt_reading_toolX2: X2. alt_reading_gate: U:decision_artifacts_missing (evidence_gate.decision_artifacts False).
+
+### EV-69a2ea FU2: U:no_m4_clock_anchor
+
+- Step: 7 (deciding X2 evidence unmapped)
+- Evidence: Same no-decision path (B6). Step 3: T2(t0) True; T1 97/237 non-empty (Layer-2 action available). Step 4 X-only from t0 19.57: no STALE >=10 s, Nav2, contact or completed command. X2 input robot_2/robot_3 from 19.47, robot_5 from 21.87, cover 0.0 against unmapped spans -> undecidable.
+- Event codes:
+  - X2 input robot_2/3/5: X2? (U:no_m4_clock_anchor)
+- Contributing: N0
+- Confidence: low-medium
+- Alternative: X2 (basis B6/B4 (tool X2 input as given))
+- Notes: alt_reading_toolX2: X2. alt_reading_gate: U:decision_artifacts_missing.
+
+### EV-62b8d0 FU1: U:T1_not_run
+
+- Step: 4 (deciding T1 absent at chain-start decision; B2)
+- Evidence: Gate all True. Step 2 fires: chain.rubric=[D1:robot_1:backup, D1:robot_4:escort, D1:robot_4:wait], dispatched 11.4 (t0 23.607); walk from 11.4. D1: yield, involved [robot_1, robot_4] misses FU robots robot_2, robot_3, robot_5 (V2 non-T1 half met); D1 not in analyses_on_fu ([D3,D4]) -> no T1 at D1. D1 grounding: vlm_verbatim, match True, G6 False; only a node_handoff robot_1->robot_4 tag (dispatched yielder = decision yielder robot_1).
+- Event codes:
+  - D1@11.4: V2? (T1 not run); G4? (handoff tag only)
+  - D1:robot_4:escort: escort_not_admitted - not coded
+  - D1:robot_1:backup FAILED 48.278: X1 (deadline True, frac 0.668)
+  - D2@51.567: V4 (C1 True: reverse legs [robot_4] vs involved [robot_4, robot_5]); V4j ('open up space for robot_5 to continue'); G4 (G4_robots_dropped robot_4; reverse given to robot_5)
+  - D3@59.733: V4 (C1 True); V4j ('create space for robot 1, 2, and 3 to safely proceed'); G4 (robots dropped robot_2, robot_5; rear_exempt); G6
+  - D3:robot_1:reverse contact rack/NW_west 67.51: G5 (GT gap -0.0 on commanded leg); EG2 (undeclared rack)
+  - D3:robot_1:reverse FAILED 94.556: X1
+  - after legs; exempt cleared 94.583: X3 (r1-r2 69.71, r2-r5 73.11, r3-r5 82.31, r2-r4 89.41 to censoring; r2-r5 non-exempt after 69.438)
+  - D4@99.4: V3 (named yielder robot_2 / reverser robot_4 refused for room 0.00; T1 D4 other FU robots feasible); G1
+- Contributing: X1, X3, V4, V4j, G4, G6, G5, EG2, V3, G1
+- Confidence: medium: B2
+- Alternative: X1 (basis B2)
+- Notes: alt_reading2: X1 (D1:robot_1:backup FAILED 48.278), or G4 if the handoff tag alone counts. Stale-span key 'robot_17' (0.0-1.067 s) present on sheet; looks like a data artefact, not used. X2 inputs cover 0.94 latch-covered.
+
+### EV-52a0c3 FU1: U:T1_fidelity
+
+- Step: 3 (T1(t0) U, deciding; rule 7 U clause)
+- Evidence: Gate all True. chain.rubric=[] (D1 dispatched 13.667, after t0 12.17). Step 3: T2(t0) True; T1(t0) as written 'U:T1_fidelity' (episode as_written usable False; D1 as-written differs) -> G7-vs-continue undecidable.
+- Event codes:
+  - nav2 robot_1 12.189: X2 (Nav2 abort)
+  - D1@13.667: V2? (involved [robot_2, robot_5] misses robot_1/3/4; T1 D1 as written U:T1_fidelity); G4 (swap/node_handoff_regrounded robot_5->robot_2)
+  - D1:robot_5:escort: moved 0.0, window censored, no terminal - not coded X1 (no FAILED/timeout line)
+  - D1 legs COMPLETED 94.9; exempt cleared 94.943: X3 (r1-r5 from 16.97, r1-r3 98.47, r3-r4 100.67, r2-r5 112.67 to censoring)
+  - D3@102.867: none (temporary_wait, plan absent)
+  - D4@115.667: V3 (named yielder robot_1 refused for room 0.00; T1 D4 other yielders feasible); G1
+- Contributing: X2, G4, X3, V3, G1
+- Confidence: medium: B2
+- Alternative: X2 (basis B2)
+- Notes: alt_reading2: X2 (nav2 robot_1 abort at 12.189, first walk event after t0, B4); if Nav2 not counted: D1 (V2 vs G4, T1 at D1 U:T1_fidelity -> U again) . X2 inputs latch-covered.
+
+### EV-478db7 FU1: X3
+
+- Step: 4
+- Evidence: Gate all True. chain.rubric=[]. Step 3: T2(t0) True; T1(t0) episode_gate_pass 10/237 -> continue. Step 4 from t0 15.307: D1 (16.933) temporary_wait involved [robot_2, robot_4] (misses robot_3 but T1 D1 must-act intersection empty -> no V2); grounding repaired cross->wait, dispatched temporary_wait = decision strategy, no G flags. D1 waits COMPLETED 26.344; pair robot_2-robot_4 close and stopped from 16.01 to censoring (non-exempt) -> X3 at 26.344.
+- Event codes:
+  - D1@16.933: none
+  - D1 waits COMPLETED 26.344: X3
+  - D3@70.0: V3 (named yielder robot_3 / reverser robot_4 refused for room; T1 D3 FU yielders robot_2..4 feasible); G1 (T2 True, contract clean)
+  - D4@110.633: V3 (reverser robot_4 refused for room 0.15; other reversers feasible); G1; G6
+  - D5@114.3: G1 (plan absent)
+  - D6@168.4: V3 (reversers robot_4/robot_3 refused for room); G1
+  - censor: X6 (stop_flag)
+- Contributing: V3, G1, G6, X6
+- Confidence: medium: depends on B14 (a wait leg completing counts as "a command completes" for X3)
+- Alternative: V3 (basis B14)
+- Notes: X2 inputs latch-covered. alt_B14 (only backup/reverse/escort legs count): V3 at D3 70.0.
+
+### EV-41a9d4 FU1: U:T1_not_run
+
+- Step: 4 (deciding T1 absent at chain-start decision; B2)
+- Evidence: Gate all True. Step 2 fires: chain.rubric=[D1:robot_3:reverse, D1:robot_4:reverse], dispatched 13.2 (t0 22.073); walk from 13.2. D1: reverse, involved [robot_3, robot_4] misses FU robot robot_2 (V2 non-T1 half met); D1 not in analyses_on_fu ([D2,D4]) -> no T1. D1 grounding clean (vlm_verbatim, C1 False, match True).
+- Event codes:
+  - D1@13.2: V2? (T1 not run)
+  - D1:robot_3:reverse FAILED 48.913 / D1:robot_4:reverse FAILED 48.948: X1 (deadline True)
+  - D2@52.967: V4 (C3 True: no reroute leg on involved[0] robot_1); G6 (vlm_verbatim contradicted; reroute with empty waypoints to robot_1)
+  - D2 waits COMPLETED 70.99: X3 (r2-r3 close and stopped from 22.37, r2-r4 from 122.17 to censoring; exempt cleared 48.966)
+  - D4@163.4: G1 (withheld; T2 True; contract clean); G2; no V3 (named yielder robot_1 not in FU1; T1 D4 no FU yielder)
+- Contributing: X1, V4, G6, X3, G1, G2
+- Confidence: medium: B2
+- Alternative: X1 (basis B2)
+- Notes: alt_reading2: X1 (D1 legs FAILED 48.913). X2 inputs latch-covered (>=0.973).
+
+### EV-41a9d4 FU2: U:T1_not_run
+
+- Step: 4 (deciding T1 absent at chain-start decision; B2)
+- Evidence: Gate all True. Step 2 fires: chain.rubric=[D3:robot_1:backup], dispatched 76.733 (t0 135.073, 58.3 s before; also executing at t0, ends 157.45); walk from 76.733. D3: yield, involved [robot_1, robot_4] misses FU robot robot_5 (V2 non-T1 half met); analyses_on_fu [] -> no T1 at D3. D3 grounding clean (vlm_verbatim, match True).
+- Event codes:
+  - D3@76.733: V2? (T1 not run)
+  - robot_1 STALE 20.733-82.067 (61.33 s): X4 (span starts before walk start, ongoing at 76.733)
+  - t0 135.073: V1 (matched positives 0)
+  - D3:robot_1:backup COMPLETED 157.45 (frac 1.134); exempt cleared 157.482: X3 (r1-r5 close and stopped from 135.27 to censoring)
+  - D4@163.4: G1; G2
+- Contributing: X4, V1, X3, G1, G2
+- Confidence: medium: B2
+- Alternative: V1 (basis B2 (with B16, B8))
+- Notes: alt_reading2: X4 if the STALE span ongoing at walk start counts as a walk event; else V1 at t0 (B8); else X3 at 157.45. chain end_window variant (D2:robot_1:reroute) not used. Sheet has stale key 'robot_17' (artefact, ignored). Per B16 the STALE span starting before the walk is not a walk event, so reading 2 gives V1 at t0.
+
+### EV-3e6d9b FU1: U:no_m4_clock_anchor
+
+- Step: 7 (deciding X2 evidence unmapped)
+- Evidence: No decisions, no legs (rates 0/0); 7.6 no-Layer-2 path (B6). Step 3: T2(t0) True (robot_5 0.12 m @180; robot_1 start within clearance); T1 31/88 non-empty (Layer-2 action available only); no EG1. Step 4 X-only from t0 14.27: Nav2 abort line robot_1 '[compute_path_to_pose] ... Aborting handle.' has rel None (wall clock unmapped, U:no_m4_clock_anchor) so it cannot be placed in the walk; X2 input robot_1 from 14.67, robot_5 from 14.87 with cover 0.0 against unmapped safety-stop spans. No STALE, contact or completed command.
+- Event codes:
+  - nav2 robot_1 (rel None): X2? (U:no_m4_clock_anchor)
+  - X2 input robot_1/robot_5: X2? (U:no_m4_clock_anchor)
+- Contributing: N0
+- Confidence: low-medium
+- Alternative: X2 (basis B6/B4 (tool X2 input as given))
+- Notes: alt_reading_toolX2: X2 (tool X2 input as given). alt_reading_gate: U:decision_artifacts_missing.
+
+### EV-3e6d9b FU2: U:no_m4_clock_anchor
+
+- Step: 7 (deciding X2 evidence unmapped)
+- Evidence: Same no-decision path (B6). Step 3: T2(t0) True; T1 69/237 non-empty (Layer-2 action available). Step 4 X-only from t0 20.57: no STALE, Nav2 line, contact or completed command for robot_2/3/4. X2 input robot_2/3 from 20.67, robot_4 from 27.97, cover 0.0 against unmapped spans -> undecidable.
+- Event codes:
+  - X2 input robot_2/3/4: X2? (U:no_m4_clock_anchor)
+- Contributing: N0
+- Confidence: low-medium
+- Alternative: X2 (basis B6/B4 (tool X2 input as given))
+- Notes: alt_reading_toolX2: X2. alt_reading_gate: U:decision_artifacts_missing.
+
+### EV-37a70e FU1: U:T1_not_run
+
+- Step: 4 (deciding T1 absent at chain-start decision; B2)
+- Evidence: Gate all True. Step 2 fires: chain.rubric=[D2:robot_4:backup], dispatched 30.0 (t0 36.573); walk from 30.0. D2: yield, involved [robot_4, robot_5] misses FU robots robot_2, robot_3 (V2 non-T1 half met); D2 not in analyses_on_fu ([D4,D5,D8,D9]) -> no T1. D2 grounding vlm_verbatim, match True, only node_handoff tag (yielder unchanged).
+- Event codes:
+  - D2@30.0: V2? (T1 not run); G4? (handoff tag only)
+  - robot_2 GT contact obstacle_1 from 35.97 to censoring: X5 (robot_2 not commanded; not a G5 leg)
+  - D2:robot_4:backup contact obstacle_1 39.87-74.27: G5 (GT gap -0.0057 on commanded leg; pinned_on_declared_box)
+  - D2:robot_4:backup FAILED 72.33: X1 (deadline True)
+  - after 72.375 exempt cleared: X3 (r2-r3 from 36.77, r2-r4 from 133.27 to censoring)
+  - D4@95.767, D5@108.833, D8@136.533: none (temporary_wait)
+  - D9@149.767: V3 (named yielder robot_4 refused for room 0.00; T1 D9 yielder robot_2 feasible); G1; G2
+- Contributing: X5, G5, X1, X3, V3, G1, G2
+- Confidence: medium: B2
+- Alternative: X5 (basis B2)
+- Notes: alt_reading2: X5 (robot_2 contact at 35.97, first walk deviation after D2). X2 inputs latch-covered.
+
+### EV-37a70e FU2: V4
+
+- Step: 4
+- Evidence: Gate all True. Step 2 fires: chain.rubric=[D3:robot_1:reverse, D3:robot_5:reverse], dispatched 76.3 (t0 101.873); walk from 76.3. D3: reverse, involved [robot_1, robot_5], plan reverse legs [robot_1] (robot_5 wait) -> C1 True -> V4. T1 not deciding (involved = FU, no refusal).
+- Event codes:
+  - D3@76.3: V4 (C1 True); G6 (vlm_verbatim contradicted: dispatch reverses robot_5 too); V4j not flagged (justification says both 'resume their paths', not that robot_5 continues under reverse)
+  - D3 legs COMPLETED 91.9/92.0: none
+  - after 92.08 exempt cleared: X3 (r1-r5 close and stopped from 102.07 to censoring)
+  - robot_1 STALE 186.367 (27.47 s) and later >=10 s: X4
+  - FU-level: V1 (matched positives 0)
+- Contributing: G6, X3, X4, V1
+- Confidence: high
+- Alternative: V4 (basis no deciding ambiguity)
+- Notes: V4j reading recorded for reconciliation: rater B reads no V4j.
+
+### EV-35eb04 FU1: X3
+
+- Step: 4
+- Evidence: Gate all True. chain.rubric=[]. Step 3: T2(t0) True; T1(t0) episode_gate_pass 13/237 -> continue. Step 4 from t0 17.373: D1 (19.3) temporary_wait involved [robot_3, robot_4]; T1 D1 must-act intersection empty (no V2); grounding repaired (cross->wait), dispatched temporary_wait = decision strategy, no G flags. D1 waits COMPLETED 29.008; pair robot_3-robot_4 close and stopped from 17.87 to censoring, no exempt pairs -> X3 at 29.008.
+- Event codes:
+  - D1@19.3: none
+  - D1 waits COMPLETED 29.008: X3
+  - D2@32.667, D3@39.433: G1 (no shared lane; C2 False; T2 True); G2
+  - D6@56.767: none
+  - D7@69.7: V3 (named yielder robot_5 refused for room 0.00; T1 D7 yielder robot_1 feasible); G1; G2
+  - D8@75.633: G1 (strategy=unsupported:priority_override -> waits; T2 True)
+  - D9@88.9: G1 (strategy=unsupported:convoy -> waits)
+  - D10@102.467: none
+  - D11@115.833: V3 (named yielders robot_5/robot_1 refused for room; T1 D11 other FU yielder feasible); G1
+- Contributing: G1, G2, V3
+- Confidence: medium: depends on B14 (a wait leg completing counts as "a command completes" for X3)
+- Alternative: G1 (basis B14)
+- Notes: X2 inputs cover 0.916 latch-covered. alt_B14 (only backup/reverse/escort legs count): G1 at D2 32.667 (G2 same event).
+
+### EV-359e3d FU1: X5
+
+- Step: 4
+- Evidence: Gate all True. chain.rubric=[] (D1 at 14.0 is after t0 12.27). Step 3: T2(t0) True; T1(t0) episode_gate_pass 120/237 -> continue. Step 4 from t0: D1 (14.0) yield involved [robot_1, robot_4]; T1 D1 must-act intersection empty (no V2); not refused (no V3); grounding vlm_verbatim match True, no G flags. Next: GT contact robot_5|box:obstacle_1 26.47-28.77, min gap 0.0032 m (< 0.005); robot_5 had no commanded leg -> not attributable to a G5 leg -> X5 (B4: GT contact counted as walk deviation).
+- Event codes:
+  - D1@14.0: none
+  - GT contact robot_5|obstacle_1 26.47: X5
+  - D1:robot_4:escort: escort_not_admitted - not coded
+  - D1:robot_1:backup FAILED 70.695: X1 (deadline True, though moved frac 1.141)
+  - after 70.81 exempt cleared: X3 (r3-r4 from 20.57, r3-r5 from 33.27 to censoring)
+  - D3@87.333: G6 (vlm_verbatim contradicted; reroute with empty waypoints to robot_3, others waits)
+  - D3:robot_3:reroute FAILED 110.892: X1
+  - D4@111.833: V3 (named yielder robot_5 refused for room 0.00; T1 D4 other FU yielders feasible); G1
+- Contributing: X1, X3, G6, V3, G1
+- Confidence: medium: depends on B4 (X5 on a non-commanded robot counts in the walk)
+- Alternative: X1 (basis B4)
+- Notes: alt_reading (only command-leg X codes in walk): X1 at 70.695. X2 inputs latch-covered. Stale key 'robot_17' artefact ignored.
+
+### EV-359e3d FU2: U:T1_not_run
+
+- Step: 4 (deciding T1 absent at chain-start decision; B2)
+- Evidence: Gate all True. Step 2 fires: chain.rubric=[D1:robot_1:backup], dispatched 14.0 (t0 50.67; executing at t0); walk from 14.0. D1: yield, involved [robot_1, robot_4] misses FU robot robot_2 (V2 non-T1 half met); D1 not in analyses_on_fu ([D2]) -> no T1. D1 grounding clean.
+- Event codes:
+  - D1@14.0: V2? (T1 not run)
+  - D1:robot_1:backup FAILED 70.695: X1 (deadline True)
+  - after 70.81: X3 (r1-r2 close and stopped from 50.87 to censoring)
+  - D2@73.7: G1 (reverse refused corridor-side, waits; C1 False; T2(D2) True)
+- Contributing: X1, X3, G1
+- Confidence: medium: B2
+- Alternative: X1 (basis B2)
+- Notes: alt_reading2: X1 (70.695).
+
+### EV-344706 FU1: U:T1_not_run
+
+- Step: 4 (deciding T1 absent at chain-start decision; B2)
+- Evidence: Gate all True. Step 2 fires: chain.rubric=[D13:robot_1:backup], dispatched 218.167 (t0 245.307; executing at t0); walk from 218.167. D13: yield, involved [robot_1, robot_4, robot_3] misses FU robots robot_2, robot_5 (V2 non-T1 half met); D13 not in analyses_on_fu ([D14]) -> no T1 at D13. Same event grounding G4 (swap robot_4<->robot_1, 'robot_4 is off the dynamic lane'; node_handoff tags). Named yielder re-grounding is lane-based, not room (V3 non-T1 half not met).
+- Event codes:
+  - D13@218.167: V2? (T1 not run); G4
+  - D13:robot_3:escort: escort_not_admitted - not coded
+  - D13:robot_1:backup FAILED 256.036: X1 (deadline True; moved frac 1.043)
+  - after 256.079 exempt cleared: X3 (r1-r2 from 245.71, r1-r5 from 268.71 to censoring)
+  - D14@266.333: V3 (named reversers robot_2 0.00 / robot_1 0.15 refused for room; T1 D14 other FU reverser feasible); G1 (T2(D14) True; contract clean)
+  - censor: X6 (stop_flag)
+- Contributing: G4, X1, X3, V3, G1, X6
+- Confidence: medium: B2
+- Alternative: G4 (basis B2)
+- Notes: alt_reading2: G4 (D13). Chain end_window variant (D12 legs) not used. X2 input robot_1 72.21-135.71 is before the walk.
+
+### EV-3233e2 FU1: U:no_m4_clock_anchor
+
+- Step: 7 (deciding X2 evidence unmapped)
+- Evidence: No decisions, no legs (rates 0/0); 7.6 no-Layer-2 path (B6). Step 3: T2(t0) True (robot_1 0.05 m; robot_2 starts within clearance); T1 33/237 non-empty (Layer-2 action available); no EG1. Step 4 X-only from t0 11.773: STALE robot_1 2.47 s only, no Nav2, no contact (submargin only), no completed command. X2 input robot_1 from 12.07, robot_2 from 28.17, robot_5 from 12.17; cover 0.0 against unmapped safety-stop spans -> undecidable.
+- Event codes:
+  - X2 input robot_1/2/5: X2? (U:no_m4_clock_anchor)
+- Contributing: N0
+- Confidence: low-medium
+- Alternative: X2 (basis B6/B4 (tool X2 input as given))
+- Notes: alt_reading_toolX2: X2. alt_reading_gate: U:decision_artifacts_missing.
+
+### EV-3233e2 FU2: U:no_m4_clock_anchor
+
+- Step: 7 (deciding X2 evidence unmapped)
+- Evidence: Same no-decision path (B6). Step 3: T2(t0) True; T1 33/88 non-empty. Step 4 X-only from t0 12.073: no STALE, Nav2, contact or completed command. X2 input robot_3 from 12.17, robot_4 from 12.07, cover 0.0 against unmapped spans.
+- Event codes:
+  - X2 input robot_3/4: X2? (U:no_m4_clock_anchor)
+- Contributing: N0
+- Confidence: low-medium
+- Alternative: X2 (basis B6/B4 (tool X2 input as given))
+- Notes: alt_reading_toolX2: X2. alt_reading_gate: U:decision_artifacts_missing.
+
+### EV-2c719b FU1: G1
+
+- Step: 4
+- Evidence: Gate all True. chain.rubric=[]. Step 3: T2(t0) True; T1(t0) episode_gate_pass 7/237 -> continue. Step 4 from t0 12.74 over this FU's events: robot_5 STALE 1.63 s (not X4); D2 (35.4) junction_clear involved [robot_1, robot_3] (misses robot_5, but T1 D2 must-act intersection empty -> no V2); named yielder robot_3 refused for room (0.15 < 0.77) but T1 D2 shows no FU robot feasible as yielder -> no V3. Grounding withheld refusal_no_action, contract clean, T2(D2) True -> G1 (also G2 on same event; B13).
+- Event codes:
+  - D2@35.4: G1; G2 (m3_default with plan)
+  - D7@91.6: V3 (named reverser robot_4 refused for room 0.00; T1 D7 FU reversers robot_1/3/5 feasible); G1
+- Contributing: G2, V3
+- Confidence: medium-high
+- Alternative: X3 (basis B11)
+- Notes: D1 legs (robot_2, robot_4) are not this FU's events, so their completion does not trigger X3 here (B11 revised). X2 inputs latch-covered.
+
+### EV-2c719b FU2: G5
+
+- Step: 4
+- Evidence: Gate all True. Step 2 fires: chain.rubric=[D1:robot_2:reverse, D1:robot_4:reverse], dispatched 13.233 (t0 40.44); walk from 13.233. D1: reverse, involved [robot_2, robot_4] = FU, C1 False, vlm_verbatim match True -> no V/G. D1:robot_2:reverse contacts_in_window box:rack/NW_north [28.44, 32.24], min static gap -0.0015 m; GT contact robot_2|rack/NW_north 27.24-33.94 -> recomputed GT gap of a commanded leg < 0.005 m -> G5.
+- Event codes:
+  - D1@13.233: none
+  - D1:robot_2:reverse contact 27.24: G5; EG2 (rack/NW_north undeclared)
+  - D1 legs COMPLETED 29.06/32.29 (leg completed despite contact): none
+  - after 32.297 exempt cleared: X3 (r2-r4 close and stopped from 40.94 to censoring)
+  - D3@39.467: G2; G1? (no T2 row at D3 snapshot for this FU)
+  - robot_2 STALE 42.333 (140.77 s) and later: X4
+  - D7@91.6: V3 (T1 D7 not computed for this FU; listed from FU1 row); G1
+  - FU-level: V1 (matched positives 0)
+- Contributing: EG2, X3, G1, G2, X4, V3, V1
+- Confidence: high
+- Alternative: G5 (basis no deciding ambiguity)
+- Notes: -
+
+### EV-298037 FU1: U:T1_fidelity
+
+- Step: 3 (T1(t0) U, deciding; rule 7 U clause)
+- Evidence: Gate all True. chain.rubric=[]. Step 3: T2(t0) True (robot_5 0.01 m); T1(t0) as written 'U:T1_fidelity' (episode as_written usable False; D2 as-written differs) -> G7-vs-continue undecidable.
+- Event codes:
+  - robot_5 STALE 57.733 (11.27 s), 72.333 (44.7 s) and later: X4
+  - D3@75.5: V3 (named yielder robot_2 refused for room 0.58 < 0.74; T1 D3 FU yielders robot_3, robot_5 feasible); G4 (swap robot_2<->robot_3; node_handoff_regrounded)
+  - D3:robot_3:backup COMPLETED 195.844; exempt cleared 195.854: X3 (r2-r5 from 22.57, r3-r5 from 204.57 to censoring)
+  - D4@199.0: V3 (named yielder robot_5 refused 'no executable retreat' (B9); T1 D4 yielders robot_2, robot_3); G1; G2
+  - D5@206.667: V3 (reverser robot_5 refused for room 0.00; T1 D5 other reversers feasible); G1
+- Contributing: X4, V3, G4, X3, G1, G2
+- Confidence: medium: B2
+- Alternative: X4 (basis B2)
+- Notes: alt_reading2: X4 (robot_5 STALE 11.27 s from 57.733, first walk deviation from t0). +intents T1(t0): episode_gate_pass 96/237.
+
+### EV-298037 FU2: V1
+
+- Step: 4
+- Evidence: Gate all True. Step 2 fires: chain.rubric=[D2:robot_1:backup, D2:robot_4:escort, D2:robot_4:wait], dispatched 22.4 (t0 72.673); walk from 22.4. D2: yield, involved = FU, plan absent (m3_default without plan -> not G2), not refused, dispatch matches -> no V/G. Legs COMPLETED 71.655/71.695 (frac 1.039/0.995) -> no X1. At t0 72.673: v1_input a33_matched_positive_analyses 0 -> V1 (placed at t0, B8), before the X3 condition at 72.97 (pair robot_1-robot_4 close and stopped from 72.97, exempt cleared 71.71).
+- Event codes:
+  - D2@22.4: none
+  - D2 legs COMPLETED 71.7: none
+  - t0 72.673: V1
+  - 72.97: X3
+- Contributing: X3
+- Confidence: medium: B8
+- Alternative: X3 (basis B8)
+- Notes: Recoded from X3 to V1 at hand-back review for consistency with B8 (V1 placed at t0 precedes X3 at 72.97). alt (V1 not timed): X3. D1 (18.267) precedes the chain start.
+
+### EV-295a3e FU1: U:T1_not_run
+
+- Step: 4 (deciding T1 absent at chain-start decision; B2)
+- Evidence: Gate all True. Step 2 fires: chain.rubric=[D1:robot_2:backup, D1:robot_3:escort, D1 waits], dispatched 13.8 (t0 65.07, 51.3 s before); walk from 13.8. D1: yield, involved [robot_2, robot_3] misses FU robots robot_1/4/5 (V2 non-T1 half) and named yielder robot_3 refused ('no retreat candidate surviving the sweep', B9) and swapped to robot_2 (V3 non-T1 half); D1 not in analyses_on_fu ([D2..D9]) -> no T1 at D1. Same event grounding G4 (yield_robot=sweep_regrounded robot_3->robot_2).
+- Event codes:
+  - D1@13.8: V2?/V3? (T1 not run); G4
+  - D1:robot_2:backup COMPLETED 94.114: X3 (r1-r3 close and stopped from 65.67 to censoring, non-exempt; r2-r3 100.97, r2-r4 133.57, r3-r5 267.07)
+  - D2@100.133: none (reverse, verbatim, C1 False)
+  - D2:robot_5:reverse contact rack/SW_west 111.37: G5 (GT gap -0.0017 on commanded leg); EG2 (undeclared rack)
+  - D1:robot_3:escort FAILED 114.801 (timed out): X1
+  - D2:robot_5:reverse FAILED 135.842: X1 (deadline)
+  - nav2 robot_5 136.806, 174.9: X2
+  - D3@141.067: V3 (named reversers robot_4/robot_2 refused for room 0.15; T1 D3 other reversers feasible); G1
+  - D4@145.1: V3 (named yielder robot_3 refused for room 0.15; T1 D4 other yielders feasible); G1
+  - D5@149.6: G1
+  - robot_5 GT contact obstacle_1 155.67: X5 (no robot_5 commanded leg active)
+  - D6@183.267: V3 (named yielder robot_2 sweep-refused; T1 D6 yielders feasible); G4 (swap)
+  - D6:robot_2:escort: not executed, window censored - not X1
+  - D7@261.6: G1; G2
+  - D8@266.033: none
+  - D9@279.367: V3 (named yielder robot_5 refused for room 0.15); G1; G2
+- Contributing: G4, X3, G5, EG2, X1, X2, V3, G1, X5, G2
+- Confidence: medium: B2
+- Alternative: G4 (basis B2)
+- Notes: alt_reading2: G4 (D1). T1(t0) as written and +intents both U:T1_fidelity (not used; step 3 skipped). X2 inputs latch-covered.
+
+### EV-133a4a FU1: U:no_m4_clock_anchor
+
+- Step: 7 (deciding X2 evidence unmapped)
+- Evidence: No decisions, no legs (rates 0/0); 7.6 no-Layer-2 path (B6). Step 3: T2(t0) True (robot_3 0.08 m @45); T1 29/88 non-empty (Layer-2 action available); no EG1. Step 4 X-only from t0 14.67: no STALE, Nav2, contact or completed command. X2 input robot_3 from 15.07, robot_4 from 15.17 (557 s), cover 0.0 against unmapped safety-stop spans -> undecidable.
+- Event codes:
+  - X2 input robot_3/4: X2? (U:no_m4_clock_anchor)
+- Contributing: N0
+- Confidence: low-medium
+- Alternative: X2 (basis B6/B4 (tool X2 input as given))
+- Notes: alt_reading_toolX2: X2. alt_reading_gate: U:decision_artifacts_missing.
+
+### EV-133a4a FU2: U:no_m4_clock_anchor
+
+- Step: 7 (deciding X2 evidence unmapped)
+- Evidence: Same no-decision path (B6). Step 3: T2(t0) True; T1 2/88 non-empty. Step 4 X-only from t0 30.37: nothing besides X2 input robot_1 from 30.47, robot_5 from 35.27, cover 0.0 against unmapped spans.
+- Event codes:
+  - X2 input robot_1/5: X2? (U:no_m4_clock_anchor)
+- Contributing: N0
+- Confidence: low-medium
+- Alternative: X2 (basis B6/B4 (tool X2 input as given))
+- Notes: alt_reading_toolX2: X2. alt_reading_gate: U:decision_artifacts_missing. FU3 lone stall (robot_2) is a parked-finished robot: not an FU (listed separately).
+
+### EV-0bdad6 FU1: U:T1_not_run
+
+- Step: 4 (deciding T1 absent at chain-start decision; B2)
+- Evidence: Gate all True. Step 2 fires: chain.rubric=[D1:robot_1:backup, D1:robot_4:escort, D1:robot_4/5:wait], dispatched 12.367 (t0 69.04, 56.7 s before); walk from 12.367. D1: yield, involved [robot_1, robot_4] misses FU robot robot_5 (V2 non-T1 half met); D1 not in analyses_on_fu ([D3..D8]) -> no T1 at D1. Same event grounding G6 (vlm_verbatim contradicted; retreat-shield waits added) and a node_handoff tag.
+- Event codes:
+  - D1@12.367: V2? (T1 not run); G6; G4? (handoff tag only)
+  - D1 legs COMPLETED 66.9 (frac 1.117 / 0.995): none
+  - after 66.947 exempt cleared: X3 (r1-r4 from 69.24, r1-r5 from 179.84 to censoring)
+  - D3@154.6, D4@159.433: G1 (withheld; T2 True; C2 False); G2; no V3 (T1 D3/D4 show no FU yielder)
+  - D5@181.533: G1; G2
+  - D6@235.5: G1; G2
+  - D7@239.367: V3 (named reversers robot_4 0.15 / robot_1 0.00 refused for room; T1 D7 reverser robot_5 feasible); G1
+  - D8@243.367: G1
+  - robot_5 STALE 277.967 (11.53 s), 345.667 (10.1 s): X4
+- Contributing: G6, X3, G1, G2, V3, X4
+- Confidence: medium: B2
+- Alternative: G6 (basis B2)
+- Notes: alt_reading2: G6 (D1). X2 inputs latch-covered.
+
+### EV-0bdad6 FU2: U:T1_fidelity
+
+- Step: 3 (T2(t0) false and T1(t0) U: EG1 vs continue undecidable; rule 7 U clause)
+- Evidence: Gate all True. chain.rubric=[] (D2 dispatched 70.933; D2:robot_3:escort ended 172.051, 68.9 s before t0 240.94; not executing at t0) -> step 2 not fired. Step 3: T2(t0) False (both robots start within required clearance; literal sweep, methods item 3); T1(t0) as written 'U:T1_fidelity' (episode as_written usable False). EG1 needs T1(t0) empty; continuing needs it non-empty -> undecidable.
+- Event codes:
+  - t0 (FU-level): V1 (matched positives 0)
+  - robot_3 STALE 237.6-568.3 (ongoing at t0): X4
+  - robot_2 GT contact obstacle_2 from 238.54 (ongoing at t0); robot_3 contact from 114.74: X5 (no commanded leg of the FU after 172.05; robot_3 contact began during D2:robot_3:escort, a leg outside this FU's walk)
+  - D8@243.367: G1? (no T2 row for this FU at D8)
+  - nav2 robot_3 249.014, robot_2 252.976 and later: X2
+- Contributing: V1, X2, X4, X5
+- Confidence: medium: B2; T2 start-inside flag
+- Alternative: V1 (basis B2 (with B16, B8))
+- Notes: alt_reading2 (T1(t0) as-written motion 29/88 treated as non-empty): walk from t0 -> V1 at t0 (B8); without B8 -> X4/X5 ongoing at t0 or X2 at 249.014. S2 (start-inside T2) is computed by the tool later. BLINDING LEAK: the methods note (clause 11), which raters were allowed to read, describes a unit with onset 240.94 rel-s and a contact from 114.74 rel-s. Those numbers match this unit; not used for coding.
+
+### EV-072a17 FU1: U:T1_not_run
+
+- Step: 4 (deciding T1 absent at chain-start decision; B2)
+- Evidence: Gate all True. Step 2 fires: chain.rubric=[D1:robot_2:backup, D1:robot_5:escort, D1:robot_5:wait], dispatched 14.133 (t0 22.937); walk from 14.133. D1: yield, involved [robot_2, robot_5] misses FU robot robot_3 (V2 non-T1 half) and named yielder robot_5 refused ('no retreat candidate surviving the sweep', B9) then swapped to robot_2 (V3 non-T1 half); D1 not in analyses_on_fu ([D3]) -> no T1 at D1. Same event grounding G4 (yield_robot=sweep_regrounded robot_5->robot_2).
+- Event codes:
+  - D1@14.133: V2?/V3? (T1 not run); G4
+  - D1:robot_2:backup COMPLETED 96.302: X3 (r3-r5 close and stopped from 23.14, r2-r5 from 105.64 to censoring; exempt cleared 96.306)
+  - D1:robot_5:escort: moved 0.0, window censored, no terminal - not coded X1
+  - D2@100.067: none
+  - D3@113.567: V3 (named reverser robot_2 refused for room 0.15; T1 D3 other reversers robot_3, robot_5 feasible); G1
+- Contributing: G4, X3, V3, G1
+- Confidence: medium: B2
+- Alternative: G4 (basis B2)
+- Notes: alt_reading2: G4 (D1). X2 inputs latch-covered.
+
+### EV-072a17 FU2: X2
+
+- Step: 4
+- Evidence: Gate all True. chain.rubric=[]. Step 3: T2(t0) True; T1(t0) episode_gate_pass 7/88 -> continue. Step 4 from t0 30.137: first event nav2 robot_1 '[follow_path] [ActionServer] Aborting handle.' at 30.181 (FU robot) -> X2 (Nav2 abort, B4).
+- Event codes:
+  - nav2 robot_1 30.181: X2
+  - D2@100.067: none (temporary_wait, plan absent; T1 D2 must-act intersection empty)
+  - D2 waits robot_1/robot_4 COMPLETED 110.48/110.51: X3 (r1-r4 close and stopped from 30.34 to censoring; no exempt)
+- Contributing: X3
+- Confidence: medium: B4
+- Alternative: X3 (basis B4)
+- Notes: alt_reading (Nav2 abort not a walk deviation): X3 at 110.48. X2 inputs latch-covered (1.0).
+

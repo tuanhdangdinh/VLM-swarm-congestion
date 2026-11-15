@@ -1,0 +1,2793 @@
+{
+ "rater": "B",
+ "phase": 1,
+ "order": "descending id",
+ "records": [
+  {
+   "sheet_id": "GT-f5063e",
+   "unit_id": "FU1",
+   "kind": "conflict",
+   "robots": [
+    "robot_1",
+    "robot_2",
+    "robot_3",
+    "robot_4",
+    "robot_5"
+   ],
+   "t0_rel": 25.07,
+   "end_rel": 577.27,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "unit_type": "conflict",
+   "T2_t0": true,
+   "T2_shortest": {
+    "distance_m": 0.01,
+    "heading_deg": 0,
+    "robot": "robot_1"
+   },
+   "T2_snapshot_rel": 25.5,
+   "T2_start_within_clearance": [],
+   "X3_gt_condition": true,
+   "X3_gt_pairs": [
+    {
+     "pair": [
+      "robot_1",
+      "robot_4"
+     ],
+     "from_rel": 64.57
+    },
+    {
+     "pair": [
+      "robot_2",
+      "robot_3"
+     ],
+     "from_rel": 46.77
+    },
+    {
+     "pair": [
+      "robot_2",
+      "robot_4"
+     ],
+     "from_rel": 46.77
+    },
+    {
+     "pair": [
+      "robot_2",
+      "robot_5"
+     ],
+     "from_rel": 46.77
+    },
+    {
+     "pair": [
+      "robot_3",
+      "robot_4"
+     ],
+     "from_rel": 26.07
+    },
+    {
+     "pair": [
+      "robot_3",
+      "robot_5"
+     ],
+     "from_rel": 25.47
+    }
+   ],
+   "X5_gt_candidates": [],
+   "gt_context_codes": [],
+   "notes": [
+    "X3 GT condition present (close and stopped to censoring); X3 itself also requires a completed command and non-exempt pair, decided in Phase 2."
+   ]
+  },
+  {
+   "sheet_id": "GT-d27635",
+   "unit_id": "FU1",
+   "kind": "conflict",
+   "robots": [
+    "robot_1",
+    "robot_2",
+    "robot_5"
+   ],
+   "t0_rel": 11.203,
+   "end_rel": 569.203,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "unit_type": "conflict",
+   "T2_t0": true,
+   "T2_shortest": {
+    "distance_m": 0.01,
+    "heading_deg": 0,
+    "robot": "robot_2"
+   },
+   "T2_snapshot_rel": 11.367,
+   "T2_start_within_clearance": [],
+   "X3_gt_condition": true,
+   "X3_gt_pairs": [
+    {
+     "pair": [
+      "robot_1",
+      "robot_2"
+     ],
+     "from_rel": 28.6
+    },
+    {
+     "pair": [
+      "robot_1",
+      "robot_5"
+     ],
+     "from_rel": 11.9
+    }
+   ],
+   "X5_gt_candidates": [],
+   "gt_context_codes": [],
+   "notes": [
+    "X3 GT condition present (close and stopped to censoring); X3 itself also requires a completed command and non-exempt pair, decided in Phase 2."
+   ]
+  },
+  {
+   "sheet_id": "GT-d27635",
+   "unit_id": "FU2",
+   "kind": "conflict",
+   "robots": [
+    "robot_3",
+    "robot_4"
+   ],
+   "t0_rel": 63.803,
+   "end_rel": 569.203,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "unit_type": "conflict",
+   "T2_t0": true,
+   "T2_shortest": {
+    "distance_m": 0.04,
+    "heading_deg": 315,
+    "robot": "robot_3"
+   },
+   "T2_snapshot_rel": 64.067,
+   "T2_start_within_clearance": [],
+   "X3_gt_condition": true,
+   "X3_gt_pairs": [
+    {
+     "pair": [
+      "robot_3",
+      "robot_4"
+     ],
+     "from_rel": 64.3
+    }
+   ],
+   "X5_gt_candidates": [],
+   "gt_context_codes": [],
+   "notes": [
+    "X3 GT condition present (close and stopped to censoring); X3 itself also requires a completed command and non-exempt pair, decided in Phase 2."
+   ]
+  },
+  {
+   "sheet_id": "GT-d23005",
+   "unit_id": "FU1",
+   "kind": "conflict",
+   "robots": [
+    "robot_2",
+    "robot_3",
+    "robot_4"
+   ],
+   "t0_rel": 15.307,
+   "end_rel": 170.907,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "unit_type": "conflict",
+   "T2_t0": true,
+   "T2_shortest": {
+    "distance_m": 0.01,
+    "heading_deg": 0,
+    "robot": "robot_3"
+   },
+   "T2_snapshot_rel": 15.467,
+   "T2_start_within_clearance": [],
+   "X3_gt_condition": true,
+   "X3_gt_pairs": [
+    {
+     "pair": [
+      "robot_2",
+      "robot_3"
+     ],
+     "from_rel": 37.01
+    },
+    {
+     "pair": [
+      "robot_2",
+      "robot_4"
+     ],
+     "from_rel": 16.01
+    }
+   ],
+   "X5_gt_candidates": [],
+   "gt_context_codes": [],
+   "notes": [
+    "X3 GT condition present (close and stopped to censoring); X3 itself also requires a completed command and non-exempt pair, decided in Phase 2."
+   ]
+  },
+  {
+   "sheet_id": "GT-c34011",
+   "unit_id": "FU1",
+   "kind": "conflict",
+   "robots": [
+    "robot_2",
+    "robot_3",
+    "robot_4"
+   ],
+   "t0_rel": 36.573,
+   "end_rel": 571.173,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "unit_type": "conflict",
+   "T2_t0": true,
+   "T2_shortest": {
+    "distance_m": 0.01,
+    "heading_deg": 90,
+    "robot": "robot_3"
+   },
+   "T2_snapshot_rel": 36.667,
+   "T2_start_within_clearance": [
+    "robot_2"
+   ],
+   "X3_gt_condition": true,
+   "X3_gt_pairs": [
+    {
+     "pair": [
+      "robot_2",
+      "robot_3"
+     ],
+     "from_rel": 36.77
+    },
+    {
+     "pair": [
+      "robot_2",
+      "robot_4"
+     ],
+     "from_rel": 133.27
+    }
+   ],
+   "X5_gt_candidates": [
+    {
+     "robot": "robot_2",
+     "other": "obstacle_1",
+     "other_type": "declared_box",
+     "from_rel": 35.97,
+     "to_rel": 571.17,
+     "min_gap_m": -0.0001,
+     "relative_to_t0": "spans_or_after_t0",
+     "open_to_censor": true
+    },
+    {
+     "robot": "robot_4",
+     "other": "obstacle_1",
+     "other_type": "declared_box",
+     "from_rel": 39.87,
+     "to_rel": 74.27,
+     "min_gap_m": -0.0057,
+     "relative_to_t0": "spans_or_after_t0",
+     "open_to_censor": false
+    }
+   ],
+   "gt_context_codes": [],
+   "notes": [
+    "X3 GT condition present (close and stopped to censoring); X3 itself also requires a completed command and non-exempt pair, decided in Phase 2.",
+    "GT contacts (gap<=0.005 m) present: X5 if not attributable to a G5 leg (Phase 2); EG2 if box undeclared."
+   ]
+  },
+  {
+   "sheet_id": "GT-c34011",
+   "unit_id": "FU2",
+   "kind": "conflict",
+   "robots": [
+    "robot_1",
+    "robot_5"
+   ],
+   "t0_rel": 101.873,
+   "end_rel": 571.173,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "unit_type": "conflict",
+   "T2_t0": true,
+   "T2_shortest": {
+    "distance_m": 0.02,
+    "heading_deg": 45,
+    "robot": "robot_1"
+   },
+   "T2_snapshot_rel": 101.933,
+   "T2_start_within_clearance": [],
+   "X3_gt_condition": true,
+   "X3_gt_pairs": [
+    {
+     "pair": [
+      "robot_1",
+      "robot_5"
+     ],
+     "from_rel": 102.07
+    }
+   ],
+   "X5_gt_candidates": [],
+   "gt_context_codes": [],
+   "notes": [
+    "X3 GT condition present (close and stopped to censoring); X3 itself also requires a completed command and non-exempt pair, decided in Phase 2."
+   ]
+  },
+  {
+   "sheet_id": "GT-bc975c",
+   "unit_id": "FU1",
+   "kind": "conflict",
+   "robots": [
+    "robot_4",
+    "robot_5"
+   ],
+   "t0_rel": 17.273,
+   "end_rel": 569.673,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "unit_type": "conflict",
+   "T2_t0": true,
+   "T2_shortest": {
+    "distance_m": 0.06,
+    "heading_deg": 315,
+    "robot": "robot_5"
+   },
+   "T2_snapshot_rel": 17.333,
+   "T2_start_within_clearance": [],
+   "X3_gt_condition": true,
+   "X3_gt_pairs": [
+    {
+     "pair": [
+      "robot_4",
+      "robot_5"
+     ],
+     "from_rel": 17.77
+    }
+   ],
+   "X5_gt_candidates": [],
+   "gt_context_codes": [],
+   "notes": [
+    "X3 GT condition present (close and stopped to censoring); X3 itself also requires a completed command and non-exempt pair, decided in Phase 2."
+   ]
+  },
+  {
+   "sheet_id": "GT-bc975c",
+   "unit_id": "FU2",
+   "kind": "conflict",
+   "robots": [
+    "robot_1",
+    "robot_2",
+    "robot_3"
+   ],
+   "t0_rel": 23.473,
+   "end_rel": 569.673,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "unit_type": "conflict",
+   "T2_t0": true,
+   "T2_shortest": {
+    "distance_m": 0.01,
+    "heading_deg": 0,
+    "robot": "robot_1"
+   },
+   "T2_snapshot_rel": 23.533,
+   "T2_start_within_clearance": [],
+   "X3_gt_condition": true,
+   "X3_gt_pairs": [
+    {
+     "pair": [
+      "robot_1",
+      "robot_2"
+     ],
+     "from_rel": 122.57
+    },
+    {
+     "pair": [
+      "robot_2",
+      "robot_3"
+     ],
+     "from_rel": 23.77
+    }
+   ],
+   "X5_gt_candidates": [],
+   "gt_context_codes": [],
+   "notes": [
+    "X3 GT condition present (close and stopped to censoring); X3 itself also requires a completed command and non-exempt pair, decided in Phase 2."
+   ]
+  },
+  {
+   "sheet_id": "GT-b92f93",
+   "unit_id": "FU1",
+   "kind": "conflict",
+   "robots": [
+    "robot_3",
+    "robot_4"
+   ],
+   "t0_rel": 14.97,
+   "end_rel": 570.67,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "unit_type": "conflict",
+   "T2_t0": true,
+   "T2_shortest": {
+    "distance_m": 0.09,
+    "heading_deg": 45,
+    "robot": "robot_3"
+   },
+   "T2_snapshot_rel": 15.3,
+   "T2_start_within_clearance": [],
+   "X3_gt_condition": true,
+   "X3_gt_pairs": [
+    {
+     "pair": [
+      "robot_3",
+      "robot_4"
+     ],
+     "from_rel": 15.57
+    }
+   ],
+   "X5_gt_candidates": [],
+   "gt_context_codes": [],
+   "notes": [
+    "X3 GT condition present (close and stopped to censoring); X3 itself also requires a completed command and non-exempt pair, decided in Phase 2."
+   ]
+  },
+  {
+   "sheet_id": "GT-b92f93",
+   "unit_id": "FU2",
+   "kind": "conflict",
+   "robots": [
+    "robot_1",
+    "robot_5"
+   ],
+   "t0_rel": 30.67,
+   "end_rel": 570.67,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "unit_type": "conflict",
+   "T2_t0": true,
+   "T2_shortest": {
+    "distance_m": 0.04,
+    "heading_deg": 90,
+    "robot": "robot_1"
+   },
+   "T2_snapshot_rel": 30.767,
+   "T2_start_within_clearance": [],
+   "X3_gt_condition": true,
+   "X3_gt_pairs": [
+    {
+     "pair": [
+      "robot_1",
+      "robot_5"
+     ],
+     "from_rel": 30.87
+    }
+   ],
+   "X5_gt_candidates": [],
+   "gt_context_codes": [],
+   "notes": [
+    "X3 GT condition present (close and stopped to censoring); X3 itself also requires a completed command and non-exempt pair, decided in Phase 2."
+   ]
+  },
+  {
+   "sheet_id": "GT-b3d4ec",
+   "unit_id": "FU1",
+   "kind": "conflict",
+   "robots": [
+    "robot_1",
+    "robot_2",
+    "robot_3",
+    "robot_4",
+    "robot_5"
+   ],
+   "t0_rel": 12.17,
+   "end_rel": 572.67,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "unit_type": "conflict",
+   "T2_t0": true,
+   "T2_shortest": {
+    "distance_m": 0.01,
+    "heading_deg": 0,
+    "robot": "robot_1"
+   },
+   "T2_snapshot_rel": 12.433,
+   "T2_start_within_clearance": [],
+   "X3_gt_condition": true,
+   "X3_gt_pairs": [
+    {
+     "pair": [
+      "robot_1",
+      "robot_3"
+     ],
+     "from_rel": 98.47
+    },
+    {
+     "pair": [
+      "robot_1",
+      "robot_5"
+     ],
+     "from_rel": 16.97
+    },
+    {
+     "pair": [
+      "robot_2",
+      "robot_5"
+     ],
+     "from_rel": 112.67
+    },
+    {
+     "pair": [
+      "robot_3",
+      "robot_4"
+     ],
+     "from_rel": 100.67
+    }
+   ],
+   "X5_gt_candidates": [],
+   "gt_context_codes": [],
+   "notes": [
+    "X3 GT condition present (close and stopped to censoring); X3 itself also requires a completed command and non-exempt pair, decided in Phase 2."
+   ]
+  },
+  {
+   "sheet_id": "GT-adc295",
+   "unit_id": "FU1",
+   "kind": "conflict",
+   "robots": [
+    "robot_1",
+    "robot_2",
+    "robot_3",
+    "robot_4",
+    "robot_5"
+   ],
+   "t0_rel": 12.24,
+   "end_rel": 569.94,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "unit_type": "conflict",
+   "T2_t0": true,
+   "T2_shortest": {
+    "distance_m": 0.01,
+    "heading_deg": 0,
+    "robot": "robot_1"
+   },
+   "T2_snapshot_rel": 12.433,
+   "T2_start_within_clearance": [],
+   "X3_gt_condition": true,
+   "X3_gt_pairs": [
+    {
+     "pair": [
+      "robot_1",
+      "robot_2"
+     ],
+     "from_rel": 40.94
+    },
+    {
+     "pair": [
+      "robot_1",
+      "robot_3"
+     ],
+     "from_rel": 17.24
+    },
+    {
+     "pair": [
+      "robot_2",
+      "robot_5"
+     ],
+     "from_rel": 72.74
+    },
+    {
+     "pair": [
+      "robot_3",
+      "robot_4"
+     ],
+     "from_rel": 38.94
+    }
+   ],
+   "X5_gt_candidates": [],
+   "gt_context_codes": [],
+   "notes": [
+    "X3 GT condition present (close and stopped to censoring); X3 itself also requires a completed command and non-exempt pair, decided in Phase 2."
+   ]
+  },
+  {
+   "sheet_id": "GT-a74755",
+   "unit_id": "FU1",
+   "kind": "conflict",
+   "robots": [
+    "robot_1",
+    "robot_4",
+    "robot_5"
+   ],
+   "t0_rel": 69.04,
+   "end_rel": 568.54,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "unit_type": "conflict",
+   "T2_t0": true,
+   "T2_shortest": {
+    "distance_m": 0.01,
+    "heading_deg": 0,
+    "robot": "robot_5"
+   },
+   "T2_snapshot_rel": 69.067,
+   "T2_start_within_clearance": [
+    "robot_4"
+   ],
+   "X3_gt_condition": true,
+   "X3_gt_pairs": [
+    {
+     "pair": [
+      "robot_1",
+      "robot_4"
+     ],
+     "from_rel": 69.24
+    },
+    {
+     "pair": [
+      "robot_1",
+      "robot_5"
+     ],
+     "from_rel": 179.84
+    }
+   ],
+   "X5_gt_candidates": [],
+   "gt_context_codes": [],
+   "notes": [
+    "X3 GT condition present (close and stopped to censoring); X3 itself also requires a completed command and non-exempt pair, decided in Phase 2."
+   ]
+  },
+  {
+   "sheet_id": "GT-a74755",
+   "unit_id": "FU2",
+   "kind": "conflict",
+   "robots": [
+    "robot_2",
+    "robot_3"
+   ],
+   "t0_rel": 240.94,
+   "end_rel": 568.54,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "unit_type": "conflict",
+   "T2_t0": false,
+   "T2_shortest": null,
+   "T2_snapshot_rel": 240.967,
+   "T2_start_within_clearance": [
+    "robot_2",
+    "robot_3"
+   ],
+   "X3_gt_condition": true,
+   "X3_gt_pairs": [
+    {
+     "pair": [
+      "robot_2",
+      "robot_3"
+     ],
+     "from_rel": 241.44
+    }
+   ],
+   "X5_gt_candidates": [
+    {
+     "robot": "robot_2",
+     "other": "obstacle_2",
+     "other_type": "declared_box",
+     "from_rel": 238.54,
+     "to_rel": 568.54,
+     "min_gap_m": 0.0038,
+     "relative_to_t0": "spans_or_after_t0",
+     "open_to_censor": true
+    },
+    {
+     "robot": "robot_3",
+     "other": "obstacle_2",
+     "other_type": "declared_box",
+     "from_rel": 114.74,
+     "to_rel": 568.54,
+     "min_gap_m": -0.0002,
+     "relative_to_t0": "spans_or_after_t0",
+     "open_to_censor": true
+    }
+   ],
+   "gt_context_codes": [],
+   "notes": [
+    "X3 GT condition present (close and stopped to censoring); X3 itself also requires a completed command and non-exempt pair, decided in Phase 2.",
+    "GT contacts (gap<=0.005 m) present: X5 if not attributable to a G5 leg (Phase 2); EG2 if box undeclared.",
+    "T2(t0) false; start-pose clearance violated for robot_2, robot_3 (literal sweep incl. start pose, per tool choice 3)."
+   ]
+  },
+  {
+   "sheet_id": "GT-a3cdae",
+   "unit_id": "FU1",
+   "kind": "conflict",
+   "robots": [
+    "robot_2",
+    "robot_4",
+    "robot_5"
+   ],
+   "t0_rel": 31.603,
+   "end_rel": 576.703,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "unit_type": "conflict",
+   "T2_t0": true,
+   "T2_shortest": {
+    "distance_m": 0.04,
+    "heading_deg": 45,
+    "robot": "robot_2"
+   },
+   "T2_snapshot_rel": 31.667,
+   "T2_start_within_clearance": [
+    "robot_4",
+    "robot_5"
+   ],
+   "X3_gt_condition": true,
+   "X3_gt_pairs": [
+    {
+     "pair": [
+      "robot_2",
+      "robot_4"
+     ],
+     "from_rel": 64.0
+    },
+    {
+     "pair": [
+      "robot_2",
+      "robot_5"
+     ],
+     "from_rel": 31.9
+    }
+   ],
+   "X5_gt_candidates": [
+    {
+     "robot": "robot_4",
+     "other": "rack/NW_west",
+     "other_type": "undeclared_box",
+     "from_rel": 22.0,
+     "to_rel": 54.4,
+     "min_gap_m": -0.0,
+     "relative_to_t0": "spans_or_after_t0",
+     "open_to_censor": false
+    }
+   ],
+   "gt_context_codes": [
+    "EG2"
+   ],
+   "notes": [
+    "X3 GT condition present (close and stopped to censoring); X3 itself also requires a completed command and non-exempt pair, decided in Phase 2.",
+    "GT contacts (gap<=0.005 m) present: X5 if not attributable to a G5 leg (Phase 2); EG2 if box undeclared."
+   ]
+  },
+  {
+   "sheet_id": "GT-a3cdae",
+   "unit_id": "FU2",
+   "kind": "conflict",
+   "robots": [
+    "robot_1",
+    "robot_3"
+   ],
+   "t0_rel": 37.803,
+   "end_rel": 576.703,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "unit_type": "conflict",
+   "T2_t0": true,
+   "T2_shortest": {
+    "distance_m": 0.06,
+    "heading_deg": 180,
+    "robot": "robot_1"
+   },
+   "T2_snapshot_rel": 37.933,
+   "T2_start_within_clearance": [],
+   "X3_gt_condition": true,
+   "X3_gt_pairs": [
+    {
+     "pair": [
+      "robot_1",
+      "robot_3"
+     ],
+     "from_rel": 38.0
+    }
+   ],
+   "X5_gt_candidates": [],
+   "gt_context_codes": [],
+   "notes": [
+    "X3 GT condition present (close and stopped to censoring); X3 itself also requires a completed command and non-exempt pair, decided in Phase 2."
+   ]
+  },
+  {
+   "sheet_id": "GT-a2db01",
+   "unit_id": "FU1",
+   "kind": "conflict",
+   "robots": [
+    "robot_1",
+    "robot_4"
+   ],
+   "t0_rel": 15.97,
+   "end_rel": 570.67,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "unit_type": "conflict",
+   "T2_t0": true,
+   "T2_shortest": {
+    "distance_m": 0.06,
+    "heading_deg": 45,
+    "robot": "robot_1"
+   },
+   "T2_snapshot_rel": 16.1,
+   "T2_start_within_clearance": [],
+   "X3_gt_condition": true,
+   "X3_gt_pairs": [
+    {
+     "pair": [
+      "robot_1",
+      "robot_4"
+     ],
+     "from_rel": 16.67
+    }
+   ],
+   "X5_gt_candidates": [],
+   "gt_context_codes": [],
+   "notes": [
+    "X3 GT condition present (close and stopped to censoring); X3 itself also requires a completed command and non-exempt pair, decided in Phase 2."
+   ]
+  },
+  {
+   "sheet_id": "GT-a2db01",
+   "unit_id": "FU2",
+   "kind": "conflict",
+   "robots": [
+    "robot_2",
+    "robot_3",
+    "robot_5"
+   ],
+   "t0_rel": 19.57,
+   "end_rel": 570.67,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "unit_type": "conflict",
+   "T2_t0": true,
+   "T2_shortest": {
+    "distance_m": 0.01,
+    "heading_deg": 0,
+    "robot": "robot_5"
+   },
+   "T2_snapshot_rel": 19.733,
+   "T2_start_within_clearance": [],
+   "X3_gt_condition": true,
+   "X3_gt_pairs": [
+    {
+     "pair": [
+      "robot_2",
+      "robot_3"
+     ],
+     "from_rel": 19.77
+    },
+    {
+     "pair": [
+      "robot_2",
+      "robot_5"
+     ],
+     "from_rel": 22.07
+    }
+   ],
+   "X5_gt_candidates": [],
+   "gt_context_codes": [],
+   "notes": [
+    "X3 GT condition present (close and stopped to censoring); X3 itself also requires a completed command and non-exempt pair, decided in Phase 2."
+   ]
+  },
+  {
+   "sheet_id": "GT-a1575e",
+   "unit_id": "FU1",
+   "kind": "conflict",
+   "robots": [
+    "robot_2",
+    "robot_3",
+    "robot_5"
+   ],
+   "t0_rel": 22.937,
+   "end_rel": 571.437,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "unit_type": "conflict",
+   "T2_t0": true,
+   "T2_shortest": {
+    "distance_m": 0.01,
+    "heading_deg": 0,
+    "robot": "robot_2"
+   },
+   "T2_snapshot_rel": 23.067,
+   "T2_start_within_clearance": [],
+   "X3_gt_condition": true,
+   "X3_gt_pairs": [
+    {
+     "pair": [
+      "robot_2",
+      "robot_5"
+     ],
+     "from_rel": 105.64
+    },
+    {
+     "pair": [
+      "robot_3",
+      "robot_5"
+     ],
+     "from_rel": 23.14
+    }
+   ],
+   "X5_gt_candidates": [],
+   "gt_context_codes": [],
+   "notes": [
+    "X3 GT condition present (close and stopped to censoring); X3 itself also requires a completed command and non-exempt pair, decided in Phase 2."
+   ]
+  },
+  {
+   "sheet_id": "GT-a1575e",
+   "unit_id": "FU2",
+   "kind": "conflict",
+   "robots": [
+    "robot_1",
+    "robot_4"
+   ],
+   "t0_rel": 30.137,
+   "end_rel": 571.437,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "unit_type": "conflict",
+   "T2_t0": true,
+   "T2_shortest": {
+    "distance_m": 0.03,
+    "heading_deg": 135,
+    "robot": "robot_1"
+   },
+   "T2_snapshot_rel": 30.167,
+   "T2_start_within_clearance": [],
+   "X3_gt_condition": true,
+   "X3_gt_pairs": [
+    {
+     "pair": [
+      "robot_1",
+      "robot_4"
+     ],
+     "from_rel": 30.34
+    }
+   ],
+   "X5_gt_candidates": [],
+   "gt_context_codes": [],
+   "notes": [
+    "X3 GT condition present (close and stopped to censoring); X3 itself also requires a completed command and non-exempt pair, decided in Phase 2."
+   ]
+  },
+  {
+   "sheet_id": "GT-9d2219",
+   "unit_id": "FU1",
+   "kind": "conflict",
+   "robots": [
+    "robot_1",
+    "robot_5"
+   ],
+   "t0_rel": 14.27,
+   "end_rel": 570.37,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "unit_type": "conflict",
+   "T2_t0": true,
+   "T2_shortest": {
+    "distance_m": 0.12,
+    "heading_deg": 180,
+    "robot": "robot_5"
+   },
+   "T2_snapshot_rel": 14.5,
+   "T2_start_within_clearance": [
+    "robot_1"
+   ],
+   "X3_gt_condition": true,
+   "X3_gt_pairs": [
+    {
+     "pair": [
+      "robot_1",
+      "robot_5"
+     ],
+     "from_rel": 15.17
+    }
+   ],
+   "X5_gt_candidates": [],
+   "gt_context_codes": [],
+   "notes": [
+    "X3 GT condition present (close and stopped to censoring); X3 itself also requires a completed command and non-exempt pair, decided in Phase 2."
+   ]
+  },
+  {
+   "sheet_id": "GT-9d2219",
+   "unit_id": "FU2",
+   "kind": "conflict",
+   "robots": [
+    "robot_2",
+    "robot_3",
+    "robot_4"
+   ],
+   "t0_rel": 20.57,
+   "end_rel": 570.37,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "unit_type": "conflict",
+   "T2_t0": true,
+   "T2_shortest": {
+    "distance_m": 0.01,
+    "heading_deg": 0,
+    "robot": "robot_4"
+   },
+   "T2_snapshot_rel": 20.6,
+   "T2_start_within_clearance": [],
+   "X3_gt_condition": true,
+   "X3_gt_pairs": [
+    {
+     "pair": [
+      "robot_2",
+      "robot_3"
+     ],
+     "from_rel": 20.77
+    },
+    {
+     "pair": [
+      "robot_2",
+      "robot_4"
+     ],
+     "from_rel": 28.27
+    },
+    {
+     "pair": [
+      "robot_3",
+      "robot_4"
+     ],
+     "from_rel": 28.27
+    }
+   ],
+   "X5_gt_candidates": [],
+   "gt_context_codes": [],
+   "notes": [
+    "X3 GT condition present (close and stopped to censoring); X3 itself also requires a completed command and non-exempt pair, decided in Phase 2."
+   ]
+  },
+  {
+   "sheet_id": "GT-9c8ad7",
+   "unit_id": "FU1",
+   "kind": "conflict",
+   "robots": [
+    "robot_1",
+    "robot_2",
+    "robot_3",
+    "robot_4",
+    "robot_5"
+   ],
+   "t0_rel": 65.07,
+   "end_rel": 568.17,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "unit_type": "conflict",
+   "T2_t0": true,
+   "T2_shortest": {
+    "distance_m": 0.01,
+    "heading_deg": 0,
+    "robot": "robot_2"
+   },
+   "T2_snapshot_rel": 65.367,
+   "T2_start_within_clearance": [],
+   "X3_gt_condition": true,
+   "X3_gt_pairs": [
+    {
+     "pair": [
+      "robot_1",
+      "robot_3"
+     ],
+     "from_rel": 65.67
+    },
+    {
+     "pair": [
+      "robot_2",
+      "robot_3"
+     ],
+     "from_rel": 100.97
+    },
+    {
+     "pair": [
+      "robot_2",
+      "robot_4"
+     ],
+     "from_rel": 133.57
+    },
+    {
+     "pair": [
+      "robot_3",
+      "robot_5"
+     ],
+     "from_rel": 267.07
+    }
+   ],
+   "X5_gt_candidates": [
+    {
+     "robot": "robot_5",
+     "other": "obstacle_1",
+     "other_type": "declared_box",
+     "from_rel": 155.67,
+     "to_rel": 157.97,
+     "min_gap_m": 0.0032,
+     "relative_to_t0": "spans_or_after_t0",
+     "open_to_censor": false
+    },
+    {
+     "robot": "robot_5",
+     "other": "rack/SW_west",
+     "other_type": "undeclared_box",
+     "from_rel": 111.37,
+     "to_rel": 139.47,
+     "min_gap_m": -0.0017,
+     "relative_to_t0": "spans_or_after_t0",
+     "open_to_censor": false
+    }
+   ],
+   "gt_context_codes": [
+    "EG2"
+   ],
+   "notes": [
+    "X3 GT condition present (close and stopped to censoring); X3 itself also requires a completed command and non-exempt pair, decided in Phase 2.",
+    "GT contacts (gap<=0.005 m) present: X5 if not attributable to a G5 leg (Phase 2); EG2 if box undeclared."
+   ]
+  },
+  {
+   "sheet_id": "GT-96b59e",
+   "unit_id": "FU1",
+   "kind": "conflict",
+   "robots": [
+    "robot_1",
+    "robot_2",
+    "robot_5"
+   ],
+   "t0_rel": 11.773,
+   "end_rel": 571.173,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "unit_type": "conflict",
+   "T2_t0": true,
+   "T2_shortest": {
+    "distance_m": 0.05,
+    "heading_deg": 0,
+    "robot": "robot_1"
+   },
+   "T2_snapshot_rel": 12.033,
+   "T2_start_within_clearance": [
+    "robot_2"
+   ],
+   "X3_gt_condition": true,
+   "X3_gt_pairs": [
+    {
+     "pair": [
+      "robot_1",
+      "robot_2"
+     ],
+     "from_rel": 28.27
+    },
+    {
+     "pair": [
+      "robot_1",
+      "robot_5"
+     ],
+     "from_rel": 12.37
+    }
+   ],
+   "X5_gt_candidates": [],
+   "gt_context_codes": [],
+   "notes": [
+    "X3 GT condition present (close and stopped to censoring); X3 itself also requires a completed command and non-exempt pair, decided in Phase 2."
+   ]
+  },
+  {
+   "sheet_id": "GT-96b59e",
+   "unit_id": "FU2",
+   "kind": "conflict",
+   "robots": [
+    "robot_3",
+    "robot_4"
+   ],
+   "t0_rel": 12.073,
+   "end_rel": 571.173,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "unit_type": "conflict",
+   "T2_t0": true,
+   "T2_shortest": {
+    "distance_m": 0.06,
+    "heading_deg": 0,
+    "robot": "robot_3"
+   },
+   "T2_snapshot_rel": 12.267,
+   "T2_start_within_clearance": [],
+   "X3_gt_condition": true,
+   "X3_gt_pairs": [
+    {
+     "pair": [
+      "robot_3",
+      "robot_4"
+     ],
+     "from_rel": 12.37
+    }
+   ],
+   "X5_gt_candidates": [],
+   "gt_context_codes": [],
+   "notes": [
+    "X3 GT condition present (close and stopped to censoring); X3 itself also requires a completed command and non-exempt pair, decided in Phase 2."
+   ]
+  },
+  {
+   "sheet_id": "GT-8cec64",
+   "unit_id": "FU1",
+   "kind": "conflict",
+   "robots": [
+    "robot_2",
+    "robot_3",
+    "robot_5"
+   ],
+   "t0_rel": 19.373,
+   "end_rel": 570.073,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "unit_type": "conflict",
+   "T2_t0": true,
+   "T2_shortest": {
+    "distance_m": 0.01,
+    "heading_deg": 0,
+    "robot": "robot_5"
+   },
+   "T2_snapshot_rel": 19.567,
+   "T2_start_within_clearance": [],
+   "X3_gt_condition": true,
+   "X3_gt_pairs": [
+    {
+     "pair": [
+      "robot_2",
+      "robot_5"
+     ],
+     "from_rel": 22.57
+    },
+    {
+     "pair": [
+      "robot_3",
+      "robot_5"
+     ],
+     "from_rel": 204.57
+    }
+   ],
+   "X5_gt_candidates": [],
+   "gt_context_codes": [],
+   "notes": [
+    "X3 GT condition present (close and stopped to censoring); X3 itself also requires a completed command and non-exempt pair, decided in Phase 2."
+   ]
+  },
+  {
+   "sheet_id": "GT-8cec64",
+   "unit_id": "FU2",
+   "kind": "conflict",
+   "robots": [
+    "robot_1",
+    "robot_4"
+   ],
+   "t0_rel": 72.673,
+   "end_rel": 570.073,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "unit_type": "conflict",
+   "T2_t0": true,
+   "T2_shortest": {
+    "distance_m": 0.02,
+    "heading_deg": 0,
+    "robot": "robot_1"
+   },
+   "T2_snapshot_rel": 72.7,
+   "T2_start_within_clearance": [],
+   "X3_gt_condition": true,
+   "X3_gt_pairs": [
+    {
+     "pair": [
+      "robot_1",
+      "robot_4"
+     ],
+     "from_rel": 72.97
+    }
+   ],
+   "X5_gt_candidates": [],
+   "gt_context_codes": [],
+   "notes": [
+    "X3 GT condition present (close and stopped to censoring); X3 itself also requires a completed command and non-exempt pair, decided in Phase 2."
+   ]
+  },
+  {
+   "sheet_id": "GT-83c441",
+   "unit_id": "FU1",
+   "kind": "conflict",
+   "robots": [
+    "robot_1",
+    "robot_2",
+    "robot_3"
+   ],
+   "t0_rel": 54.607,
+   "end_rel": 573.807,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "unit_type": "conflict",
+   "T2_t0": true,
+   "T2_shortest": {
+    "distance_m": 0.01,
+    "heading_deg": 0,
+    "robot": "robot_1"
+   },
+   "T2_snapshot_rel": 54.9,
+   "T2_start_within_clearance": [],
+   "X3_gt_condition": true,
+   "X3_gt_pairs": [
+    {
+     "pair": [
+      "robot_1",
+      "robot_2"
+     ],
+     "from_rel": 96.61
+    },
+    {
+     "pair": [
+      "robot_2",
+      "robot_3"
+     ],
+     "from_rel": 54.91
+    }
+   ],
+   "X5_gt_candidates": [],
+   "gt_context_codes": [],
+   "notes": [
+    "X3 GT condition present (close and stopped to censoring); X3 itself also requires a completed command and non-exempt pair, decided in Phase 2."
+   ]
+  },
+  {
+   "sheet_id": "GT-83c441",
+   "unit_id": "FU2",
+   "kind": "conflict",
+   "robots": [
+    "robot_4",
+    "robot_5"
+   ],
+   "t0_rel": 73.507,
+   "end_rel": 573.807,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "unit_type": "conflict",
+   "T2_t0": true,
+   "T2_shortest": {
+    "distance_m": 0.05,
+    "heading_deg": 270,
+    "robot": "robot_4"
+   },
+   "T2_snapshot_rel": 73.633,
+   "T2_start_within_clearance": [],
+   "X3_gt_condition": true,
+   "X3_gt_pairs": [
+    {
+     "pair": [
+      "robot_4",
+      "robot_5"
+     ],
+     "from_rel": 73.61
+    }
+   ],
+   "X5_gt_candidates": [],
+   "gt_context_codes": [],
+   "notes": [
+    "X3 GT condition present (close and stopped to censoring); X3 itself also requires a completed command and non-exempt pair, decided in Phase 2."
+   ]
+  },
+  {
+   "sheet_id": "GT-7a7c8e",
+   "unit_id": "FU1",
+   "kind": "conflict",
+   "robots": [
+    "robot_1",
+    "robot_2",
+    "robot_3",
+    "robot_4"
+   ],
+   "t0_rel": 14.903,
+   "end_rel": 144.303,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "unit_type": "conflict",
+   "T2_t0": true,
+   "T2_shortest": {
+    "distance_m": 0.01,
+    "heading_deg": 0,
+    "robot": "robot_2"
+   },
+   "T2_snapshot_rel": 15.1,
+   "T2_start_within_clearance": [],
+   "X3_gt_condition": true,
+   "X3_gt_pairs": [
+    {
+     "pair": [
+      "robot_1",
+      "robot_4"
+     ],
+     "from_rel": 101.6
+    },
+    {
+     "pair": [
+      "robot_2",
+      "robot_3"
+     ],
+     "from_rel": 23.4
+    },
+    {
+     "pair": [
+      "robot_3",
+      "robot_4"
+     ],
+     "from_rel": 15.1
+    }
+   ],
+   "X5_gt_candidates": [],
+   "gt_context_codes": [],
+   "notes": [
+    "X3 GT condition present (close and stopped to censoring); X3 itself also requires a completed command and non-exempt pair, decided in Phase 2."
+   ]
+  },
+  {
+   "sheet_id": "GT-72693e",
+   "unit_id": "FU1",
+   "kind": "conflict",
+   "robots": [
+    "robot_3",
+    "robot_4",
+    "robot_5"
+   ],
+   "t0_rel": 17.173,
+   "end_rel": 571.073,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "unit_type": "conflict",
+   "T2_t0": true,
+   "T2_shortest": {
+    "distance_m": 0.01,
+    "heading_deg": 0,
+    "robot": "robot_5"
+   },
+   "T2_snapshot_rel": 17.267,
+   "T2_start_within_clearance": [],
+   "X3_gt_condition": true,
+   "X3_gt_pairs": [
+    {
+     "pair": [
+      "robot_3",
+      "robot_4"
+     ],
+     "from_rel": 17.87
+    },
+    {
+     "pair": [
+      "robot_3",
+      "robot_5"
+     ],
+     "from_rel": 49.77
+    }
+   ],
+   "X5_gt_candidates": [],
+   "gt_context_codes": [],
+   "notes": [
+    "X3 GT condition present (close and stopped to censoring); X3 itself also requires a completed command and non-exempt pair, decided in Phase 2."
+   ]
+  },
+  {
+   "sheet_id": "GT-72693e",
+   "unit_id": "FU2",
+   "kind": "conflict",
+   "robots": [
+    "robot_1",
+    "robot_2"
+   ],
+   "t0_rel": 54.673,
+   "end_rel": 571.073,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "unit_type": "conflict",
+   "T2_t0": true,
+   "T2_shortest": {
+    "distance_m": 0.04,
+    "heading_deg": 0,
+    "robot": "robot_1"
+   },
+   "T2_snapshot_rel": 54.833,
+   "T2_start_within_clearance": [],
+   "X3_gt_condition": true,
+   "X3_gt_pairs": [
+    {
+     "pair": [
+      "robot_1",
+      "robot_2"
+     ],
+     "from_rel": 54.97
+    }
+   ],
+   "X5_gt_candidates": [],
+   "gt_context_codes": [],
+   "notes": [
+    "X3 GT condition present (close and stopped to censoring); X3 itself also requires a completed command and non-exempt pair, decided in Phase 2."
+   ]
+  },
+  {
+   "sheet_id": "GT-669c5b",
+   "unit_id": "FU1",
+   "kind": "conflict",
+   "robots": [
+    "robot_1",
+    "robot_2",
+    "robot_5"
+   ],
+   "t0_rel": 245.307,
+   "end_rel": 269.007,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "unit_type": "conflict",
+   "T2_t0": true,
+   "T2_shortest": {
+    "distance_m": 0.01,
+    "heading_deg": 0,
+    "robot": "robot_5"
+   },
+   "T2_snapshot_rel": 245.467,
+   "T2_start_within_clearance": [
+    "robot_2"
+   ],
+   "X3_gt_condition": true,
+   "X3_gt_pairs": [
+    {
+     "pair": [
+      "robot_1",
+      "robot_2"
+     ],
+     "from_rel": 245.71
+    },
+    {
+     "pair": [
+      "robot_1",
+      "robot_5"
+     ],
+     "from_rel": 268.71
+    }
+   ],
+   "X5_gt_candidates": [
+    {
+     "robot": "robot_1",
+     "other": "obstacle_1",
+     "other_type": "declared_box",
+     "from_rel": 54.01,
+     "to_rel": 136.01,
+     "min_gap_m": -0.0002,
+     "relative_to_t0": "before_t0",
+     "open_to_censor": false
+    },
+    {
+     "robot": "robot_2",
+     "other": "obstacle_2",
+     "other_type": "declared_box",
+     "from_rel": 184.01,
+     "to_rel": 215.41,
+     "min_gap_m": -0.0001,
+     "relative_to_t0": "before_t0",
+     "open_to_censor": false
+    }
+   ],
+   "gt_context_codes": [],
+   "notes": [
+    "X3 GT condition present (close and stopped to censoring); X3 itself also requires a completed command and non-exempt pair, decided in Phase 2.",
+    "GT contacts (gap<=0.005 m) present: X5 if not attributable to a G5 leg (Phase 2); EG2 if box undeclared."
+   ]
+  },
+  {
+   "sheet_id": "GT-5cb09c",
+   "unit_id": "FU1",
+   "kind": "conflict",
+   "robots": [
+    "robot_1",
+    "robot_3"
+   ],
+   "t0_rel": 28.303,
+   "end_rel": 210.103,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "unit_type": "conflict",
+   "T2_t0": true,
+   "T2_shortest": {
+    "distance_m": 0.01,
+    "heading_deg": 0,
+    "robot": "robot_1"
+   },
+   "T2_snapshot_rel": 28.333,
+   "T2_start_within_clearance": [],
+   "X3_gt_condition": true,
+   "X3_gt_pairs": [
+    {
+     "pair": [
+      "robot_1",
+      "robot_3"
+     ],
+     "from_rel": 28.6
+    }
+   ],
+   "X5_gt_candidates": [],
+   "gt_context_codes": [],
+   "notes": [
+    "X3 GT condition present (close and stopped to censoring); X3 itself also requires a completed command and non-exempt pair, decided in Phase 2."
+   ]
+  },
+  {
+   "sheet_id": "GT-5cb09c",
+   "unit_id": "FU2",
+   "kind": "conflict",
+   "robots": [
+    "robot_2",
+    "robot_4",
+    "robot_5"
+   ],
+   "t0_rel": 67.003,
+   "end_rel": 210.103,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "unit_type": "conflict",
+   "T2_t0": true,
+   "T2_shortest": {
+    "distance_m": 0.01,
+    "heading_deg": 0,
+    "robot": "robot_4"
+   },
+   "T2_snapshot_rel": 67.433,
+   "T2_start_within_clearance": [
+    "robot_2"
+   ],
+   "X3_gt_condition": true,
+   "X3_gt_pairs": [
+    {
+     "pair": [
+      "robot_2",
+      "robot_4"
+     ],
+     "from_rel": 68.8
+    },
+    {
+     "pair": [
+      "robot_4",
+      "robot_5"
+     ],
+     "from_rel": 100.7
+    }
+   ],
+   "X5_gt_candidates": [
+    {
+     "robot": "robot_2",
+     "other": "obstacle_2",
+     "other_type": "declared_box",
+     "from_rel": 66.5,
+     "to_rel": 210.1,
+     "min_gap_m": -0.0014,
+     "relative_to_t0": "spans_or_after_t0",
+     "open_to_censor": true
+    }
+   ],
+   "gt_context_codes": [],
+   "notes": [
+    "X3 GT condition present (close and stopped to censoring); X3 itself also requires a completed command and non-exempt pair, decided in Phase 2.",
+    "GT contacts (gap<=0.005 m) present: X5 if not attributable to a G5 leg (Phase 2); EG2 if box undeclared."
+   ]
+  },
+  {
+   "sheet_id": "GT-595e94",
+   "unit_id": "FU1",
+   "kind": "conflict",
+   "robots": [
+    "robot_1",
+    "robot_3",
+    "robot_4",
+    "robot_5"
+   ],
+   "t0_rel": 12.27,
+   "end_rel": 572.07,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "unit_type": "conflict",
+   "T2_t0": true,
+   "T2_shortest": {
+    "distance_m": 0.01,
+    "heading_deg": 0,
+    "robot": "robot_3"
+   },
+   "T2_snapshot_rel": 12.367,
+   "T2_start_within_clearance": [
+    "robot_1"
+   ],
+   "X3_gt_condition": true,
+   "X3_gt_pairs": [
+    {
+     "pair": [
+      "robot_3",
+      "robot_4"
+     ],
+     "from_rel": 20.57
+    },
+    {
+     "pair": [
+      "robot_3",
+      "robot_5"
+     ],
+     "from_rel": 33.27
+    }
+   ],
+   "X5_gt_candidates": [
+    {
+     "robot": "robot_5",
+     "other": "obstacle_1",
+     "other_type": "declared_box",
+     "from_rel": 26.47,
+     "to_rel": 28.77,
+     "min_gap_m": 0.0032,
+     "relative_to_t0": "spans_or_after_t0",
+     "open_to_censor": false
+    }
+   ],
+   "gt_context_codes": [],
+   "notes": [
+    "X3 GT condition present (close and stopped to censoring); X3 itself also requires a completed command and non-exempt pair, decided in Phase 2.",
+    "GT contacts (gap<=0.005 m) present: X5 if not attributable to a G5 leg (Phase 2); EG2 if box undeclared."
+   ]
+  },
+  {
+   "sheet_id": "GT-595e94",
+   "unit_id": "FU2",
+   "kind": "conflict",
+   "robots": [
+    "robot_1",
+    "robot_2"
+   ],
+   "t0_rel": 50.67,
+   "end_rel": 572.07,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "unit_type": "conflict",
+   "T2_t0": true,
+   "T2_shortest": {
+    "distance_m": 0.03,
+    "heading_deg": 45,
+    "robot": "robot_1"
+   },
+   "T2_snapshot_rel": 50.867,
+   "T2_start_within_clearance": [],
+   "X3_gt_condition": true,
+   "X3_gt_pairs": [
+    {
+     "pair": [
+      "robot_1",
+      "robot_2"
+     ],
+     "from_rel": 50.87
+    }
+   ],
+   "X5_gt_candidates": [],
+   "gt_context_codes": [],
+   "notes": [
+    "X3 GT condition present (close and stopped to censoring); X3 itself also requires a completed command and non-exempt pair, decided in Phase 2."
+   ]
+  },
+  {
+   "sheet_id": "GT-4f524f",
+   "unit_id": "FU1",
+   "kind": "conflict",
+   "robots": [
+    "robot_3",
+    "robot_4"
+   ],
+   "t0_rel": 14.67,
+   "end_rel": 571.97,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "unit_type": "conflict",
+   "T2_t0": true,
+   "T2_shortest": {
+    "distance_m": 0.08,
+    "heading_deg": 45,
+    "robot": "robot_3"
+   },
+   "T2_snapshot_rel": 14.833,
+   "T2_start_within_clearance": [],
+   "X3_gt_condition": true,
+   "X3_gt_pairs": [
+    {
+     "pair": [
+      "robot_3",
+      "robot_4"
+     ],
+     "from_rel": 15.27
+    }
+   ],
+   "X5_gt_candidates": [],
+   "gt_context_codes": [],
+   "notes": [
+    "X3 GT condition present (close and stopped to censoring); X3 itself also requires a completed command and non-exempt pair, decided in Phase 2."
+   ]
+  },
+  {
+   "sheet_id": "GT-4f524f",
+   "unit_id": "FU2",
+   "kind": "conflict",
+   "robots": [
+    "robot_1",
+    "robot_5"
+   ],
+   "t0_rel": 30.37,
+   "end_rel": 571.97,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "unit_type": "conflict",
+   "T2_t0": true,
+   "T2_shortest": {
+    "distance_m": 0.04,
+    "heading_deg": 90,
+    "robot": "robot_1"
+   },
+   "T2_snapshot_rel": 30.5,
+   "T2_start_within_clearance": [],
+   "X3_gt_condition": true,
+   "X3_gt_pairs": [
+    {
+     "pair": [
+      "robot_1",
+      "robot_5"
+     ],
+     "from_rel": 30.77
+    }
+   ],
+   "X5_gt_candidates": [],
+   "gt_context_codes": [],
+   "notes": [
+    "X3 GT condition present (close and stopped to censoring); X3 itself also requires a completed command and non-exempt pair, decided in Phase 2."
+   ]
+  },
+  {
+   "sheet_id": "GT-4e2591",
+   "unit_id": "FU1",
+   "kind": "conflict",
+   "robots": [
+    "robot_2",
+    "robot_3",
+    "robot_4"
+   ],
+   "t0_rel": 22.073,
+   "end_rel": 570.073,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "unit_type": "conflict",
+   "T2_t0": true,
+   "T2_shortest": {
+    "distance_m": 0.03,
+    "heading_deg": 225,
+    "robot": "robot_2"
+   },
+   "T2_snapshot_rel": 22.133,
+   "T2_start_within_clearance": [],
+   "X3_gt_condition": true,
+   "X3_gt_pairs": [
+    {
+     "pair": [
+      "robot_2",
+      "robot_3"
+     ],
+     "from_rel": 22.37
+    },
+    {
+     "pair": [
+      "robot_2",
+      "robot_4"
+     ],
+     "from_rel": 122.17
+    }
+   ],
+   "X5_gt_candidates": [],
+   "gt_context_codes": [],
+   "notes": [
+    "X3 GT condition present (close and stopped to censoring); X3 itself also requires a completed command and non-exempt pair, decided in Phase 2."
+   ]
+  },
+  {
+   "sheet_id": "GT-4e2591",
+   "unit_id": "FU2",
+   "kind": "conflict",
+   "robots": [
+    "robot_1",
+    "robot_5"
+   ],
+   "t0_rel": 135.073,
+   "end_rel": 570.073,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "unit_type": "conflict",
+   "T2_t0": true,
+   "T2_shortest": {
+    "distance_m": 0.04,
+    "heading_deg": 180,
+    "robot": "robot_1"
+   },
+   "T2_snapshot_rel": 135.3,
+   "T2_start_within_clearance": [],
+   "X3_gt_condition": true,
+   "X3_gt_pairs": [
+    {
+     "pair": [
+      "robot_1",
+      "robot_5"
+     ],
+     "from_rel": 135.27
+    }
+   ],
+   "X5_gt_candidates": [],
+   "gt_context_codes": [],
+   "notes": [
+    "X3 GT condition present (close and stopped to censoring); X3 itself also requires a completed command and non-exempt pair, decided in Phase 2."
+   ]
+  },
+  {
+   "sheet_id": "GT-3f6ad9",
+   "unit_id": "FU1",
+   "kind": "conflict",
+   "robots": [
+    "robot_2",
+    "robot_3",
+    "robot_4"
+   ],
+   "t0_rel": 12.277,
+   "end_rel": 102.277,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "unit_type": "conflict",
+   "T2_t0": true,
+   "T2_shortest": {
+    "distance_m": 0.01,
+    "heading_deg": 0,
+    "robot": "robot_4"
+   },
+   "T2_snapshot_rel": 12.367,
+   "T2_start_within_clearance": [],
+   "X3_gt_condition": true,
+   "X3_gt_pairs": [
+    {
+     "pair": [
+      "robot_2",
+      "robot_3"
+     ],
+     "from_rel": 12.78
+    },
+    {
+     "pair": [
+      "robot_3",
+      "robot_4"
+     ],
+     "from_rel": 34.98
+    }
+   ],
+   "X5_gt_candidates": [],
+   "gt_context_codes": [],
+   "notes": [
+    "X3 GT condition present (close and stopped to censoring); X3 itself also requires a completed command and non-exempt pair, decided in Phase 2."
+   ]
+  },
+  {
+   "sheet_id": "GT-3f6ad9",
+   "unit_id": "FU2",
+   "kind": "conflict",
+   "robots": [
+    "robot_1",
+    "robot_5"
+   ],
+   "t0_rel": 81.177,
+   "end_rel": 102.277,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "unit_type": "conflict",
+   "T2_t0": true,
+   "T2_shortest": {
+    "distance_m": 0.02,
+    "heading_deg": 0,
+    "robot": "robot_1"
+   },
+   "T2_snapshot_rel": 81.367,
+   "T2_start_within_clearance": [],
+   "X3_gt_condition": true,
+   "X3_gt_pairs": [
+    {
+     "pair": [
+      "robot_1",
+      "robot_5"
+     ],
+     "from_rel": 81.28
+    }
+   ],
+   "X5_gt_candidates": [],
+   "gt_context_codes": [],
+   "notes": [
+    "X3 GT condition present (close and stopped to censoring); X3 itself also requires a completed command and non-exempt pair, decided in Phase 2."
+   ]
+  },
+  {
+   "sheet_id": "GT-36197b",
+   "unit_id": "FU1",
+   "kind": "conflict",
+   "robots": [
+    "robot_2",
+    "robot_4"
+   ],
+   "t0_rel": 148.937,
+   "end_rel": 577.437,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "unit_type": "conflict",
+   "T2_t0": true,
+   "T2_shortest": {
+    "distance_m": 0.04,
+    "heading_deg": 135,
+    "robot": "robot_2"
+   },
+   "T2_snapshot_rel": 149.067,
+   "T2_start_within_clearance": [],
+   "X3_gt_condition": true,
+   "X3_gt_pairs": [
+    {
+     "pair": [
+      "robot_2",
+      "robot_4"
+     ],
+     "from_rel": 149.24
+    }
+   ],
+   "X5_gt_candidates": [],
+   "gt_context_codes": [],
+   "notes": [
+    "X3 GT condition present (close and stopped to censoring); X3 itself also requires a completed command and non-exempt pair, decided in Phase 2."
+   ]
+  },
+  {
+   "sheet_id": "GT-36197b",
+   "unit_id": "FU2",
+   "kind": "conflict",
+   "robots": [
+    "robot_1",
+    "robot_3",
+    "robot_5"
+   ],
+   "t0_rel": 162.237,
+   "end_rel": 577.437,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "unit_type": "conflict",
+   "T2_t0": true,
+   "T2_shortest": {
+    "distance_m": 0.01,
+    "heading_deg": 0,
+    "robot": "robot_1"
+   },
+   "T2_snapshot_rel": 162.4,
+   "T2_start_within_clearance": [
+    "robot_3"
+   ],
+   "X3_gt_condition": true,
+   "X3_gt_pairs": [
+    {
+     "pair": [
+      "robot_1",
+      "robot_3"
+     ],
+     "from_rel": 173.54
+    },
+    {
+     "pair": [
+      "robot_1",
+      "robot_5"
+     ],
+     "from_rel": 166.34
+    }
+   ],
+   "X5_gt_candidates": [
+    {
+     "robot": "robot_3",
+     "other": "rack/SW_south",
+     "other_type": "undeclared_box",
+     "from_rel": 143.54,
+     "to_rel": 577.44,
+     "min_gap_m": -0.0015,
+     "relative_to_t0": "spans_or_after_t0",
+     "open_to_censor": true
+    },
+    {
+     "robot": "robot_3",
+     "other": "rack/SW_west",
+     "other_type": "undeclared_box",
+     "from_rel": 20.84,
+     "to_rel": 49.84,
+     "min_gap_m": -0.0,
+     "relative_to_t0": "before_t0",
+     "open_to_censor": false
+    }
+   ],
+   "gt_context_codes": [
+    "EG2"
+   ],
+   "notes": [
+    "X3 GT condition present (close and stopped to censoring); X3 itself also requires a completed command and non-exempt pair, decided in Phase 2.",
+    "GT contacts (gap<=0.005 m) present: X5 if not attributable to a G5 leg (Phase 2); EG2 if box undeclared."
+   ]
+  },
+  {
+   "sheet_id": "GT-354e83",
+   "unit_id": "FU1",
+   "kind": "conflict",
+   "robots": [
+    "robot_1",
+    "robot_3",
+    "robot_5"
+   ],
+   "t0_rel": 12.74,
+   "end_rel": 570.14,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "unit_type": "conflict",
+   "T2_t0": true,
+   "T2_shortest": {
+    "distance_m": 0.01,
+    "heading_deg": 0,
+    "robot": "robot_5"
+   },
+   "T2_snapshot_rel": 12.833,
+   "T2_start_within_clearance": [],
+   "X3_gt_condition": true,
+   "X3_gt_pairs": [
+    {
+     "pair": [
+      "robot_1",
+      "robot_3"
+     ],
+     "from_rel": 12.94
+    },
+    {
+     "pair": [
+      "robot_1",
+      "robot_5"
+     ],
+     "from_rel": 89.64
+    }
+   ],
+   "X5_gt_candidates": [],
+   "gt_context_codes": [],
+   "notes": [
+    "X3 GT condition present (close and stopped to censoring); X3 itself also requires a completed command and non-exempt pair, decided in Phase 2."
+   ]
+  },
+  {
+   "sheet_id": "GT-354e83",
+   "unit_id": "FU2",
+   "kind": "conflict",
+   "robots": [
+    "robot_2",
+    "robot_4"
+   ],
+   "t0_rel": 40.44,
+   "end_rel": 570.14,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "unit_type": "conflict",
+   "T2_t0": true,
+   "T2_shortest": {
+    "distance_m": 0.02,
+    "heading_deg": 90,
+    "robot": "robot_2"
+   },
+   "T2_snapshot_rel": 40.767,
+   "T2_start_within_clearance": [
+    "robot_4"
+   ],
+   "X3_gt_condition": true,
+   "X3_gt_pairs": [
+    {
+     "pair": [
+      "robot_2",
+      "robot_4"
+     ],
+     "from_rel": 40.94
+    }
+   ],
+   "X5_gt_candidates": [
+    {
+     "robot": "robot_2",
+     "other": "rack/NW_north",
+     "other_type": "undeclared_box",
+     "from_rel": 27.24,
+     "to_rel": 33.94,
+     "min_gap_m": -0.0015,
+     "relative_to_t0": "before_t0",
+     "open_to_censor": false
+    }
+   ],
+   "gt_context_codes": [
+    "EG2"
+   ],
+   "notes": [
+    "X3 GT condition present (close and stopped to censoring); X3 itself also requires a completed command and non-exempt pair, decided in Phase 2.",
+    "GT contacts (gap<=0.005 m) present: X5 if not attributable to a G5 leg (Phase 2); EG2 if box undeclared."
+   ]
+  },
+  {
+   "sheet_id": "GT-352840",
+   "unit_id": "FU1",
+   "kind": "conflict",
+   "robots": [
+    "robot_1",
+    "robot_5"
+   ],
+   "t0_rel": 14.507,
+   "end_rel": 108.807,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "unit_type": "conflict",
+   "T2_t0": true,
+   "T2_shortest": {
+    "distance_m": 0.03,
+    "heading_deg": 0,
+    "robot": "robot_1"
+   },
+   "T2_snapshot_rel": 14.8,
+   "T2_start_within_clearance": [],
+   "X3_gt_condition": true,
+   "X3_gt_pairs": [
+    {
+     "pair": [
+      "robot_1",
+      "robot_5"
+     ],
+     "from_rel": 15.31
+    }
+   ],
+   "X5_gt_candidates": [],
+   "gt_context_codes": [],
+   "notes": [
+    "X3 GT condition present (close and stopped to censoring); X3 itself also requires a completed command and non-exempt pair, decided in Phase 2."
+   ]
+  },
+  {
+   "sheet_id": "GT-190651",
+   "unit_id": "FU1",
+   "kind": "conflict",
+   "robots": [
+    "robot_2",
+    "robot_4",
+    "robot_5"
+   ],
+   "t0_rel": 184.407,
+   "end_rel": 570.907,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "unit_type": "conflict",
+   "T2_t0": true,
+   "T2_shortest": {
+    "distance_m": 0.01,
+    "heading_deg": 0,
+    "robot": "robot_4"
+   },
+   "T2_snapshot_rel": 184.467,
+   "T2_start_within_clearance": [],
+   "X3_gt_condition": true,
+   "X3_gt_pairs": [
+    {
+     "pair": [
+      "robot_2",
+      "robot_5"
+     ],
+     "from_rel": 184.61
+    },
+    {
+     "pair": [
+      "robot_4",
+      "robot_5"
+     ],
+     "from_rel": 195.11
+    }
+   ],
+   "X5_gt_candidates": [],
+   "gt_context_codes": [],
+   "notes": [
+    "X3 GT condition present (close and stopped to censoring); X3 itself also requires a completed command and non-exempt pair, decided in Phase 2."
+   ]
+  },
+  {
+   "sheet_id": "GT-190651",
+   "unit_id": "FU2",
+   "kind": "conflict",
+   "robots": [
+    "robot_1",
+    "robot_3"
+   ],
+   "t0_rel": 219.007,
+   "end_rel": 570.907,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "unit_type": "conflict",
+   "T2_t0": true,
+   "T2_shortest": {
+    "distance_m": 0.04,
+    "heading_deg": 0,
+    "robot": "robot_1"
+   },
+   "T2_snapshot_rel": 219.367,
+   "T2_start_within_clearance": [],
+   "X3_gt_condition": true,
+   "X3_gt_pairs": [
+    {
+     "pair": [
+      "robot_1",
+      "robot_3"
+     ],
+     "from_rel": 223.01
+    }
+   ],
+   "X5_gt_candidates": [
+    {
+     "robot": "robot_1",
+     "other": "robot_3",
+     "other_type": "robot",
+     "from_rel": 222.31,
+     "to_rel": 570.91,
+     "min_gap_m": -0.0003,
+     "relative_to_t0": "spans_or_after_t0",
+     "open_to_censor": true
+    }
+   ],
+   "gt_context_codes": [],
+   "notes": [
+    "X3 GT condition present (close and stopped to censoring); X3 itself also requires a completed command and non-exempt pair, decided in Phase 2.",
+    "GT contacts (gap<=0.005 m) present: X5 if not attributable to a G5 leg (Phase 2); EG2 if box undeclared."
+   ]
+  },
+  {
+   "sheet_id": "GT-162c10",
+   "unit_id": "FU1",
+   "kind": "conflict",
+   "robots": [
+    "robot_1",
+    "robot_3",
+    "robot_4",
+    "robot_5"
+   ],
+   "t0_rel": 17.373,
+   "end_rel": 570.673,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "unit_type": "conflict",
+   "T2_t0": true,
+   "T2_shortest": {
+    "distance_m": 0.01,
+    "heading_deg": 0,
+    "robot": "robot_1"
+   },
+   "T2_snapshot_rel": 17.667,
+   "T2_start_within_clearance": [],
+   "X3_gt_condition": true,
+   "X3_gt_pairs": [
+    {
+     "pair": [
+      "robot_1",
+      "robot_5"
+     ],
+     "from_rel": 73.97
+    },
+    {
+     "pair": [
+      "robot_3",
+      "robot_4"
+     ],
+     "from_rel": 17.87
+    },
+    {
+     "pair": [
+      "robot_3",
+      "robot_5"
+     ],
+     "from_rel": 49.27
+    }
+   ],
+   "X5_gt_candidates": [],
+   "gt_context_codes": [],
+   "notes": [
+    "X3 GT condition present (close and stopped to censoring); X3 itself also requires a completed command and non-exempt pair, decided in Phase 2."
+   ]
+  },
+  {
+   "sheet_id": "GT-14b9fe",
+   "unit_id": "FU1",
+   "kind": "conflict",
+   "robots": [
+    "robot_1",
+    "robot_2",
+    "robot_3",
+    "robot_4",
+    "robot_5"
+   ],
+   "t0_rel": 22.803,
+   "end_rel": 568.803,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "unit_type": "conflict",
+   "T2_t0": true,
+   "T2_shortest": {
+    "distance_m": 0.01,
+    "heading_deg": 0,
+    "robot": "robot_1"
+   },
+   "T2_snapshot_rel": 22.933,
+   "T2_start_within_clearance": [],
+   "X3_gt_condition": true,
+   "X3_gt_pairs": [
+    {
+     "pair": [
+      "robot_1",
+      "robot_2"
+     ],
+     "from_rel": 84.0
+    },
+    {
+     "pair": [
+      "robot_1",
+      "robot_5"
+     ],
+     "from_rel": 102.3
+    },
+    {
+     "pair": [
+      "robot_2",
+      "robot_3"
+     ],
+     "from_rel": 23.3
+    },
+    {
+     "pair": [
+      "robot_2",
+      "robot_4"
+     ],
+     "from_rel": 81.3
+    }
+   ],
+   "X5_gt_candidates": [],
+   "gt_context_codes": [],
+   "notes": [
+    "X3 GT condition present (close and stopped to censoring); X3 itself also requires a completed command and non-exempt pair, decided in Phase 2."
+   ]
+  },
+  {
+   "sheet_id": "GT-0daa00",
+   "unit_id": "FU1",
+   "kind": "conflict",
+   "robots": [
+    "robot_2",
+    "robot_3"
+   ],
+   "t0_rel": 12.073,
+   "end_rel": 570.473,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "unit_type": "conflict",
+   "T2_t0": true,
+   "T2_shortest": {
+    "distance_m": 0.13,
+    "heading_deg": 135,
+    "robot": "robot_2"
+   },
+   "T2_snapshot_rel": 12.4,
+   "T2_start_within_clearance": [],
+   "X3_gt_condition": true,
+   "X3_gt_pairs": [
+    {
+     "pair": [
+      "robot_2",
+      "robot_3"
+     ],
+     "from_rel": 12.57
+    }
+   ],
+   "X5_gt_candidates": [],
+   "gt_context_codes": [],
+   "notes": [
+    "X3 GT condition present (close and stopped to censoring); X3 itself also requires a completed command and non-exempt pair, decided in Phase 2."
+   ]
+  },
+  {
+   "sheet_id": "GT-0daa00",
+   "unit_id": "FU2",
+   "kind": "conflict",
+   "robots": [
+    "robot_1",
+    "robot_4",
+    "robot_5"
+   ],
+   "t0_rel": 69.773,
+   "end_rel": 570.473,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "unit_type": "conflict",
+   "T2_t0": true,
+   "T2_shortest": {
+    "distance_m": 0.01,
+    "heading_deg": 0,
+    "robot": "robot_1"
+   },
+   "T2_snapshot_rel": 69.867,
+   "T2_start_within_clearance": [
+    "robot_4"
+   ],
+   "X3_gt_condition": true,
+   "X3_gt_pairs": [
+    {
+     "pair": [
+      "robot_1",
+      "robot_4"
+     ],
+     "from_rel": 70.07
+    },
+    {
+     "pair": [
+      "robot_1",
+      "robot_5"
+     ],
+     "from_rel": 99.87
+    }
+   ],
+   "X5_gt_candidates": [],
+   "gt_context_codes": [],
+   "notes": [
+    "X3 GT condition present (close and stopped to censoring); X3 itself also requires a completed command and non-exempt pair, decided in Phase 2."
+   ]
+  },
+  {
+   "sheet_id": "GT-00408f",
+   "unit_id": "FU1",
+   "kind": "conflict",
+   "robots": [
+    "robot_1",
+    "robot_2",
+    "robot_3",
+    "robot_4",
+    "robot_5"
+   ],
+   "t0_rel": 23.607,
+   "end_rel": 569.807,
+   "tool_excluded": false,
+   "tool_flags": [],
+   "is_failure_unit": true,
+   "unit_type": "conflict",
+   "T2_t0": true,
+   "T2_shortest": {
+    "distance_m": 0.01,
+    "heading_deg": 0,
+    "robot": "robot_3"
+   },
+   "T2_snapshot_rel": 23.867,
+   "T2_start_within_clearance": [],
+   "X3_gt_condition": true,
+   "X3_gt_pairs": [
+    {
+     "pair": [
+      "robot_1",
+      "robot_2"
+     ],
+     "from_rel": 69.71
+    },
+    {
+     "pair": [
+      "robot_2",
+      "robot_4"
+     ],
+     "from_rel": 89.41
+    },
+    {
+     "pair": [
+      "robot_2",
+      "robot_5"
+     ],
+     "from_rel": 73.11
+    },
+    {
+     "pair": [
+      "robot_3",
+      "robot_5"
+     ],
+     "from_rel": 82.31
+    }
+   ],
+   "X5_gt_candidates": [
+    {
+     "robot": "robot_1",
+     "other": "rack/NW_west",
+     "other_type": "undeclared_box",
+     "from_rel": 67.51,
+     "to_rel": 569.81,
+     "min_gap_m": -0.0,
+     "relative_to_t0": "spans_or_after_t0",
+     "open_to_censor": true
+    }
+   ],
+   "gt_context_codes": [
+    "EG2"
+   ],
+   "notes": [
+    "X3 GT condition present (close and stopped to censoring); X3 itself also requires a completed command and non-exempt pair, decided in Phase 2.",
+    "GT contacts (gap<=0.005 m) present: X5 if not attributable to a G5 leg (Phase 2); EG2 if box undeclared."
+   ]
+  }
+ ],
+ "parked_finished_not_FU": [
+  {
+   "sheet_id": "GT-b92f93",
+   "unit_id": "FU3",
+   "kind": "lone_stall",
+   "robots": [
+    "robot_2"
+   ],
+   "t0_rel": 138.17,
+   "end_rel": 570.67,
+   "tool_excluded": false,
+   "tool_flags": [
+    "finished_all_or_between_tasks_at_censor (tool flag; rubric silent)"
+   ],
+   "is_failure_unit": false,
+   "unit_type": "parked_finished_not_FU",
+   "T2_t0": true,
+   "T2_shortest": {
+    "distance_m": 0.01,
+    "heading_deg": 0,
+    "robot": "robot_2"
+   },
+   "T2_snapshot_rel": 138.2,
+   "T2_start_within_clearance": [],
+   "X3_gt_condition": false,
+   "X3_gt_pairs": [],
+   "X5_gt_candidates": [
+    {
+     "robot": "robot_2",
+     "other": "obstacle_1",
+     "other_type": "declared_box",
+     "from_rel": 18.87,
+     "to_rel": 21.27,
+     "min_gap_m": 0.001,
+     "relative_to_t0": "before_t0",
+     "open_to_censor": false
+    }
+   ],
+   "gt_context_codes": [],
+   "notes": [
+    "Parked robot that finished its tasks (tool flag): coded as not a failure unit per protocol; listed separately.",
+    "GT contacts (gap<=0.005 m) present: X5 if not attributable to a G5 leg (Phase 2); EG2 if box undeclared."
+   ]
+  },
+  {
+   "sheet_id": "GT-4f524f",
+   "unit_id": "FU3",
+   "kind": "lone_stall",
+   "robots": [
+    "robot_2"
+   ],
+   "t0_rel": 139.37,
+   "end_rel": 571.97,
+   "tool_excluded": false,
+   "tool_flags": [
+    "finished_all_or_between_tasks_at_censor (tool flag; rubric silent)"
+   ],
+   "is_failure_unit": false,
+   "unit_type": "parked_finished_not_FU",
+   "T2_t0": true,
+   "T2_shortest": {
+    "distance_m": 0.01,
+    "heading_deg": 0,
+    "robot": "robot_2"
+   },
+   "T2_snapshot_rel": 139.667,
+   "T2_start_within_clearance": [],
+   "X3_gt_condition": false,
+   "X3_gt_pairs": [],
+   "X5_gt_candidates": [],
+   "gt_context_codes": [],
+   "notes": [
+    "Parked robot that finished its tasks (tool flag): coded as not a failure unit per protocol; listed separately."
+   ]
+  },
+  {
+   "sheet_id": "GT-162c10",
+   "unit_id": "FU2",
+   "kind": "lone_stall",
+   "robots": [
+    "robot_2"
+   ],
+   "t0_rel": 107.673,
+   "end_rel": 570.673,
+   "tool_excluded": false,
+   "tool_flags": [
+    "finished_all_or_between_tasks_at_censor (tool flag; rubric silent)"
+   ],
+   "is_failure_unit": false,
+   "unit_type": "parked_finished_not_FU",
+   "T2_t0": true,
+   "T2_shortest": {
+    "distance_m": 0.01,
+    "heading_deg": 0,
+    "robot": "robot_2"
+   },
+   "T2_snapshot_rel": 107.967,
+   "T2_start_within_clearance": [],
+   "X3_gt_condition": false,
+   "X3_gt_pairs": [],
+   "X5_gt_candidates": [],
+   "gt_context_codes": [],
+   "notes": [
+    "Parked robot that finished its tasks (tool flag): coded as not a failure unit per protocol; listed separately."
+   ]
+  }
+ ]
+}

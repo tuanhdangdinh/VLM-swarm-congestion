@@ -1,0 +1,3569 @@
+{
+ "rater": "A",
+ "phase": 2,
+ "rubric": "section 7 as frozen (file read 2026-11-15)",
+ "fixed_readings": "see ambiguities.md R1-R14, A1-A10",
+ "record_kinds": "unit records (FUn), NOT_FU:parked_finished records, and one EPISODE record per sheet",
+ "records": [
+  {
+   "sheet_id": "EV-072a17",
+   "unit_id": "FU1",
+   "primary_code": "G4",
+   "step_fired": "4",
+   "evidence": "Gate all True. Step 2: chain (rubric) D1:robot_2:backup, D1:robot_5:escort, D1:robot_5:wait; D1 dispatched 14.133 < t0 22.937 (within 60 s), chain_start 14.133, step 3 skipped. Walk from 14.133: D1 analysis yield yield_robot=robot_5, C2 False, valid parse (no V4/V6); D1 not matched to FU1 so no T1 at its snapshot (V2/V3 untestable, R3). D1 grounding: verifier edit swap robot_5<->robot_2, G4_role_change_tags ['yield_robot=sweep_regrounded:robot_5->robot_2','yield_robot_grounded_from=robot_5'], dispatched robot_2:yield (dispatch differs from decision's yield_robot) -> G4 at 14.133.",
+   "contributing_codes": [
+    "X3",
+    "V3",
+    "G1"
+   ],
+   "event_codes": [
+    {
+     "event": "D1 analysis",
+     "t_rel": 14.133,
+     "codes": [],
+     "note": "V2/V3:U:T1_not_run (unmatched to FU1)"
+    },
+    {
+     "event": "D1 grounding/dispatch",
+     "t_rel": 14.133,
+     "codes": [
+      "G4"
+     ]
+    },
+    {
+     "event": "D1:robot_2:backup",
+     "t_rel": 96.302,
+     "codes": [
+      "X3"
+     ],
+     "note": "COMPLETED moved 1.613/1.438; pairs robot_2|robot_5 close+stopped from 105.64 and robot_3|robot_5 from 23.14 to censor; exemption robot_2+robot_5 cleared at 96.306"
+    },
+    {
+     "event": "D1:robot_5:escort",
+     "t_rel": 51.867,
+     "codes": [],
+     "note": "T3 not_executed(<50%), terminal None, stalled_clear; no X1 under R7"
+    },
+    {
+     "event": "D2 (temporary_wait, matched to FU2, omits robot_2)",
+     "t_rel": 100.067,
+     "codes": [],
+     "note": "V2 untestable for FU1 (no FU1 T1 row at D2)"
+    },
+    {
+     "event": "D2 waits COMPLETED",
+     "t_rel": 110.48,
+     "codes": [
+      "X3"
+     ]
+    },
+    {
+     "event": "D3 analysis junction_clear, plan reverse robot_2",
+     "t_rel": 113.567,
+     "codes": [
+      "V3"
+     ],
+     "note": "named reverser robot_2 refused for retreat room (yield refused: no feasible yielder robot_2 0.15 m ...); T1[D3] pass 52/237 contains R:robot_3, R:robot_5"
+    },
+    {
+     "event": "D3 grounding withheld refusal_no_action",
+     "t_rel": 113.567,
+     "codes": [
+      "G1"
+     ],
+     "note": "contract C1-C3 None, T2[D3] True"
+    }
+   ],
+   "confidence": "medium",
+   "notes": "Alt R3 (U when V2/V3 untestable at D1): primary U:T1_not_run. Alt R8 (all X2 inputs count): robot_3 X2 run from 22.94 is after G4, primary unchanged. X2 inputs all safety_stop_cover_fraction 1.0 -> not X2 under R8. ALT[R3]=U:T1_not_run"
+  },
+  {
+   "sheet_id": "EV-072a17",
+   "unit_id": "FU2",
+   "primary_code": "X2",
+   "step_fired": "4",
+   "evidence": "Gate all True. Step 2 no chain (rubric chain []). Step 3: T2(t0)=True, T1(t0) as written 7/88 non-empty, fidelity episode_gate_pass -> continue. Walk from t0 30.137: Nav2 abort line robot_1 30.181 rel-s '[follow_path] [ActionServer] Aborting handle.' -> X2.",
+   "contributing_codes": [
+    "X3"
+   ],
+   "event_codes": [
+    {
+     "event": "nav2 abort robot_1",
+     "t_rel": 30.181,
+     "codes": [
+      "X2"
+     ]
+    },
+    {
+     "event": "D2 analysis temporary_wait inv robot_1,3,4,5",
+     "t_rel": 100.067,
+     "codes": [],
+     "note": "T1[D2] pass 7/88, no robot in every motion label -> no V2; no plan, m3_default (not G2)"
+    },
+    {
+     "event": "D2 waits robot_1/robot_4 COMPLETED",
+     "t_rel": 110.48,
+     "codes": [
+      "X3"
+     ],
+     "note": "pair robot_1|robot_4 close+stopped from 30.34 to censor, non-exempt"
+    }
+   ],
+   "confidence": "medium",
+   "notes": "X2 here rests on the literal Nav2 abort clause; the abort coincides with robot_1's safety-stop start (30.179). If the abort line were not counted, the walk gives X3 at 110.48 (completed wait then pinned pair). X2 input runs have cover fraction 1.0 (not X2 under R8)."
+  },
+  {
+   "sheet_id": "EV-072a17",
+   "unit_id": "EPISODE",
+   "primary_code": "G4",
+   "step_fired": "episode",
+   "evidence": "Earliest t0 FU1 (22.937).",
+   "contributing_codes": [
+    "G1",
+    "V3",
+    "X2",
+    "X3"
+   ],
+   "event_codes": [],
+   "confidence": "medium",
+   "notes": "Episode contributing = union of all FUs' primary and contributing codes, minus the episode primary."
+  },
+  {
+   "sheet_id": "EV-0bdad6",
+   "unit_id": "FU1",
+   "primary_code": "G4",
+   "step_fired": "4",
+   "evidence": "Gate all True. Step 2: chain (rubric) D1:robot_1:backup, D1:robot_4:escort, D1:robot_4:wait, D1:robot_5:wait; D1 dispatched 12.367, t0 69.04 (56.7 s before), chain_start 12.367; step 3 skipped. Walk: D1 analysis yield yield_robot robot_1, C2 False, parse valid; D1 not matched to FU1, no T1 row (V2/V3 untestable). D1 grounding: G4_role_change_tags ['grounding=node_handoff:robot_1->robot_4'] and G6_verbatim_contradicted True (provenance vlm_verbatim, dispatch_matches_plan False) -> G4 and G6 on the same event; G4 taken (lower-numbered G, see ambiguity A2).",
+   "contributing_codes": [
+    "G6",
+    "X3",
+    "G1",
+    "G2",
+    "V3",
+    "X4"
+   ],
+   "event_codes": [
+    {
+     "event": "D1 analysis",
+     "t_rel": 12.367,
+     "codes": [],
+     "note": "V2/V3:U:T1_not_run"
+    },
+    {
+     "event": "D1 grounding/dispatch",
+     "t_rel": 12.367,
+     "codes": [
+      "G4",
+      "G6"
+     ]
+    },
+    {
+     "event": "D1 backup robot_1 COMPLETED / escort robot_4 COMPLETED",
+     "t_rel": 66.991,
+     "codes": [
+      "X3"
+     ],
+     "note": "pair robot_1|robot_4 close+stopped from 69.24 to censor; exemption robot_1+robot_4 cleared 66.947"
+    },
+    {
+     "event": "D3 yield robot_4 withheld (no feasible yielder robot_4 0.00, robot_1 0.00)",
+     "t_rel": 154.6,
+     "codes": [
+      "G1",
+      "G2"
+     ],
+     "note": "C2 False, T2[D3] True; G2_m3_default_with_plan True; V3 not met: no Y label in T1[D3] motion"
+    },
+    {
+     "event": "D4 (same as D3)",
+     "t_rel": 159.433,
+     "codes": [
+      "G1",
+      "G2"
+     ]
+    },
+    {
+     "event": "D5 yield robot_1 withheld (no declared junction)",
+     "t_rel": 181.533,
+     "codes": [
+      "G1",
+      "G2"
+     ],
+     "note": "refusal not for room -> no V3"
+    },
+    {
+     "event": "D6 yield robot_1 withheld (no shared lane)",
+     "t_rel": 235.5,
+     "codes": [
+      "G1",
+      "G2"
+     ],
+     "note": "handoff tags present but withheld -> not G4 (R5)"
+    },
+    {
+     "event": "D7 junction_clear, plan reverse robot_4+robot_1, withheld (retreat room)",
+     "t_rel": 239.367,
+     "codes": [
+      "V3",
+      "G1"
+     ],
+     "note": "R:robot_5 in T1[D7] motion"
+    },
+    {
+     "event": "D8 junction_clear no plan, withheld",
+     "t_rel": 243.367,
+     "codes": [
+      "G1"
+     ]
+    },
+    {
+     "event": "robot_5 STALE 11.53 s / 10.1 s",
+     "t_rel": 277.967,
+     "codes": [
+      "X4"
+     ]
+    }
+   ],
+   "confidence": "medium",
+   "notes": "Alt R3: U:T1_not_run at D1. X2 runs cover fraction 1.0/0.99 -> not X2 (R8); alt R8 does not change primary (runs start 69.04, after D1). D1 fidelity as-written 'differs' (no T1 row at D1 anyway). ALT[R3]=U:T1_not_run"
+  },
+  {
+   "sheet_id": "EV-0bdad6",
+   "unit_id": "FU2",
+   "primary_code": "U:T1_fidelity",
+   "step_fired": "7 (entered from step 3: T1(t0) U:T1_fidelity)",
+   "evidence": "Gate all True. Step 2: chain (rubric) [] (no dispatch to robot_2/robot_3 in [t0-60, t0]; t0 240.94). Step 3: T2(t0) False (start_within_required_clearance robot_2, robot_3), T1(t0) as written 'U:T1_fidelity' (episode gate; 29/88 only under +intents). T1 decides EG1 vs continue -> U:T1_fidelity (R1).",
+   "contributing_codes": [
+    "V1",
+    "X2",
+    "X4",
+    "X5"
+   ],
+   "event_codes": [
+    {
+     "event": "FU V1 (a33_matched_positive_analyses 0)",
+     "t_rel": 240.94,
+     "codes": [
+      "V1"
+     ]
+    },
+    {
+     "event": "D8 junction_clear withheld (not matched to FU2)",
+     "t_rel": 243.367,
+     "codes": [],
+     "note": "G1 untestable for FU2 (no FU2 T2 at D8)"
+    },
+    {
+     "event": "nav2 'Failed to make progress'/abort robot_3, robot_2",
+     "t_rel": 249.014,
+     "codes": [
+      "X2"
+     ]
+    },
+    {
+     "event": "robot_3 STALE 330.73 s from 237.6 (starts before t0)",
+     "t_rel": 237.6,
+     "codes": [
+      "X4"
+     ]
+    },
+    {
+     "event": "gt_contact robot_2|obstacle_2 from 238.54 (no leg)",
+     "t_rel": 238.54,
+     "codes": [
+      "X5"
+     ],
+     "note": "starts 2.4 s before t0"
+    }
+   ],
+   "confidence": "medium",
+   "notes": "Alt R1 (walk step 4 from t0): first event V1 at t0 -> primary V1. Blinding: this unit's t0/contact times match a case named in the methods note (disclosure D3); coded from sheet only. robot_3 contact with obstacle_2 from 114.74 began inside the D2:robot_3:escort leg (min static gap -0.0002, would be G5 for that leg) but that leg is outside FU2's chain/timeline, so not an FU2 event (S1 sensitivity is computed later)."
+  },
+  {
+   "sheet_id": "EV-0bdad6",
+   "unit_id": "EPISODE",
+   "primary_code": "G4",
+   "step_fired": "episode",
+   "evidence": "Earliest t0 FU1 (69.04).",
+   "contributing_codes": [
+    "G1",
+    "G2",
+    "G6",
+    "U:T1_fidelity",
+    "V1",
+    "V3",
+    "X2",
+    "X3",
+    "X4",
+    "X5"
+   ],
+   "event_codes": [],
+   "confidence": "medium",
+   "notes": "Episode contributing = union of all FUs' primary and contributing codes, minus the episode primary."
+  },
+  {
+   "sheet_id": "EV-133a4a",
+   "unit_id": "FU1",
+   "primary_code": "U:no_m4_clock_anchor",
+   "step_fired": "7 (first deviation undetermined: no m4 clock anchor)",
+   "evidence": "Layer-2-off coding (R2, rubric 7.6): no decision artifacts, no decisions/legs, m4.log < 2 sim_t= lines. Step 1: t0_snapshot True, m4_log True; decision artifacts not needed (no V/G). Step 2 never fires (nothing dispatched). Step 3: T2(t0) True, so G7 (not applicable by construction) vs continue is the only branch T1 could decide; continue. Step 4 (X only) from t0 14.67: X2 input runs for robot_3, robot_4 start at ~t0 and last to censor, but safety-stop spans are present and unmapped (rel None; wall mapping U:no_m4_clock_anchor), so 'under an active Nav2 goal' cannot be decided (R8); no STALE span >= 10 s; no GT contact (gap <= 0.005) for FU robots; X3 needs a completed command (none).",
+   "contributing_codes": [
+    "N0"
+   ],
+   "event_codes": [
+    {
+     "event": "X2 input runs (stationary, no M4 leg, traveling)",
+     "t_rel": 14.67,
+     "codes": [
+      "U:no_m4_clock_anchor"
+     ],
+     "note": "cover fraction 0.0 is an artefact of unmapped safety-stop spans"
+    }
+   ],
+   "confidence": "medium",
+   "notes": "T1(t0) as written 29/88 non-empty: a Layer-2 action was available (yes); fidelity unverifiable_in_bundle. Alt R8 (every tool X2 input counts): primary X2 (run from ~t0). Alt R2 (treat as Layer-2-on with missing artifacts): U:no_decision_artifacts at step 1."
+  },
+  {
+   "sheet_id": "EV-133a4a",
+   "unit_id": "FU2",
+   "primary_code": "U:no_m4_clock_anchor",
+   "step_fired": "7 (first deviation undetermined: no m4 clock anchor)",
+   "evidence": "Layer-2-off coding (R2, rubric 7.6): no decision artifacts, no decisions/legs, m4.log < 2 sim_t= lines. Step 1: t0_snapshot True, m4_log True; decision artifacts not needed (no V/G). Step 2 never fires (nothing dispatched). Step 3: T2(t0) True, so G7 (not applicable by construction) vs continue is the only branch T1 could decide; continue. Step 4 (X only) from t0 30.37: X2 input runs for robot_1, robot_5 start at ~t0 and last to censor, but safety-stop spans are present and unmapped (rel None; wall mapping U:no_m4_clock_anchor), so 'under an active Nav2 goal' cannot be decided (R8); no STALE span >= 10 s; no GT contact (gap <= 0.005) for FU robots; X3 needs a completed command (none).",
+   "contributing_codes": [
+    "N0"
+   ],
+   "event_codes": [
+    {
+     "event": "X2 input runs (stationary, no M4 leg, traveling)",
+     "t_rel": 30.37,
+     "codes": [
+      "U:no_m4_clock_anchor"
+     ],
+     "note": "cover fraction 0.0 is an artefact of unmapped safety-stop spans"
+    }
+   ],
+   "confidence": "medium",
+   "notes": "T1(t0) as written 2/88 non-empty: a Layer-2 action was available (yes); fidelity unverifiable_in_bundle. Alt R8 (every tool X2 input counts): primary X2 (run from ~t0). Alt R2 (treat as Layer-2-on with missing artifacts): U:no_decision_artifacts at step 1."
+  },
+  {
+   "sheet_id": "EV-133a4a",
+   "unit_id": "FU3",
+   "primary_code": "NOT_FU:parked_finished",
+   "step_fired": "none",
+   "evidence": "lone_stall robot_2 t0 139.37, flag finished_all_or_between_tasks_at_censor; protocol: parked robots that finished their last task are coded as not a failure unit and listed separately.",
+   "contributing_codes": [],
+   "event_codes": [],
+   "confidence": "high",
+   "notes": "Listed separately, excluded from primary counts."
+  },
+  {
+   "sheet_id": "EV-133a4a",
+   "unit_id": "EPISODE",
+   "primary_code": "U:no_m4_clock_anchor",
+   "step_fired": "episode",
+   "evidence": "Earliest t0 FU1 (14.67).",
+   "contributing_codes": [
+    "N0"
+   ],
+   "event_codes": [],
+   "confidence": "medium",
+   "notes": "Layer-2-off by sheet content (R2). Episode contributing = union of all FUs' primary and contributing codes, minus the episode primary."
+  },
+  {
+   "sheet_id": "EV-295a3e",
+   "unit_id": "FU1",
+   "primary_code": "G4",
+   "step_fired": "4",
+   "evidence": "Gate all True. Step 2: chain (rubric) D1:robot_2:backup, D1:robot_3:escort and D1 waits; D1 dispatched 13.8, t0 65.07 (51.3 s before); chain_start 13.8; step 3 skipped (T1(t0) U:T1_fidelity therefore not deciding). Walk: D1 analysis yield yield_robot robot_3, C2 False, valid; unmatched to FU1 (no T1 row) -> V2/V3 untestable. D1 grounding: swap robot_3<->robot_2 ('yield re-grounded: robot_3 has no retreat candidate surviving the sweep'), G4_role_change_tags ['yield_robot=sweep_regrounded:robot_3->robot_2',...], dispatched robot_2:yield -> G4 at 13.8.",
+   "contributing_codes": [
+    "X3",
+    "X1",
+    "G5",
+    "EG2",
+    "V3",
+    "G1",
+    "X5",
+    "X2",
+    "G2"
+   ],
+   "event_codes": [
+    {
+     "event": "D1 analysis",
+     "t_rel": 13.8,
+     "codes": [],
+     "note": "V2/V3:U:T1_not_run"
+    },
+    {
+     "event": "D1 grounding",
+     "t_rel": 13.8,
+     "codes": [
+      "G4"
+     ]
+    },
+    {
+     "event": "D1 backup robot_2 COMPLETED",
+     "t_rel": 94.114,
+     "codes": [
+      "X3"
+     ],
+     "note": "robot_1|robot_3 close+stopped from 65.67 to censor; exemptions cleared 94.116"
+    },
+    {
+     "event": "D2 reverse robot_4+robot_5 (matched)",
+     "t_rel": 100.133,
+     "codes": [],
+     "note": "C1 False; V4j not flagged (justification/reasoning do not name robot_4/robot_5 as continuing or passing); T1[D2] pass, no robot in every motion label; vlm_verbatim and dispatch matches"
+    },
+    {
+     "event": "D2:robot_5:reverse leg",
+     "t_rel": 101.8,
+     "codes": [
+      "G5",
+      "X1"
+     ],
+     "note": "recomputed min static gap -0.0017 m to rack/SW_west (undeclared) at 134.67; FAILED deadline True 135.842"
+    },
+    {
+     "event": "gt_contact robot_5|rack/SW_west 111.37-139.47",
+     "t_rel": 111.37,
+     "codes": [
+      "EG2"
+     ],
+     "note": "inside the G5 leg -> not X5"
+    },
+    {
+     "event": "D1:robot_3:escort FAILED 'escort timed out in phase drive'",
+     "t_rel": 114.801,
+     "codes": [
+      "X1"
+     ]
+    },
+    {
+     "event": "nav2 abort robot_5",
+     "t_rel": 136.806,
+     "codes": [
+      "X2"
+     ]
+    },
+    {
+     "event": "D3 junction_clear plan reverse robot_4,robot_2 withheld (retreat room)",
+     "t_rel": 141.067,
+     "codes": [
+      "V3",
+      "G1"
+     ],
+     "note": "R:robot_1/R:robot_3/R:robot_5 in T1[D3] motion; T2[D3] True"
+    },
+    {
+     "event": "D4 junction_clear (yield robot_3, reverse robot_4/robot_2) withheld",
+     "t_rel": 145.1,
+     "codes": [
+      "V3",
+      "G1"
+     ]
+    },
+    {
+     "event": "D5 junction_clear no plan withheld",
+     "t_rel": 149.6,
+     "codes": [
+      "G1"
+     ]
+    },
+    {
+     "event": "gt_contact robot_5|obstacle_1 155.67-157.97 (no leg)",
+     "t_rel": 155.67,
+     "codes": [
+      "X5"
+     ]
+    },
+    {
+     "event": "D6 yield robot_2 -> swapped to robot_5, dispatched",
+     "t_rel": 183.267,
+     "codes": [
+      "V3",
+      "G4"
+     ],
+     "note": "named yielder robot_2 refused for room; robot_5 appears first and last in T1[D6] Y labels"
+    },
+    {
+     "event": "D6:robot_2:escort",
+     "t_rel": 213.3,
+     "codes": [],
+     "note": "not_executed, terminal None (no X1 under R7)"
+    },
+    {
+     "event": "D7 junction_clear withheld",
+     "t_rel": 261.6,
+     "codes": [
+      "G1",
+      "G2"
+     ]
+    },
+    {
+     "event": "D8 waits COMPLETED",
+     "t_rel": 276.19,
+     "codes": [
+      "X3"
+     ]
+    },
+    {
+     "event": "D9 junction_clear yield robot_5 withheld (0.15 m room)",
+     "t_rel": 279.367,
+     "codes": [
+      "V3",
+      "G1",
+      "G2"
+     ]
+    }
+   ],
+   "confidence": "medium",
+   "notes": "Alt R3: U:T1_not_run at D1. X2 inputs all cover fraction 1.0 (not X2 under R8); alt R8 changes nothing (first run 94.17). D1 fidelity as-written 'differs' (no T1 row at D1). ALT[R3]=U:T1_not_run"
+  },
+  {
+   "sheet_id": "EV-295a3e",
+   "unit_id": "EPISODE",
+   "primary_code": "G4",
+   "step_fired": "episode",
+   "evidence": "Single FU.",
+   "contributing_codes": [
+    "EG2",
+    "G1",
+    "G2",
+    "G5",
+    "V3",
+    "X1",
+    "X2",
+    "X3",
+    "X5"
+   ],
+   "event_codes": [],
+   "confidence": "medium",
+   "notes": "Episode contributing = union of all FUs' primary and contributing codes, minus the episode primary."
+  },
+  {
+   "sheet_id": "EV-298037",
+   "unit_id": "FU1",
+   "primary_code": "U:T1_fidelity",
+   "step_fired": "7 (entered from step 3: T1(t0) U:T1_fidelity)",
+   "evidence": "Gate all True. Step 2: chain (rubric) [] (no dispatch to robot_2/3/5 in [t0-60,t0], t0 19.373). Step 3: T2(t0) True; T1(t0) as written 'U:T1_fidelity' (episode gate as-written false; 96/237 only under +intents gate). T1 decides G7 vs continue -> U:T1_fidelity (R1).",
+   "contributing_codes": [
+    "X4",
+    "V3",
+    "G4",
+    "X3",
+    "G1",
+    "G2"
+   ],
+   "event_codes": [
+    {
+     "event": "robot_5 STALE 11.27 s (57.733-69.0), further spans 44.7 s etc.",
+     "t_rel": 57.733,
+     "codes": [
+      "X4"
+     ]
+    },
+    {
+     "event": "D3 yield robot_2 -> swapped to robot_3 (robot_2 0.58 m retreat room < 0.74 m)",
+     "t_rel": 75.5,
+     "codes": [
+      "V3",
+      "G4"
+     ],
+     "note": "T1[D3] pass; robot_3 first and last in Y labels"
+    },
+    {
+     "event": "D3:robot_2:wait COMPLETED",
+     "t_rel": 105.628,
+     "codes": [
+      "X3"
+     ],
+     "note": "robot_2|robot_5 close+stopped from 22.57 to censor, not in exempt set"
+    },
+    {
+     "event": "D3:robot_3:backup COMPLETED",
+     "t_rel": 195.844,
+     "codes": [
+      "X3"
+     ],
+     "note": "robot_3|robot_5 from 204.57; exemptions cleared 195.854"
+    },
+    {
+     "event": "D4 yield robot_5 withheld (no retreat candidate surviving sweep)",
+     "t_rel": 199.0,
+     "codes": [
+      "V3",
+      "G1",
+      "G2"
+     ]
+    },
+    {
+     "event": "D5 junction_clear plan reverse robot_5 withheld (retreat room)",
+     "t_rel": 206.667,
+     "codes": [
+      "V3",
+      "G1"
+     ]
+    }
+   ],
+   "confidence": "medium",
+   "notes": "Alt R1 (walk step 4 from t0): first deviation X4 at 57.733 (robot_5 STALE >= 10 s) -> primary X4. X2 inputs cover fraction >= 0.996 (not X2 under R8); alt R8: X2 at 105.67 (after X4), no change to alt."
+  },
+  {
+   "sheet_id": "EV-298037",
+   "unit_id": "FU2",
+   "primary_code": "X3",
+   "step_fired": "4",
+   "evidence": "Gate all True. Step 2: chain (rubric) D2:robot_1:backup, D2:robot_4:escort, D2:robot_4:wait; D2 dispatched 22.4, t0 72.673 (50.3 s before); chain_start 22.4; step 3 skipped. Walk: D2 analysis yield robot_1, no plan (C1-C3 None), valid; unmatched (no T1 row, V2/V3 untestable). D2 grounding m3_default, no plan present (not G2), no G4 tags, published. Legs: D2:robot_1:backup COMPLETED 71.655 (moved 1.543/1.485), D2:robot_4:escort COMPLETED 71.695; exemption robot_1+robot_4 cleared 71.71; X3 GT input robot_1|robot_4 close+stopped from 72.97 to censor -> X3 at 71.695 (completed command followed by pinned non-exempt pair).",
+   "contributing_codes": [
+    "V1"
+   ],
+   "event_codes": [
+    {
+     "event": "D2 analysis/grounding",
+     "t_rel": 22.4,
+     "codes": [],
+     "note": "V2/V3:U:T1_not_run"
+    },
+    {
+     "event": "D2 legs COMPLETED then pinned pair",
+     "t_rel": 71.695,
+     "codes": [
+      "X3"
+     ]
+    },
+    {
+     "event": "FU V1 (a33_matched_positive_analyses 0)",
+     "t_rel": 72.673,
+     "codes": [
+      "V1"
+     ]
+    }
+   ],
+   "confidence": "medium",
+   "notes": "D1 (18.267, withheld empty_reroute, G2 flag) precedes the chain start and is not walked. If V1 were placed at the chain start rather than t0 (R9), primary would be V1. Alt R3: U:T1_not_run at D2. ALT[R3]=U:T1_not_run; ALT[X3-at-pin-start]=V1 (A10)"
+  },
+  {
+   "sheet_id": "EV-298037",
+   "unit_id": "EPISODE",
+   "primary_code": "U:T1_fidelity",
+   "step_fired": "episode",
+   "evidence": "Earliest t0 FU1 (19.373).",
+   "contributing_codes": [
+    "G1",
+    "G2",
+    "G4",
+    "V1",
+    "V3",
+    "X3",
+    "X4"
+   ],
+   "event_codes": [],
+   "confidence": "medium",
+   "notes": "Alt R1: episode primary X4. Episode contributing = union of all FUs' primary and contributing codes, minus the episode primary."
+  },
+  {
+   "sheet_id": "EV-2c719b",
+   "unit_id": "FU1",
+   "primary_code": "G2",
+   "step_fired": "4",
+   "evidence": "Gate all True. Step 2: chain (rubric) []. Step 3: T2(t0) True, T1(t0) as written 7/237 non-empty, episode_gate_pass -> continue. Walk from t0 12.74: X2 inputs cover fraction 0.989/0.982 (uncovered < 60 s, not X2 under R8); no contact. D2 at 35.4 (matched): junction_clear, plan yield robot_3 + cross robot_1, C1-C3 None; verifier provenance m3_default with plan present (G2_m3_default_with_plan True) -> G2; grounding withheld refusal_no_action 'yield refused: no feasible yielder (robot_3 0.15 m, robot_1 0.00 m ...)' with T2[D2] True -> G1. V3 not met: T1[D2] has no Y labels in motion (other FU robot not shown feasible as yielder). Two G codes on one event; G2 taken as more upstream (verifier before grounder, ambiguity A2).",
+   "contributing_codes": [
+    "G1",
+    "V3"
+   ],
+   "event_codes": [
+    {
+     "event": "D2 analysis",
+     "t_rel": 35.4,
+     "codes": [],
+     "note": "T1[D2] pass 10/237; no Y motion -> no V3; no robot in every motion label -> no V2"
+    },
+    {
+     "event": "D2 verifier/grounding",
+     "t_rel": 35.4,
+     "codes": [
+      "G2",
+      "G1"
+     ]
+    },
+    {
+     "event": "D7 junction_clear, plan reverse robot_4, withheld (retreat room)",
+     "t_rel": 91.6,
+     "codes": [
+      "V3",
+      "G1"
+     ],
+     "note": "R:robot_1/R:robot_3/R:robot_5 in T1[D7] motion; T2[D7] True; named reverser robot_4 is not an FU1 robot (literal reading)"
+    }
+   ],
+   "confidence": "medium",
+   "notes": "If within-G ties went by code number, primary would be G1 (A2). Negative analyses D4-D6 carry no robots and are not on the FU timeline."
+  },
+  {
+   "sheet_id": "EV-2c719b",
+   "unit_id": "FU2",
+   "primary_code": "G5",
+   "step_fired": "4",
+   "evidence": "Gate all True. Step 2: chain (rubric) D1:robot_2:reverse, D1:robot_4:reverse; D1 dispatched 13.233, t0 40.44; chain_start 13.233. Walk: D1 analysis reverse involved robot_2,robot_4, reverse legs robot_2,robot_4 (C1 False), V4j not flagged; unmatched (V2/V3 untestable). Grounding vlm_verbatim, dispatch_matches_plan True, no G1-G4/G6. D1:robot_2:reverse leg start 14.667: recomputed min static gap -0.0015 m to rack/NW_north (undeclared) at 29.64 -> G5.",
+   "contributing_codes": [
+    "EG2",
+    "X3",
+    "G2",
+    "V1",
+    "X4"
+   ],
+   "event_codes": [
+    {
+     "event": "D1 analysis/grounding",
+     "t_rel": 13.233,
+     "codes": [],
+     "note": "V2/V3:U:T1_not_run"
+    },
+    {
+     "event": "D1:robot_2:reverse",
+     "t_rel": 14.667,
+     "codes": [
+      "G5"
+     ],
+     "note": "COMPLETED 32.294, moved 1.301/1.3"
+    },
+    {
+     "event": "gt_contact robot_2|rack/NW_north 27.24-33.94",
+     "t_rel": 27.24,
+     "codes": [
+      "EG2"
+     ],
+     "note": "within the G5 leg -> not X5"
+    },
+    {
+     "event": "D1 reverse legs COMPLETED",
+     "t_rel": 32.294,
+     "codes": [
+      "X3"
+     ],
+     "note": "robot_2|robot_4 close+stopped from 40.94 to censor; exemption cleared 32.297"
+    },
+    {
+     "event": "D3 yield robot_4 withheld (no shared lane)",
+     "t_rel": 39.467,
+     "codes": [
+      "G2"
+     ],
+     "note": "not matched: no T1/T2 row, G1 untestable (U:T2_not_run); refusal not for room"
+    },
+    {
+     "event": "FU V1 (0 matched)",
+     "t_rel": 40.44,
+     "codes": [
+      "V1"
+     ]
+    },
+    {
+     "event": "robot_2 STALE 140.77 s from 42.333",
+     "t_rel": 42.333,
+     "codes": [
+      "X4"
+     ]
+    },
+    {
+     "event": "D7 junction_clear (robot_4 reverse) withheld",
+     "t_rel": 91.6,
+     "codes": [],
+     "note": "unmatched to FU2: V3/G1 untestable"
+    }
+   ],
+   "confidence": "high",
+   "notes": "ALT[R3]=U:T1_not_run"
+  },
+  {
+   "sheet_id": "EV-2c719b",
+   "unit_id": "EPISODE",
+   "primary_code": "G2",
+   "step_fired": "episode",
+   "evidence": "Earliest t0 FU1 (12.74).",
+   "contributing_codes": [
+    "EG2",
+    "G1",
+    "G5",
+    "V1",
+    "V3",
+    "X3",
+    "X4"
+   ],
+   "event_codes": [],
+   "confidence": "medium",
+   "notes": "Episode contributing = union of all FUs' primary and contributing codes, minus the episode primary."
+  },
+  {
+   "sheet_id": "EV-3233e2",
+   "unit_id": "FU1",
+   "primary_code": "U:no_m4_clock_anchor",
+   "step_fired": "7 (first deviation undetermined: no m4 clock anchor)",
+   "evidence": "Layer-2-off coding (R2, rubric 7.6): no decision artifacts, no decisions/legs, m4.log < 2 sim_t= lines. Step 1: t0_snapshot True, m4_log True; decision artifacts not needed (no V/G). Step 2 never fires (nothing dispatched). Step 3: T2(t0) True, so G7 (not applicable by construction) vs continue is the only branch T1 could decide; continue. Step 4 (X only) from t0 11.773: X2 input runs for robot_1, robot_2, robot_5 start at ~t0 and last to censor, but safety-stop spans are present and unmapped (rel None; wall mapping U:no_m4_clock_anchor), so 'under an active Nav2 goal' cannot be decided (R8); no STALE span >= 10 s; no GT contact (gap <= 0.005) for FU robots; X3 needs a completed command (none).",
+   "contributing_codes": [
+    "N0"
+   ],
+   "event_codes": [
+    {
+     "event": "X2 input runs (stationary, no M4 leg, traveling)",
+     "t_rel": 11.773,
+     "codes": [
+      "U:no_m4_clock_anchor"
+     ],
+     "note": "cover fraction 0.0 is an artefact of unmapped safety-stop spans"
+    }
+   ],
+   "confidence": "medium",
+   "notes": "T1(t0) as written 33/237 non-empty: a Layer-2 action was available (yes); fidelity unverifiable_in_bundle. Alt R8 (every tool X2 input counts): primary X2 (run from ~t0). Alt R2 (treat as Layer-2-on with missing artifacts): U:no_decision_artifacts at step 1."
+  },
+  {
+   "sheet_id": "EV-3233e2",
+   "unit_id": "FU2",
+   "primary_code": "U:no_m4_clock_anchor",
+   "step_fired": "7 (first deviation undetermined: no m4 clock anchor)",
+   "evidence": "Layer-2-off coding (R2, rubric 7.6): no decision artifacts, no decisions/legs, m4.log < 2 sim_t= lines. Step 1: t0_snapshot True, m4_log True; decision artifacts not needed (no V/G). Step 2 never fires (nothing dispatched). Step 3: T2(t0) True, so G7 (not applicable by construction) vs continue is the only branch T1 could decide; continue. Step 4 (X only) from t0 12.073: X2 input runs for robot_3, robot_4 start at ~t0 and last to censor, but safety-stop spans are present and unmapped (rel None; wall mapping U:no_m4_clock_anchor), so 'under an active Nav2 goal' cannot be decided (R8); no STALE span >= 10 s; no GT contact (gap <= 0.005) for FU robots; X3 needs a completed command (none).",
+   "contributing_codes": [
+    "N0"
+   ],
+   "event_codes": [
+    {
+     "event": "X2 input runs (stationary, no M4 leg, traveling)",
+     "t_rel": 12.073,
+     "codes": [
+      "U:no_m4_clock_anchor"
+     ],
+     "note": "cover fraction 0.0 is an artefact of unmapped safety-stop spans"
+    }
+   ],
+   "confidence": "medium",
+   "notes": "T1(t0) as written 33/88 non-empty: a Layer-2 action was available (yes); fidelity unverifiable_in_bundle. Alt R8 (every tool X2 input counts): primary X2 (run from ~t0). Alt R2 (treat as Layer-2-on with missing artifacts): U:no_decision_artifacts at step 1."
+  },
+  {
+   "sheet_id": "EV-3233e2",
+   "unit_id": "EPISODE",
+   "primary_code": "U:no_m4_clock_anchor",
+   "step_fired": "episode",
+   "evidence": "Earliest t0 FU1 (11.773).",
+   "contributing_codes": [
+    "N0"
+   ],
+   "event_codes": [],
+   "confidence": "medium",
+   "notes": "Layer-2-off by sheet content (R2). Episode contributing = union of all FUs' primary and contributing codes, minus the episode primary."
+  },
+  {
+   "sheet_id": "EV-344706",
+   "unit_id": "FU1",
+   "primary_code": "G4",
+   "step_fired": "4",
+   "evidence": "Gate all True. Step 2: chain (rubric) D13:robot_1:backup; D13 dispatched 218.167, t0 245.307 (27.1 s before); chain_start 218.167; step 3 skipped. Walk: D13 analysis yield yield_robot robot_4 (involved robot_1,robot_4,robot_3), C2 False, valid; not matched to FU1 (no T1 row) -> V2/V3 untestable. D13 grounding: verifier swap robot_1<->robot_4 ('robot_4 is off the dynamic lane robot_1/robot_3'), G4_role_change_tags ['grounding=node_handoff:robot_1->robot_3','grounding=node_handoff_regrounded:robot_4->robot_1'], dispatched robot_1:yield -> G4.",
+   "contributing_codes": [
+    "X1",
+    "V3",
+    "G1",
+    "X6"
+   ],
+   "event_codes": [
+    {
+     "event": "D13 analysis",
+     "t_rel": 218.167,
+     "codes": [],
+     "note": "V2/V3:U:T1_not_run"
+    },
+    {
+     "event": "D13 grounding/dispatch",
+     "t_rel": 218.167,
+     "codes": [
+      "G4"
+     ]
+    },
+    {
+     "event": "D13:robot_1:backup FAILED deadline True (moved 1.365/1.308; yield-backup caveat)",
+     "t_rel": 256.036,
+     "codes": [
+      "X1"
+     ]
+    },
+    {
+     "event": "D13:robot_3:escort",
+     "t_rel": null,
+     "codes": [],
+     "note": "escort_not_admitted; robot_3 not an FU robot"
+    },
+    {
+     "event": "D14 junction_clear, plan reverse robot_2,robot_1, withheld (retreat room)",
+     "t_rel": 266.333,
+     "codes": [
+      "V3",
+      "G1"
+     ],
+     "note": "R:robot_5 in T1[D14] motion (pass, 74/237); T2[D14] True"
+    },
+    {
+     "event": "stop-rule censor",
+     "t_rel": 269.007,
+     "codes": [
+      "X6"
+     ]
+    }
+   ],
+   "confidence": "medium",
+   "notes": "Stop-flag episode (tabulate separately). Events before 218.167 (D12 legs, nav2 186.226) are before the walk start. No completed command to an FU robot after the chain start, so no X3. Alt R3: U:T1_not_run at D13. ALT[R3]=U:T1_not_run"
+  },
+  {
+   "sheet_id": "EV-344706",
+   "unit_id": "EPISODE",
+   "primary_code": "G4",
+   "step_fired": "episode",
+   "evidence": "Single FU.",
+   "contributing_codes": [
+    "G1",
+    "V3",
+    "X1",
+    "X6"
+   ],
+   "event_codes": [],
+   "confidence": "medium",
+   "notes": "stop_flag Episode contributing = union of all FUs' primary and contributing codes, minus the episode primary."
+  },
+  {
+   "sheet_id": "EV-359e3d",
+   "unit_id": "FU1",
+   "primary_code": "X5",
+   "step_fired": "4",
+   "evidence": "Gate all True. Step 2: chain (rubric) [] (D1 dispatched 14.0, after t0 12.27). Step 3: T2(t0) True, T1(t0) 120/237 non-empty, episode_gate_pass -> continue. Walk from 12.27: D1 at 14.0 (matched): yield robot_1, involved robot_1,robot_4, C2 False; T1[D1] pass, no robot in every motion label (no V2); vlm_verbatim, dispatch matches, no G tags; D1:robot_1:backup min static gap 0.0871 (no G5). gt_contact robot_5|box:obstacle_1 26.47-28.77 min gap 0.0032 m, robot_5 has no leg then -> X5 at 26.47 (first deviation; X2 inputs cover >= 0.997, not X2).",
+   "contributing_codes": [
+    "X3",
+    "X1",
+    "G6",
+    "V3",
+    "G1"
+   ],
+   "event_codes": [
+    {
+     "event": "D1 analysis/grounding",
+     "t_rel": 14.0,
+     "codes": []
+    },
+    {
+     "event": "gt_contact robot_5|obstacle_1",
+     "t_rel": 26.47,
+     "codes": [
+      "X5"
+     ]
+    },
+    {
+     "event": "D1:robot_4:wait COMPLETED",
+     "t_rel": 70.695,
+     "codes": [
+      "X3"
+     ],
+     "note": "robot_3|robot_4 close+stopped from 20.57 to censor, non-exempt"
+    },
+    {
+     "event": "D1:robot_1:backup FAILED deadline (moved 1.598/1.401; yield-backup caveat)",
+     "t_rel": 70.695,
+     "codes": [
+      "X1"
+     ]
+    },
+    {
+     "event": "D3 reroute robot_3 lead (C3 False), vlm_verbatim contradicted",
+     "t_rel": 87.333,
+     "codes": [
+      "G6"
+     ]
+    },
+    {
+     "event": "D3 waits COMPLETED",
+     "t_rel": 105.83,
+     "codes": [
+      "X3"
+     ]
+    },
+    {
+     "event": "D3:robot_3:reroute FAILED",
+     "t_rel": 110.892,
+     "codes": [
+      "X1"
+     ]
+    },
+    {
+     "event": "D4 junction_clear (reverse robot_4, yield robot_5) withheld (retreat room)",
+     "t_rel": 111.833,
+     "codes": [
+      "V3",
+      "G1"
+     ],
+     "note": "R:robot_1/R:robot_3/R:robot_5 in T1[D4]; T2[D4] True"
+    }
+   ],
+   "confidence": "medium",
+   "notes": "X5 rests on a 2.3 s contact with min gap 0.0032 m (threshold 0.005). ALT[R8]=X2 (run from 20.47)"
+  },
+  {
+   "sheet_id": "EV-359e3d",
+   "unit_id": "FU2",
+   "primary_code": "X1",
+   "step_fired": "4",
+   "evidence": "Gate all True. Step 2: chain (rubric) D1:robot_1:backup (robot_1 executing at t0 50.67); chain_start 14.0; step 3 skipped. Walk: D1 analysis yield robot_1 (not matched to FU2: V2/V3 untestable), C2 False; grounding vlm_verbatim, matches, no G tags; backup min static gap 0.0871 (no G5). D1:robot_1:backup m4_terminal FAILED, ended_by_deadline True at 70.695 -> X1.",
+   "contributing_codes": [
+    "V4j",
+    "X3"
+   ],
+   "event_codes": [
+    {
+     "event": "D1 analysis/grounding",
+     "t_rel": 14.0,
+     "codes": [],
+     "note": "V2/V3:U:T1_not_run for FU2"
+    },
+    {
+     "event": "D1:robot_1:backup FAILED deadline",
+     "t_rel": 70.695,
+     "codes": [
+      "X1"
+     ],
+     "note": "moved 1.598 of 1.401 m (fraction 1.141): methods-note caveat, failure may be pull-off/hold"
+    },
+    {
+     "event": "D2 reverse robot_1+robot_2 (C1 False), verifier substituted both reverse legs to wait ('both outside the corridor on the same side'), dispatched waits",
+     "t_rel": 73.7,
+     "codes": [
+      "V4j"
+     ],
+     "note": "No G4: G4_role_change_tags and robots_dropped empty; substitute edits are not a listed G4 mechanism (R5 as revised, A6). V4j: justification 'reversing both robots will ... allow robot_2 to proceed' and reasoning 'allow each other to proceed' name an involved robot as proceeding under reverse (contributing only). Refusal not for room -> no V3."
+    },
+    {
+     "event": "D2 waits COMPLETED",
+     "t_rel": 83.78,
+     "codes": [
+      "X3"
+     ],
+     "note": "robot_1|robot_2 close+stopped from 50.87 to censor"
+    }
+   ],
+   "confidence": "medium",
+   "notes": "X1 on a yield backup that moved > commanded distance (methods-note Limits). Alt R3: U:T1_not_run at D1. Alt A6 (substitutions count as G4): G4 contributing at D2. ALT[R3]=U:T1_not_run"
+  },
+  {
+   "sheet_id": "EV-359e3d",
+   "unit_id": "EPISODE",
+   "primary_code": "X5",
+   "step_fired": "episode",
+   "evidence": "Earliest t0 FU1 (12.27).",
+   "contributing_codes": [
+    "G1",
+    "G6",
+    "V3",
+    "V4j",
+    "X1",
+    "X3"
+   ],
+   "event_codes": [],
+   "confidence": "medium",
+   "notes": "Episode contributing = union of all FUs' primary and contributing codes, minus the episode primary."
+  },
+  {
+   "sheet_id": "EV-35eb04",
+   "unit_id": "FU1",
+   "primary_code": "X3",
+   "step_fired": "4",
+   "evidence": "Gate all True. Step 2: chain (rubric) [] (D1 at 19.3 is after t0 17.373). Step 3: T2(t0) True, T1(t0) 13/237 non-empty, episode_gate_pass -> continue. Walk from 17.373: D1 at 19.3 (matched) temporary_wait robot_3,robot_4; T1[D1] pass, no robot in every motion label (no V2); verifier substitute robot_4 cross->wait (not a G4 mechanism, A6); dispatched waits. D1:robot_3:wait / D1:robot_4:wait COMPLETED 29.008; X3 GT input robot_3|robot_4 close+stopped from 17.87 to censor; no exempt pairs on this sheet -> X3 at 29.008.",
+   "contributing_codes": [
+    "G2",
+    "G1",
+    "V3"
+   ],
+   "event_codes": [
+    {
+     "event": "D1 analysis/grounding",
+     "t_rel": 19.3,
+     "codes": []
+    },
+    {
+     "event": "D1 waits COMPLETED, robot_3|robot_4 pinned",
+     "t_rel": 29.008,
+     "codes": [
+      "X3"
+     ]
+    },
+    {
+     "event": "D2 yield robot_4 withheld (no shared lane)",
+     "t_rel": 32.667,
+     "codes": [
+      "G2",
+      "G1"
+     ],
+     "note": "m3_default with plan; C2 False; T2[D2] True; not a room refusal (no V3)"
+    },
+    {
+     "event": "D3 yield robot_3 withheld (no shared lane)",
+     "t_rel": 39.433,
+     "codes": [
+      "G2",
+      "G1"
+     ]
+    },
+    {
+     "event": "D6 waits COMPLETED",
+     "t_rel": 66.44,
+     "codes": [
+      "X3"
+     ]
+    },
+    {
+     "event": "D7 junction_clear yield robot_5 withheld (robot_5 0.00 m retreat room)",
+     "t_rel": 69.7,
+     "codes": [
+      "G2",
+      "G1"
+     ],
+     "note": "V3:U:Y_label_order (robot_4 only first, robot_1 only last in T1[D7] Y labels)"
+    },
+    {
+     "event": "D8/D9/D10 waits dispatched and COMPLETED",
+     "t_rel": 85.58,
+     "codes": [
+      "X3"
+     ]
+    },
+    {
+     "event": "D11 junction_clear, plan reverse robot_3 + yields, withheld (retreat room)",
+     "t_rel": 115.833,
+     "codes": [
+      "V3",
+      "G1"
+     ],
+     "note": "R:robot_1/R:robot_4/R:robot_5 in T1[D11]"
+    }
+   ],
+   "confidence": "medium",
+   "notes": "Alt A7 (X3 only after motion commands): first deviation D2 at 32.667 -> G2 (or G1 if within-G ties go by number, A2). Alt A6 (substitutions are G4): D1 -> G4 primary. X2 inputs cover 0.916 of 458.5 s (38.5 s uncovered < 60 s): not X2. ALT[X3-at-pin-start]=unchanged (pin already open at completion, A10)"
+  },
+  {
+   "sheet_id": "EV-35eb04",
+   "unit_id": "FU2",
+   "primary_code": "NOT_FU:parked_finished",
+   "step_fired": "none",
+   "evidence": "lone_stall robot_2 t0 107.673 flagged finished_all_or_between_tasks_at_censor; listed separately per protocol.",
+   "contributing_codes": [],
+   "event_codes": [],
+   "confidence": "high",
+   "notes": ""
+  },
+  {
+   "sheet_id": "EV-35eb04",
+   "unit_id": "EPISODE",
+   "primary_code": "X3",
+   "step_fired": "episode",
+   "evidence": "Single failure unit FU1.",
+   "contributing_codes": [
+    "G1",
+    "G2",
+    "V3"
+   ],
+   "event_codes": [],
+   "confidence": "medium",
+   "notes": "Episode contributing = union of all FUs' primary and contributing codes, minus the episode primary."
+  },
+  {
+   "sheet_id": "EV-37a70e",
+   "unit_id": "FU1",
+   "primary_code": "G4",
+   "step_fired": "4",
+   "evidence": "Gate all True. Step 2: chain (rubric) D2:robot_4:backup (dispatched 30.0, robot_4 executing at t0 36.573); chain_start 30.0; step 3 skipped. Walk: D2 analysis yield robot_4 (involved robot_4,robot_5), C2 False, valid; unmatched to FU1 (V2/V3 untestable). D2 grounding: provenance vlm_verbatim, dispatch_matches_plan True, but G4_role_change_tags ['grounding=node_handoff:robot_4->robot_5'] -> G4 at 30.0 (tool mechanical G4 input, A6).",
+   "contributing_codes": [
+    "G5",
+    "X1",
+    "X5",
+    "X3",
+    "V3",
+    "G1",
+    "G2"
+   ],
+   "event_codes": [
+    {
+     "event": "D2 analysis",
+     "t_rel": 30.0,
+     "codes": [],
+     "note": "V2/V3:U:T1_not_run"
+    },
+    {
+     "event": "D2 grounding",
+     "t_rel": 30.0,
+     "codes": [
+      "G4"
+     ]
+    },
+    {
+     "event": "D2:robot_4:backup",
+     "t_rel": 33.6,
+     "codes": [
+      "G5",
+      "X1"
+     ],
+     "note": "min static gap -0.0057 m obstacle_1 (declared) at 62.57; FAILED deadline 72.33, pinned_on_declared_box"
+    },
+    {
+     "event": "gt_contact robot_2|obstacle_1 from 35.97 to censor (robot_2 has no leg)",
+     "t_rel": 35.97,
+     "codes": [
+      "X5"
+     ]
+    },
+    {
+     "event": "gt_contact robot_4|obstacle_1 39.87-74.27",
+     "t_rel": 39.87,
+     "codes": [],
+     "note": "inside G5 leg -> not X5"
+    },
+    {
+     "event": "D4 waits COMPLETED",
+     "t_rel": 105.4,
+     "codes": [
+      "X3"
+     ],
+     "note": "robot_2|robot_3 close+stopped from 36.77 to censor; no exemption after 92.08"
+    },
+    {
+     "event": "D9 junction_clear yield robot_4 withheld (0.00 m retreat room)",
+     "t_rel": 149.767,
+     "codes": [
+      "V3",
+      "G2",
+      "G1"
+     ],
+     "note": "robot_2 first and last in T1[D9] Y labels; T2[D9] True"
+    }
+   ],
+   "confidence": "medium",
+   "notes": "G4 here rests on a node_handoff tag although dispatch matched the plan (A6 reading A: the tool's mechanical tag). If node_handoff with matching dispatch were not G4, the walk gives G5 at 33.6. Alt R3: U:T1_not_run at D2. ALT[R3]=U:T1_not_run"
+  },
+  {
+   "sheet_id": "EV-37a70e",
+   "unit_id": "FU2",
+   "primary_code": "V4",
+   "step_fired": "4",
+   "evidence": "Gate all True. Step 2: chain (rubric) D3:robot_1:reverse, D3:robot_5:reverse; D3 dispatched 76.3, t0 101.873; chain_start 76.3. Walk: D3 analysis strategy reverse, involved_robots [robot_1, robot_5], proposed_plan reverse legs [robot_1] only (robot_5 wait) -> contract C1 True -> V4 at 76.3 (also G6_verbatim_contradicted True on the same decision; V before G).",
+   "contributing_codes": [
+    "G6",
+    "X3",
+    "V1",
+    "X4"
+   ],
+   "event_codes": [
+    {
+     "event": "D3 analysis",
+     "t_rel": 76.3,
+     "codes": [
+      "V4"
+     ],
+     "note": "V4j not flagged: justification/reasoning do not state robot_5 continues or passes"
+    },
+    {
+     "event": "D3 grounding (vlm_verbatim, dispatch_matches_plan False)",
+     "t_rel": 76.3,
+     "codes": [
+      "G6"
+     ]
+    },
+    {
+     "event": "D3 reverse legs COMPLETED",
+     "t_rel": 92.009,
+     "codes": [
+      "X3"
+     ],
+     "note": "robot_1|robot_5 close+stopped from 102.07; exemptions cleared 92.08"
+    },
+    {
+     "event": "FU V1 (0 matched)",
+     "t_rel": 101.873,
+     "codes": [
+      "V1"
+     ]
+    },
+    {
+     "event": "robot_1 STALE 27.47 s",
+     "t_rel": 186.367,
+     "codes": [
+      "X4"
+     ]
+    }
+   ],
+   "confidence": "high",
+   "notes": ""
+  },
+  {
+   "sheet_id": "EV-37a70e",
+   "unit_id": "EPISODE",
+   "primary_code": "G4",
+   "step_fired": "episode",
+   "evidence": "Earliest t0 FU1 (36.573).",
+   "contributing_codes": [
+    "G1",
+    "G2",
+    "G5",
+    "G6",
+    "V1",
+    "V3",
+    "V4",
+    "X1",
+    "X3",
+    "X4",
+    "X5"
+   ],
+   "event_codes": [],
+   "confidence": "medium",
+   "notes": "Episode contributing = union of all FUs' primary and contributing codes, minus the episode primary."
+  },
+  {
+   "sheet_id": "EV-3e6d9b",
+   "unit_id": "FU1",
+   "primary_code": "U:no_m4_clock_anchor",
+   "step_fired": "7 (first deviation undetermined: no m4 clock anchor)",
+   "evidence": "Layer-2-off coding (R2, rubric 7.6): no decision artifacts, no decisions/legs, m4.log < 2 sim_t= lines. Step 1: t0_snapshot True, m4_log True; decision artifacts not needed (no V/G). Step 2 never fires (nothing dispatched). Step 3: T2(t0) True, so G7 (not applicable by construction) vs continue is the only branch T1 could decide; continue. Step 4 (X only) from t0 14.27: X2 input runs for robot_1, robot_5 start at ~t0 and last to censor, but safety-stop spans are present and unmapped (rel None; wall mapping U:no_m4_clock_anchor), so 'under an active Nav2 goal' cannot be decided (R8); no STALE span >= 10 s; no GT contact (gap <= 0.005) for FU robots; X3 needs a completed command (none).",
+   "contributing_codes": [
+    "N0",
+    "X2"
+   ],
+   "event_codes": [
+    {
+     "event": "X2 input runs (stationary, no M4 leg, traveling)",
+     "t_rel": 14.27,
+     "codes": [
+      "U:no_m4_clock_anchor"
+     ],
+     "note": "cover fraction 0.0 is an artefact of unmapped safety-stop spans"
+    }
+   ],
+   "confidence": "medium",
+   "notes": "T1(t0) as written 31/88 non-empty: a Layer-2 action was available (yes); fidelity unverifiable_in_bundle. Alt R8 (every tool X2 input counts): primary X2 (run from ~t0). Alt R2 (treat as Layer-2-on with missing artifacts): U:no_decision_artifacts at step 1. Nav2 abort line robot_1 '[compute_path_to_pose] Aborting handle' is in the FU timeline with unmapped time (rel None): X2 observed (contributing) but its order relative to t0 is unknown, so it cannot be placed as first deviation; if it were inside the walk, primary would be X2."
+  },
+  {
+   "sheet_id": "EV-3e6d9b",
+   "unit_id": "FU2",
+   "primary_code": "U:no_m4_clock_anchor",
+   "step_fired": "7 (first deviation undetermined: no m4 clock anchor)",
+   "evidence": "Layer-2-off coding (R2, rubric 7.6): no decision artifacts, no decisions/legs, m4.log < 2 sim_t= lines. Step 1: t0_snapshot True, m4_log True; decision artifacts not needed (no V/G). Step 2 never fires (nothing dispatched). Step 3: T2(t0) True, so G7 (not applicable by construction) vs continue is the only branch T1 could decide; continue. Step 4 (X only) from t0 20.57: X2 input runs for robot_2, robot_3, robot_4 start at ~t0 and last to censor, but safety-stop spans are present and unmapped (rel None; wall mapping U:no_m4_clock_anchor), so 'under an active Nav2 goal' cannot be decided (R8); no STALE span >= 10 s; no GT contact (gap <= 0.005) for FU robots; X3 needs a completed command (none).",
+   "contributing_codes": [
+    "N0"
+   ],
+   "event_codes": [
+    {
+     "event": "X2 input runs (stationary, no M4 leg, traveling)",
+     "t_rel": 20.57,
+     "codes": [
+      "U:no_m4_clock_anchor"
+     ],
+     "note": "cover fraction 0.0 is an artefact of unmapped safety-stop spans"
+    }
+   ],
+   "confidence": "medium",
+   "notes": "T1(t0) as written 69/237 non-empty: a Layer-2 action was available (yes); fidelity unverifiable_in_bundle. Alt R8 (every tool X2 input counts): primary X2 (run from ~t0). Alt R2 (treat as Layer-2-on with missing artifacts): U:no_decision_artifacts at step 1."
+  },
+  {
+   "sheet_id": "EV-3e6d9b",
+   "unit_id": "EPISODE",
+   "primary_code": "U:no_m4_clock_anchor",
+   "step_fired": "episode",
+   "evidence": "Earliest t0 FU1 (14.27).",
+   "contributing_codes": [
+    "N0",
+    "X2"
+   ],
+   "event_codes": [],
+   "confidence": "medium",
+   "notes": "Layer-2-off by sheet content (R2). Episode contributing = union of all FUs' primary and contributing codes, minus the episode primary."
+  },
+  {
+   "sheet_id": "EV-41a9d4",
+   "unit_id": "FU1",
+   "primary_code": "X1",
+   "step_fired": "4",
+   "evidence": "Gate all True. Step 2: chain (rubric) D1:robot_3:reverse, D1:robot_4:reverse (dispatched 13.2, t0 22.073); chain_start 13.2; step 3 skipped. Walk: D1 analysis reverse involved robot_3,robot_4, reverse legs robot_3,robot_4 (C1 False), valid; unmatched (V2/V3 untestable). Grounding vlm_verbatim, dispatch matches, no G tags. Legs: min static gaps 0.2419/0.1984 m (no G5). D1:robot_3:reverse m4_terminal FAILED, ended_by_deadline True at 48.913 (moved 0.66/1.3) -> X1; D1:robot_4:reverse FAILED deadline 48.948 (moved 0.345, not_executed).",
+   "contributing_codes": [
+    "V4",
+    "G6",
+    "X3",
+    "G1",
+    "G2"
+   ],
+   "event_codes": [
+    {
+     "event": "D1 analysis",
+     "t_rel": 13.2,
+     "codes": [],
+     "note": "V4j not flagged: 'allow for redirection or sequential passing' names no involved robot as passing (my reading); V2/V3:U:T1_not_run"
+    },
+    {
+     "event": "D1:robot_3:reverse FAILED deadline",
+     "t_rel": 48.913,
+     "codes": [
+      "X1"
+     ]
+    },
+    {
+     "event": "D1:robot_4:reverse FAILED deadline",
+     "t_rel": 48.948,
+     "codes": [
+      "X1"
+     ]
+    },
+    {
+     "event": "D2 reroute (matched): involved_robots[0]=robot_1 has no reroute leg (C3 True); vlm_verbatim contradicted",
+     "t_rel": 52.967,
+     "codes": [
+      "V4",
+      "G6"
+     ]
+    },
+    {
+     "event": "D2 waits robot_2/3/4 COMPLETED",
+     "t_rel": 70.99,
+     "codes": [
+      "X3"
+     ],
+     "note": "robot_2|robot_3 close+stopped from 22.37; no exemption"
+    },
+    {
+     "event": "D4 junction_clear yield robot_1 withheld (0.00 m room)",
+     "t_rel": 163.4,
+     "codes": [
+      "G2",
+      "G1"
+     ],
+     "note": "no Y labels in T1[D4] motion -> V3 not met; T2[D4] True"
+    }
+   ],
+   "confidence": "high",
+   "notes": "X2 inputs cover >= 0.973 (uncovered ~12 s): not X2. ALT[R3]=U:T1_not_run"
+  },
+  {
+   "sheet_id": "EV-41a9d4",
+   "unit_id": "FU2",
+   "primary_code": "V1",
+   "step_fired": "4",
+   "evidence": "Gate all True. Step 2: chain (rubric) D3:robot_1:backup (robot_1 executing at t0 135.073); chain_start 76.733; step 3 skipped. Walk: D3 analysis yield robot_1 (involved robot_1,robot_4), C2 False; not matched to FU2 (V2/V3 untestable). Grounding vlm_verbatim, matches, no G tags; D3:robot_1:backup min static 0.2098 (no G5), COMPLETED at 157.45. No positive analysis matched to FU2 (V1 input a33_matched_positive_analyses 0) -> V1 placed at t0 135.073, before the X3 at 157.45.",
+   "contributing_codes": [
+    "X3",
+    "G2",
+    "X4"
+   ],
+   "event_codes": [
+    {
+     "event": "D3 analysis/grounding",
+     "t_rel": 76.733,
+     "codes": [],
+     "note": "V2/V3:U:T1_not_run"
+    },
+    {
+     "event": "FU V1",
+     "t_rel": 135.073,
+     "codes": [
+      "V1"
+     ]
+    },
+    {
+     "event": "D3:robot_1:backup COMPLETED, robot_1|robot_5 close+stopped from 135.27, non-exempt",
+     "t_rel": 157.45,
+     "codes": [
+      "X3"
+     ]
+    },
+    {
+     "event": "D4 junction_clear withheld (not matched to FU2)",
+     "t_rel": 163.4,
+     "codes": [
+      "G2"
+     ],
+     "note": "G1/V3 untestable for FU2 (no FU2 T1/T2 at D4)"
+    },
+    {
+     "event": "robot_1 STALE 20.733-82.067 (61.3 s), open at the walk start",
+     "t_rel": 20.733,
+     "codes": [
+      "X4"
+     ],
+     "note": "interval open at the start point: contributing, not a first deviation (A8)"
+    }
+   ],
+   "confidence": "medium",
+   "notes": "robot_1 STALE span 20.733-82.067 (61.3 s) begins before the walk start (76.733) and is not walked (R9); if intervals open at the start point were walked, X4 at the start would be primary. A5: V1 timing at t0. ALT[R3]=U:T1_not_run; ALT[R8]=X2 (run from 134.97)"
+  },
+  {
+   "sheet_id": "EV-41a9d4",
+   "unit_id": "EPISODE",
+   "primary_code": "X1",
+   "step_fired": "episode",
+   "evidence": "Earliest t0 FU1 (22.073).",
+   "contributing_codes": [
+    "G1",
+    "G2",
+    "G6",
+    "V1",
+    "V4",
+    "X3",
+    "X4"
+   ],
+   "event_codes": [],
+   "confidence": "high",
+   "notes": "Episode contributing = union of all FUs' primary and contributing codes, minus the episode primary."
+  },
+  {
+   "sheet_id": "EV-478db7",
+   "unit_id": "FU1",
+   "primary_code": "X3",
+   "step_fired": "4",
+   "evidence": "Gate all True. Step 2: chain (rubric) [] (D1 16.933 after t0 15.307). Step 3: T2(t0) True, T1(t0) 10/237 non-empty, episode_gate_pass -> continue. Walk from 15.307: D1 (matched) temporary_wait robot_2,robot_4 (omits robot_3; T1[D1] pass, no robot in every motion label -> no V2); verifier substitute robot_2 cross->wait (not G4, A6). D1 waits COMPLETED 26.344; robot_2|robot_4 close+stopped from 16.01 to censor, never exempt -> X3 at 26.344.",
+   "contributing_codes": [
+    "V3",
+    "G1",
+    "G6",
+    "X6"
+   ],
+   "event_codes": [
+    {
+     "event": "D1 waits COMPLETED, pinned pair",
+     "t_rel": 26.344,
+     "codes": [
+      "X3"
+     ]
+    },
+    {
+     "event": "D3 junction_clear (reverse robot_4, yield robot_3) withheld (retreat room)",
+     "t_rel": 70.0,
+     "codes": [
+      "V3",
+      "G1"
+     ],
+     "note": "R:robot_2/R:robot_3 in T1[D3]; T2[D3] True"
+    },
+    {
+     "event": "D4 junction_clear reverse robot_4, vlm_verbatim contradicted, withheld",
+     "t_rel": 110.633,
+     "codes": [
+      "V3",
+      "G1",
+      "G6"
+     ]
+    },
+    {
+     "event": "D5 junction_clear no plan, withheld",
+     "t_rel": 114.3,
+     "codes": [
+      "G1"
+     ]
+    },
+    {
+     "event": "D6 junction_clear reverse robot_4/robot_3, withheld",
+     "t_rel": 168.4,
+     "codes": [
+      "V3",
+      "G1"
+     ]
+    },
+    {
+     "event": "stop-rule censor",
+     "t_rel": 170.907,
+     "codes": [
+      "X6"
+     ]
+    }
+   ],
+   "confidence": "medium",
+   "notes": "Stop-flag episode. Alt A7 (X3 only after motion commands): primary V3 at D3 (70.0). ALT[X3-at-pin-start]=unchanged (pin already open at completion, A10)"
+  },
+  {
+   "sheet_id": "EV-478db7",
+   "unit_id": "EPISODE",
+   "primary_code": "X3",
+   "step_fired": "episode",
+   "evidence": "Single FU.",
+   "contributing_codes": [
+    "G1",
+    "G6",
+    "V3",
+    "X6"
+   ],
+   "event_codes": [],
+   "confidence": "medium",
+   "notes": "stop_flag Episode contributing = union of all FUs' primary and contributing codes, minus the episode primary."
+  },
+  {
+   "sheet_id": "EV-52a0c3",
+   "unit_id": "FU1",
+   "primary_code": "U:T1_fidelity",
+   "step_fired": "7 (entered from step 3: T1(t0) U:T1_fidelity)",
+   "evidence": "Gate all True. Step 2: chain (rubric) [] (D1 13.667 after t0 12.17). Step 3: T2(t0) True; T1(t0) as written 'U:T1_fidelity' (episode gate as-written false). T1 decides G7 vs continue -> U:T1_fidelity (R1).",
+   "contributing_codes": [
+    "X2",
+    "G4",
+    "X3",
+    "V3",
+    "G1"
+   ],
+   "event_codes": [
+    {
+     "event": "nav2 abort robot_1 [compute_path_to_pose]",
+     "t_rel": 12.189,
+     "codes": [
+      "X2"
+     ]
+    },
+    {
+     "event": "D1 yield robot_5 (matched), swapped to robot_2 (node_handoff tags)",
+     "t_rel": 13.667,
+     "codes": [
+      "G4"
+     ],
+     "note": "T1[D1] as written U:T1_fidelity -> V2/V3:U:T1_fidelity; C2 False"
+    },
+    {
+     "event": "D1:robot_5:escort",
+     "t_rel": 50.6,
+     "codes": [],
+     "note": "not_executed, terminal None"
+    },
+    {
+     "event": "D1 backup/waits COMPLETED",
+     "t_rel": 94.9,
+     "codes": [
+      "X3"
+     ],
+     "note": "robot_1|robot_5 close+stopped from 16.97 to censor, non-exempt"
+    },
+    {
+     "event": "D3 waits COMPLETED",
+     "t_rel": 112.13,
+     "codes": [
+      "X3"
+     ]
+    },
+    {
+     "event": "D4 junction_clear (reverse robot_4/robot_3, yield robot_1) withheld (retreat room)",
+     "t_rel": 115.667,
+     "codes": [
+      "V3",
+      "G1"
+     ]
+    }
+   ],
+   "confidence": "medium",
+   "notes": "Alt R1 (walk step 4 from t0): first deviation Nav2 abort robot_1 at 12.189 -> X2."
+  },
+  {
+   "sheet_id": "EV-52a0c3",
+   "unit_id": "EPISODE",
+   "primary_code": "U:T1_fidelity",
+   "step_fired": "episode",
+   "evidence": "Single FU.",
+   "contributing_codes": [
+    "G1",
+    "G4",
+    "V3",
+    "X2",
+    "X3"
+   ],
+   "event_codes": [],
+   "confidence": "medium",
+   "notes": "Alt R1: X2. Episode contributing = union of all FUs' primary and contributing codes, minus the episode primary."
+  },
+  {
+   "sheet_id": "EV-62b8d0",
+   "unit_id": "FU1",
+   "primary_code": "G4",
+   "step_fired": "4",
+   "evidence": "Gate all True. Step 2: chain (rubric) D1:robot_1:backup, D1:robot_4:escort, D1:robot_4:wait; D1 dispatched 11.4, t0 23.607; chain_start 11.4; step 3 skipped (T1(t0) U:T1_fidelity not deciding). Walk: D1 analysis yield robot_1 (involved robot_1,robot_4), C2 False; unmatched (V2/V3 untestable; D1 fidelity as-written 'differs'). D1 grounding: vlm_verbatim, dispatch_matches_plan True, G4_role_change_tags ['grounding=node_handoff:robot_1->robot_4'] -> G4 at 11.4.",
+   "contributing_codes": [
+    "X1",
+    "X3",
+    "V4",
+    "V4j",
+    "G5",
+    "EG2",
+    "G6",
+    "V3",
+    "G1"
+   ],
+   "event_codes": [
+    {
+     "event": "D1 analysis",
+     "t_rel": 11.4,
+     "codes": [],
+     "note": "V2/V3:U:T1_not_run"
+    },
+    {
+     "event": "D1 grounding",
+     "t_rel": 11.4,
+     "codes": [
+      "G4"
+     ]
+    },
+    {
+     "event": "D1:robot_1:backup FAILED deadline (moved 0.901/1.349)",
+     "t_rel": 48.278,
+     "codes": [
+      "X1"
+     ]
+    },
+    {
+     "event": "D1:robot_4:wait COMPLETED; robot_2|robot_4 close+stopped from 89.41, non-exempt",
+     "t_rel": 48.278,
+     "codes": [
+      "X3"
+     ]
+    },
+    {
+     "event": "D2 reverse involved robot_4,robot_5, reverse legs [robot_4] (C1 True); dispatch robot_5 reverse (robot_4 dropped, handoff tag)",
+     "t_rel": 51.567,
+     "codes": [
+      "V4",
+      "V4j",
+      "G4"
+     ],
+     "note": "V4j: justification 'open up space for robot_5 to continue' names involved robot_5 as continuing under reverse"
+    },
+    {
+     "event": "D3 reverse involved all five, reverse legs robot_4,robot_5 (C1 True); dropped robot_2,robot_5, rear_exempt, handoff; vlm_verbatim contradicted",
+     "t_rel": 59.733,
+     "codes": [
+      "V4",
+      "V4j",
+      "G4",
+      "G6"
+     ],
+     "note": "V4j: 'create space for robot 1, 2, and 3 to safely proceed'"
+    },
+    {
+     "event": "D3:robot_1:reverse",
+     "t_rel": 61.234,
+     "codes": [
+      "G5",
+      "X1"
+     ],
+     "note": "min static gap -0.0 to rack/NW_west (undeclared); FAILED deadline 94.556, pinned_on_undeclared_box"
+    },
+    {
+     "event": "gt_contact robot_1|rack/NW_west from 67.51 to censor",
+     "t_rel": 67.51,
+     "codes": [
+      "EG2"
+     ],
+     "note": "begins inside the G5 leg -> not X5"
+    },
+    {
+     "event": "D2:robot_5:reverse COMPLETED; D3 robot_3/robot_4 reverse COMPLETED",
+     "t_rel": 69.422,
+     "codes": [
+      "X3"
+     ]
+    },
+    {
+     "event": "D4 junction_clear (reverse robot_4, yield robot_2) withheld (retreat room)",
+     "t_rel": 99.4,
+     "codes": [
+      "V3",
+      "G1"
+     ]
+    }
+   ],
+   "confidence": "medium",
+   "notes": "Alt R3: U:T1_not_run at D1. If node_handoff with matching dispatch were not G4 (A6), first deviation would be X1 at 48.278 (or X3 same time; X1 listed first only by order of legs - tie within X unresolved). ALT[R3]=U:T1_not_run"
+  },
+  {
+   "sheet_id": "EV-62b8d0",
+   "unit_id": "EPISODE",
+   "primary_code": "G4",
+   "step_fired": "episode",
+   "evidence": "Single FU.",
+   "contributing_codes": [
+    "EG2",
+    "G1",
+    "G5",
+    "G6",
+    "V3",
+    "V4",
+    "V4j",
+    "X1",
+    "X3"
+   ],
+   "event_codes": [],
+   "confidence": "medium",
+   "notes": "Episode contributing = union of all FUs' primary and contributing codes, minus the episode primary."
+  },
+  {
+   "sheet_id": "EV-69a2ea",
+   "unit_id": "FU1",
+   "primary_code": "U:no_m4_clock_anchor",
+   "step_fired": "7 (first deviation undetermined: no m4 clock anchor)",
+   "evidence": "Layer-2-off coding (R2, rubric 7.6): no decision artifacts, no decisions/legs, m4.log < 2 sim_t= lines. Step 1: t0_snapshot True, m4_log True; decision artifacts not needed (no V/G). Step 2 never fires (nothing dispatched). Step 3: T2(t0) True, so G7 (not applicable by construction) vs continue is the only branch T1 could decide; continue. Step 4 (X only) from t0 15.97: X2 input runs for robot_1, robot_4 start at ~t0 and last to censor, but safety-stop spans are present and unmapped (rel None; wall mapping U:no_m4_clock_anchor), so 'under an active Nav2 goal' cannot be decided (R8); no STALE span >= 10 s; no GT contact (gap <= 0.005) for FU robots; X3 needs a completed command (none).",
+   "contributing_codes": [
+    "N0"
+   ],
+   "event_codes": [
+    {
+     "event": "X2 input runs (stationary, no M4 leg, traveling)",
+     "t_rel": 15.97,
+     "codes": [
+      "U:no_m4_clock_anchor"
+     ],
+     "note": "cover fraction 0.0 is an artefact of unmapped safety-stop spans"
+    }
+   ],
+   "confidence": "medium",
+   "notes": "T1(t0) as written 5/88 non-empty: a Layer-2 action was available (yes); fidelity unverifiable_in_bundle. Alt R8 (every tool X2 input counts): primary X2 (run from ~t0). Alt R2 (treat as Layer-2-on with missing artifacts): U:no_decision_artifacts at step 1."
+  },
+  {
+   "sheet_id": "EV-69a2ea",
+   "unit_id": "FU2",
+   "primary_code": "U:no_m4_clock_anchor",
+   "step_fired": "7 (first deviation undetermined: no m4 clock anchor)",
+   "evidence": "Layer-2-off coding (R2, rubric 7.6): no decision artifacts, no decisions/legs, m4.log < 2 sim_t= lines. Step 1: t0_snapshot True, m4_log True; decision artifacts not needed (no V/G). Step 2 never fires (nothing dispatched). Step 3: T2(t0) True, so G7 (not applicable by construction) vs continue is the only branch T1 could decide; continue. Step 4 (X only) from t0 19.57: X2 input runs for robot_2, robot_3, robot_5 start at ~t0 and last to censor, but safety-stop spans are present and unmapped (rel None; wall mapping U:no_m4_clock_anchor), so 'under an active Nav2 goal' cannot be decided (R8); no STALE span >= 10 s; no GT contact (gap <= 0.005) for FU robots; X3 needs a completed command (none).",
+   "contributing_codes": [
+    "N0"
+   ],
+   "event_codes": [
+    {
+     "event": "X2 input runs (stationary, no M4 leg, traveling)",
+     "t_rel": 19.57,
+     "codes": [
+      "U:no_m4_clock_anchor"
+     ],
+     "note": "cover fraction 0.0 is an artefact of unmapped safety-stop spans"
+    }
+   ],
+   "confidence": "medium",
+   "notes": "T1(t0) as written 97/237 non-empty: a Layer-2 action was available (yes); fidelity unverifiable_in_bundle. Alt R8 (every tool X2 input counts): primary X2 (run from ~t0). Alt R2 (treat as Layer-2-on with missing artifacts): U:no_decision_artifacts at step 1."
+  },
+  {
+   "sheet_id": "EV-69a2ea",
+   "unit_id": "EPISODE",
+   "primary_code": "U:no_m4_clock_anchor",
+   "step_fired": "episode",
+   "evidence": "Earliest t0 FU1 (15.97).",
+   "contributing_codes": [
+    "N0"
+   ],
+   "event_codes": [],
+   "confidence": "medium",
+   "notes": "Layer-2-off by sheet content (R2). Episode contributing = union of all FUs' primary and contributing codes, minus the episode primary."
+  },
+  {
+   "sheet_id": "EV-6f1277",
+   "unit_id": "FU1",
+   "primary_code": "G2",
+   "step_fired": "4",
+   "evidence": "Gate all True. Step 2: chain (rubric) []. Step 3: T2(t0) True, T1(t0) 6/88 non-empty, episode_gate_pass -> continue. Walk from 17.273: D1 at 19.267 (matched) yield robot_5, C2 False, valid. V3 not met: refused for room ('no executable retreat (robot_4 has no retreat candidate surviving the sweep ...)') but T1[D1] has no Y labels in motion, so no other FU robot is shown feasible as yielder. Verifier provenance m3_default with plan present (G2_m3_default_with_plan True) -> G2; grounding withheld refusal_no_action with T2[D1] True -> G1; G2 taken as upstream (A2).",
+   "contributing_codes": [
+    "G1",
+    "X3"
+   ],
+   "event_codes": [
+    {
+     "event": "D1 verifier/grounding",
+     "t_rel": 19.267,
+     "codes": [
+      "G2",
+      "G1"
+     ],
+     "note": "heading_regrounded tag but withheld -> not G4"
+    },
+    {
+     "event": "D2, D3, D4 (same pattern)",
+     "t_rel": 23.767,
+     "codes": [
+      "G2",
+      "G1"
+     ],
+     "note": "Y labels robust only for robot_2 (not an FU robot) -> no V3"
+    },
+    {
+     "event": "D5 reverse robot_4+robot_5 (C1 False), substituted to waits, dispatched",
+     "t_rel": 68.667,
+     "codes": [],
+     "note": "no G4 (A6); V4j not flagged"
+    },
+    {
+     "event": "D5 waits COMPLETED; robot_4|robot_5 close+stopped from 17.77, never exempt",
+     "t_rel": 78.334,
+     "codes": [
+      "X3"
+     ]
+    },
+    {
+     "event": "D6, D7 (same as D1)",
+     "t_rel": 81.467,
+     "codes": [
+      "G2",
+      "G1"
+     ]
+    }
+   ],
+   "confidence": "medium",
+   "notes": "A2: by code number the primary would be G1."
+  },
+  {
+   "sheet_id": "EV-6f1277",
+   "unit_id": "FU2",
+   "primary_code": "V1",
+   "step_fired": "4",
+   "evidence": "Gate all True. Step 2: chain (rubric) []. Step 3: T2(t0) True, T1(t0) 80/237 non-empty, episode_gate_pass -> continue. Walk from t0 23.473: V1 input a33_matched_positive_analyses 0 (no positive analysis matched to the FU) -> V1 at t0.",
+   "contributing_codes": [],
+   "event_codes": [
+    {
+     "event": "FU V1",
+     "t_rel": 23.473,
+     "codes": [
+      "V1"
+     ]
+    }
+   ],
+   "confidence": "high",
+   "notes": "X2 inputs cover >= 0.955 (uncovered < 60 s): not X2. No other events on the timeline. Under ALT[R8] the robot_2 run starts at 23.47, 0.003 s before t0, so it is open at the start point: contributing only (A8), and the primary stays V1."
+  },
+  {
+   "sheet_id": "EV-6f1277",
+   "unit_id": "EPISODE",
+   "primary_code": "G2",
+   "step_fired": "episode",
+   "evidence": "Earliest t0 FU1 (17.273).",
+   "contributing_codes": [
+    "G1",
+    "V1",
+    "X3"
+   ],
+   "event_codes": [],
+   "confidence": "medium",
+   "notes": "Episode contributing = union of all FUs' primary and contributing codes, minus the episode primary."
+  },
+  {
+   "sheet_id": "EV-7bda3f",
+   "unit_id": "FU1",
+   "primary_code": "X3",
+   "step_fired": "4",
+   "evidence": "Gate all True. Step 2: chain (rubric) [] (D1 14.267 after t0 12.277). Step 3: T2(t0) True, T1(t0) 61/237 non-empty, episode_gate_pass -> continue. Walk: D1 (matched) reverse robot_2,robot_3, reverse legs both (C1 False), V4j not flagged; T1[D1] no robot in every motion label; verifier substituted both reverse legs to wait ('both outside the corridor on the same side'; not G4 under A6, not a room refusal); waits dispatched and COMPLETED 23.705; robot_2|robot_3 close+stopped from 12.78 to censor, never exempt -> X3 at 23.705.",
+   "contributing_codes": [
+    "G2",
+    "V3",
+    "G1",
+    "V4",
+    "V4j",
+    "G4",
+    "G6",
+    "X6"
+   ],
+   "event_codes": [
+    {
+     "event": "D1 waits COMPLETED, pinned pair",
+     "t_rel": 23.705,
+     "codes": [
+      "X3"
+     ]
+    },
+    {
+     "event": "D2 junction_clear (yields robot_1/robot_2) withheld, not matched to FU1",
+     "t_rel": 27.2,
+     "codes": [
+      "G2"
+     ],
+     "note": "V3/G1 untestable for FU1 (no FU1 T1/T2 at D2)"
+    },
+    {
+     "event": "D4 junction_clear, plan reverse robot_2, withheld (retreat room)",
+     "t_rel": 81.333,
+     "codes": [
+      "V3",
+      "G1"
+     ],
+     "note": "R:robot_3/R:robot_4 in T1[D4]"
+    },
+    {
+     "event": "D5 reverse involved robot_2,3,4, reverse legs [robot_2] (C1 True); verifier swap robot_2<->robot_4; waits dispatched",
+     "t_rel": 85.867,
+     "codes": [
+      "V4",
+      "V4j",
+      "G4"
+     ],
+     "note": "V4j: 'allowing robot_3 and robot_4 to proceed'. G4 via the listed 'swap' mechanism (verifier edit op swap) although G4_role_change_tags is empty"
+    },
+    {
+     "event": "D5 waits COMPLETED",
+     "t_rel": 96.385,
+     "codes": [
+      "X3"
+     ]
+    },
+    {
+     "event": "D6 junction_clear reverse robot_4 withheld (retreat room), vlm_verbatim contradicted",
+     "t_rel": 99.433,
+     "codes": [
+      "V3",
+      "G1",
+      "G6"
+     ]
+    },
+    {
+     "event": "stop-rule censor",
+     "t_rel": 102.277,
+     "codes": [
+      "X6"
+     ]
+    }
+   ],
+   "confidence": "medium",
+   "notes": "Stop-flag episode. Alt A7 (X3 only after motion commands): primary G2 at D2 (27.2). ALT[X3-at-pin-start]=unchanged (pin already open at completion, A10)"
+  },
+  {
+   "sheet_id": "EV-7bda3f",
+   "unit_id": "FU2",
+   "primary_code": "G4",
+   "step_fired": "4",
+   "evidence": "Gate all True. Step 2: chain (rubric) D3:robot_5:backup, D3:robot_1:escort, D3:robot_1:wait; D3 dispatched 36.567, t0 81.177 (44.6 s before); chain_start 36.567; step 3 skipped. Walk: D3 analysis yield robot_1, C2 False (not matched to FU2; V2/V3 untestable). D3 grounding: verifier swap robot_1<->robot_5, G4_role_change_tags ['grounding=heading_regrounded:robot_1->robot_5'], dispatched robot_5:yield -> G4.",
+   "contributing_codes": [
+    "X3",
+    "V1",
+    "X6"
+   ],
+   "event_codes": [
+    {
+     "event": "D3 analysis",
+     "t_rel": 36.567,
+     "codes": [],
+     "note": "V2/V3:U:T1_not_run"
+    },
+    {
+     "event": "D3 grounding",
+     "t_rel": 36.567,
+     "codes": [
+      "G4"
+     ]
+    },
+    {
+     "event": "D3 legs COMPLETED (backup 1.422/1.361, escort 0.807/0.817); robot_1|robot_5 close+stopped from 81.28; exemption cleared 77.398",
+     "t_rel": 77.362,
+     "codes": [
+      "X3"
+     ]
+    },
+    {
+     "event": "FU V1 (0 matched)",
+     "t_rel": 81.177,
+     "codes": [
+      "V1"
+     ]
+    },
+    {
+     "event": "stop-rule censor",
+     "t_rel": 102.277,
+     "codes": [
+      "X6"
+     ]
+    }
+   ],
+   "confidence": "medium",
+   "notes": "Alt R3: U:T1_not_run at D3. D2 (27.2) precedes the chain start. ALT[R3]=U:T1_not_run"
+  },
+  {
+   "sheet_id": "EV-7bda3f",
+   "unit_id": "EPISODE",
+   "primary_code": "X3",
+   "step_fired": "episode",
+   "evidence": "Earliest t0 FU1 (12.277).",
+   "contributing_codes": [
+    "G1",
+    "G2",
+    "G4",
+    "G6",
+    "V1",
+    "V3",
+    "V4",
+    "V4j",
+    "X6"
+   ],
+   "event_codes": [],
+   "confidence": "medium",
+   "notes": "stop_flag Episode contributing = union of all FUs' primary and contributing codes, minus the episode primary."
+  },
+  {
+   "sheet_id": "EV-7bf1e2",
+   "unit_id": "FU1",
+   "primary_code": "G2",
+   "step_fired": "4",
+   "evidence": "Gate all True. Step 2: chain (rubric) []. Step 3: T2(t0) True, T1(t0) 21/237 non-empty, episode_gate_pass -> continue. Walk from t0 11.203: no deviation before D2 (X2 runs begin 58.8 with cover 1.0). D2 at 48.8 (matched) temporary_wait robot_1,robot_2,robot_5 (T1[D2] pass; no robot in every motion label: no V2); proposed_plan present (robot_3 yield, robot_4 cross, waits) and verifier provenance m3_default -> G2_m3_default_with_plan True -> G2 at 48.8.",
+   "contributing_codes": [
+    "X3"
+   ],
+   "event_codes": [
+    {
+     "event": "D2 verifier",
+     "t_rel": 48.8,
+     "codes": [
+      "G2"
+     ]
+    },
+    {
+     "event": "D2 waits COMPLETED; robot_1|robot_2 (from 28.6) and robot_1|robot_5 (from 11.9) pinned to censor, never exempt",
+     "t_rel": 58.79,
+     "codes": [
+      "X3"
+     ]
+    }
+   ],
+   "confidence": "high",
+   "notes": ""
+  },
+  {
+   "sheet_id": "EV-7bf1e2",
+   "unit_id": "FU2",
+   "primary_code": "G4",
+   "step_fired": "4",
+   "evidence": "Gate all True. Step 2: chain (rubric) D1:robot_3:backup, D1:robot_4:escort, D1:robot_4:wait; D1 dispatched 13.767, t0 63.803 (50.0 s before); chain_start 13.767. Walk: D1 analysis yield robot_4, C2 False (no FU2 T1 row at D1: V2/V3 untestable). D1 grounding: swap robot_4<->robot_3 ('robot_4 has no retreat candidate surviving the sweep'), G4_role_change_tags ['yield_robot=sweep_regrounded:robot_4->robot_3', ...], dispatched robot_3:yield -> G4.",
+   "contributing_codes": [
+    "X3",
+    "G2",
+    "G1"
+   ],
+   "event_codes": [
+    {
+     "event": "D1 analysis",
+     "t_rel": 13.767,
+     "codes": [],
+     "note": "V2/V3:U:T1_not_run"
+    },
+    {
+     "event": "D1 grounding",
+     "t_rel": 13.767,
+     "codes": [
+      "G4"
+     ]
+    },
+    {
+     "event": "D1 legs COMPLETED; robot_3|robot_4 close+stopped from 64.3; exemption cleared 63.381",
+     "t_rel": 63.391,
+     "codes": [
+      "X3"
+     ]
+    },
+    {
+     "event": "D3 yield robot_3 withheld (no shared lane)",
+     "t_rel": 67.1,
+     "codes": [
+      "G2",
+      "G1"
+     ]
+    }
+   ],
+   "confidence": "medium",
+   "notes": "Alt R3: U:T1_not_run at D1. ALT[R3]=U:T1_not_run"
+  },
+  {
+   "sheet_id": "EV-7bf1e2",
+   "unit_id": "EPISODE",
+   "primary_code": "G2",
+   "step_fired": "episode",
+   "evidence": "Earliest t0 FU1 (11.203).",
+   "contributing_codes": [
+    "G1",
+    "G4",
+    "X3"
+   ],
+   "event_codes": [],
+   "confidence": "medium",
+   "notes": "Episode contributing = union of all FUs' primary and contributing codes, minus the episode primary."
+  },
+  {
+   "sheet_id": "EV-7e1fa5",
+   "unit_id": "FU1",
+   "primary_code": "X2",
+   "step_fired": "4",
+   "evidence": "Gate all True. Step 2: chain (rubric) []. Step 3: T2(t0) True, T1(t0) 29/88 non-empty, episode_gate_pass -> continue. Walk from t0 14.97: Nav2 abort line robot_4 at 14.978 '[follow_path] [ActionServer] Aborting handle.' -> X2.",
+   "contributing_codes": [
+    "G2",
+    "G1",
+    "X3"
+   ],
+   "event_codes": [
+    {
+     "event": "nav2 abort robot_4",
+     "t_rel": 14.978,
+     "codes": [
+      "X2"
+     ]
+    },
+    {
+     "event": "D1 yield robot_3 withheld (ambiguous lane)",
+     "t_rel": 16.567,
+     "codes": [
+      "G2",
+      "G1"
+     ],
+     "note": "not a room refusal: no V3"
+    },
+    {
+     "event": "D2 reverse robot_3+robot_4 (C1 False) substituted to waits; waits COMPLETED",
+     "t_rel": 29.85,
+     "codes": [
+      "X3"
+     ],
+     "note": "robot_3|robot_4 close+stopped from 15.57; no exemptions; V4j not flagged"
+    },
+    {
+     "event": "D3, D4, D5 yield withheld (ambiguous lane)",
+     "t_rel": 33.3,
+     "codes": [
+      "G2",
+      "G1"
+     ]
+    }
+   ],
+   "confidence": "medium",
+   "notes": "Abort coincides with the safety-stop start (14.961). X2 runs cover 0.903 of 540.8 s (52 s uncovered < 60): not X2 by the run branch. If the abort were not counted, primary would be G2 at D1 (16.567)."
+  },
+  {
+   "sheet_id": "EV-7e1fa5",
+   "unit_id": "FU2",
+   "primary_code": "V1",
+   "step_fired": "4",
+   "evidence": "Gate all True. Step 2: chain (rubric) []. Step 3: T2(t0) True, T1(t0) 2/88 non-empty, episode_gate_pass -> continue. Walk from t0 30.67: V1 input a33_matched_positive_analyses 0 -> V1 at t0. Nav2 aborts for robot_1 at 16.6-16.7 precede t0 (not walked, A8).",
+   "contributing_codes": [],
+   "event_codes": [
+    {
+     "event": "FU V1",
+     "t_rel": 30.67,
+     "codes": [
+      "V1"
+     ]
+    }
+   ],
+   "confidence": "high",
+   "notes": "X2 runs: robot_5 from 28.57 cover 0.90 (54 s uncovered), robot_1 cover 0.903 (52 s): below 60 s, not X2. Alt R8: X2 run robot_5 from 28.57 precedes t0 (open at start) -> still V1 under A8."
+  },
+  {
+   "sheet_id": "EV-7e1fa5",
+   "unit_id": "FU3",
+   "primary_code": "NOT_FU:parked_finished",
+   "step_fired": "none",
+   "evidence": "lone_stall robot_2 t0 138.17 flagged finished_all_or_between_tasks_at_censor; listed separately.",
+   "contributing_codes": [],
+   "event_codes": [],
+   "confidence": "high",
+   "notes": ""
+  },
+  {
+   "sheet_id": "EV-7e1fa5",
+   "unit_id": "EPISODE",
+   "primary_code": "X2",
+   "step_fired": "episode",
+   "evidence": "Earliest t0 FU1 (14.97).",
+   "contributing_codes": [
+    "G1",
+    "G2",
+    "V1",
+    "X3"
+   ],
+   "event_codes": [],
+   "confidence": "medium",
+   "notes": "Episode contributing = union of all FUs' primary and contributing codes, minus the episode primary."
+  },
+  {
+   "sheet_id": "EV-80fb2a",
+   "unit_id": "FU1",
+   "primary_code": "V1",
+   "step_fired": "4",
+   "evidence": "Gate all True. Step 2: chain (rubric) [] (D2 dispatched 52.467, legs ended 109.5; neither within 60 s before t0 148.937 nor executing at t0). Step 3: T2(t0) True, T1(t0) 30/88 non-empty, episode_gate_pass -> continue. Walk from t0: V1 input a33_matched_positive_analyses 0 -> V1 at t0.",
+   "contributing_codes": [],
+   "event_codes": [
+    {
+     "event": "FU V1",
+     "t_rel": 148.937,
+     "codes": [
+      "V1"
+     ]
+    }
+   ],
+   "confidence": "high",
+   "notes": "X2 runs cover 1.0 (not X2). The end-window chain variant would link D2 (S1-type sensitivity, not used)."
+  },
+  {
+   "sheet_id": "EV-80fb2a",
+   "unit_id": "FU2",
+   "primary_code": "G4",
+   "step_fired": "4",
+   "evidence": "Gate all True. Step 2: chain (rubric) D4:robot_3:reverse, D4:robot_5:reverse; D4 dispatched 133.667, t0 162.237; chain_start 133.667. Walk: D4 analysis reverse involved robot_1,robot_3,robot_5 with no proposed_plan (C1-C3 None), not matched to FU2 (V2/V3 untestable). D4 grounding m3_default (no plan, so not G2), G4_role_change_tags ['grounding=node_handoff:robot_3->robot_1'], G4_robots_dropped ['robot_1']; dispatched robot_3, robot_5 reverse only -> G4 at 133.667.",
+   "contributing_codes": [
+    "G5",
+    "X1",
+    "EG2",
+    "X3",
+    "X2",
+    "G2",
+    "G1"
+   ],
+   "event_codes": [
+    {
+     "event": "D4 analysis",
+     "t_rel": 133.667,
+     "codes": [],
+     "note": "V4j not flagged: robot_1/robot_5 described as waiting, not continuing/passing"
+    },
+    {
+     "event": "D4 grounding",
+     "t_rel": 133.667,
+     "codes": [
+      "G4"
+     ]
+    },
+    {
+     "event": "D4:robot_3:reverse",
+     "t_rel": 135.4,
+     "codes": [
+      "G5",
+      "X1"
+     ],
+     "note": "min static gap -0.0015 m rack/SW_south (undeclared); FAILED deadline 171.656, pinned_on_undeclared_box"
+    },
+    {
+     "event": "gt_contact robot_3|rack/SW_south 143.54 to censor",
+     "t_rel": 143.54,
+     "codes": [
+      "EG2"
+     ],
+     "note": "inside G5 leg -> not X5"
+    },
+    {
+     "event": "D4:robot_5:reverse COMPLETED; robot_1|robot_5 close+stopped from 166.34, non-exempt after 149.264",
+     "t_rel": 149.252,
+     "codes": [
+      "X3"
+     ]
+    },
+    {
+     "event": "nav2 abort robot_3",
+     "t_rel": 172.986,
+     "codes": [
+      "X2"
+     ]
+    },
+    {
+     "event": "D5 yield robot_1 withheld (no shared lane)",
+     "t_rel": 174.667,
+     "codes": [
+      "G2",
+      "G1"
+     ]
+    }
+   ],
+   "confidence": "medium",
+   "notes": "Alt R3: U:T1_not_run at D4. ALT[R3]=U:T1_not_run"
+  },
+  {
+   "sheet_id": "EV-80fb2a",
+   "unit_id": "EPISODE",
+   "primary_code": "V1",
+   "step_fired": "episode",
+   "evidence": "Earliest t0 FU1 (148.937).",
+   "contributing_codes": [
+    "EG2",
+    "G1",
+    "G2",
+    "G4",
+    "G5",
+    "X1",
+    "X2",
+    "X3"
+   ],
+   "event_codes": [],
+   "confidence": "high",
+   "notes": "Episode contributing = union of all FUs' primary and contributing codes, minus the episode primary."
+  },
+  {
+   "sheet_id": "EV-830943",
+   "unit_id": "FU1",
+   "primary_code": "G6",
+   "step_fired": "4",
+   "evidence": "Gate all True. Step 2: chain (rubric) D1:robot_1:backup, D1:robot_5:escort and D1 waits; D1 dispatched 15.433, t0 22.803; chain_start 15.433; step 3 skipped (T1(t0) U:T1_fidelity not deciding). Walk: D1 analysis yield robot_1 (involved robot_1,robot_5), C2 False; unmatched (V2/V3 untestable; D1 fidelity as-written 'differs'). D1 grounding: provenance vlm_verbatim, dispatch_matches_plan False, G6_verbatim_contradicted True; no G4 tags -> G6 at 15.433.",
+   "contributing_codes": [
+    "X3",
+    "G2",
+    "G1",
+    "V4",
+    "X2",
+    "X1"
+   ],
+   "event_codes": [
+    {
+     "event": "D1 analysis",
+     "t_rel": 15.433,
+     "codes": [],
+     "note": "V2/V3:U:T1_not_run"
+    },
+    {
+     "event": "D1 grounding",
+     "t_rel": 15.433,
+     "codes": [
+      "G6"
+     ]
+    },
+    {
+     "event": "D1 legs/waits COMPLETED; robot_2|robot_3 close+stopped from 23.3, non-exempt",
+     "t_rel": 70.21,
+     "codes": [
+      "X3"
+     ]
+    },
+    {
+     "event": "D2 yield robot_3 withheld (empty_reroute)",
+     "t_rel": 74.667,
+     "codes": [
+      "G2",
+      "G1"
+     ],
+     "note": "handoff tag but withheld -> not G4; C2 False; T2[D2] True; withheld treated as refused (R5)"
+    },
+    {
+     "event": "D3 reroute: involved_robots[0]=robot_2 has no reroute leg (C3 True); vlm_verbatim contradicted",
+     "t_rel": 79.267,
+     "codes": [
+      "V4",
+      "G6"
+     ]
+    },
+    {
+     "event": "D3:robot_3:wait COMPLETED",
+     "t_rel": 99.367,
+     "codes": [
+      "X3"
+     ]
+    },
+    {
+     "event": "D4 yield robot_2 withheld (empty_reroute)",
+     "t_rel": 104.633,
+     "codes": [
+      "G2",
+      "G1"
+     ]
+    },
+    {
+     "event": "nav2 'Failed to make progress'/abort robot_2",
+     "t_rel": 105.501,
+     "codes": [
+      "X2"
+     ]
+    },
+    {
+     "event": "D3:robot_2:reroute FAILED",
+     "t_rel": 106.14,
+     "codes": [
+      "X1"
+     ]
+    }
+   ],
+   "confidence": "medium",
+   "notes": "Alt R3: U:T1_not_run at D1. ALT[R3]=U:T1_not_run"
+  },
+  {
+   "sheet_id": "EV-830943",
+   "unit_id": "EPISODE",
+   "primary_code": "G6",
+   "step_fired": "episode",
+   "evidence": "Single FU.",
+   "contributing_codes": [
+    "G1",
+    "G2",
+    "V4",
+    "X1",
+    "X2",
+    "X3"
+   ],
+   "event_codes": [],
+   "confidence": "medium",
+   "notes": "Episode contributing = union of all FUs' primary and contributing codes, minus the episode primary."
+  },
+  {
+   "sheet_id": "EV-a2cfc5",
+   "unit_id": "FU1",
+   "primary_code": "X3",
+   "step_fired": "4",
+   "evidence": "Gate all True. Step 2: chain (rubric) D2:robot_2:reverse, D2:robot_4:reverse; D2 dispatched 18.5, t0 25.07; chain_start 18.5; step 3 skipped. Walk: D2 analysis reverse robot_2,robot_4, reverse legs both (C1 False), V4j not flagged; unmatched (V2/V3 untestable). Grounding vlm_verbatim, matches, no G tags. D2:robot_2:reverse min static 0.0582 (no G5), COMPLETED 37.829 (moved 1.307/1.3). After 37.829 FU pairs robot_3|robot_5 (from 25.47) and robot_2|robot_3 (from 46.77) stay close+stopped to censor; neither is in the exempt set (only robot_2+robot_4) -> X3 at 37.829.",
+   "contributing_codes": [
+    "X1",
+    "V3",
+    "G2",
+    "G1",
+    "X4"
+   ],
+   "event_codes": [
+    {
+     "event": "D2 analysis/grounding",
+     "t_rel": 18.5,
+     "codes": [],
+     "note": "V2/V3:U:T1_not_run"
+    },
+    {
+     "event": "D2:robot_2:reverse COMPLETED, pinned non-exempt pairs follow",
+     "t_rel": 37.829,
+     "codes": [
+      "X3"
+     ]
+    },
+    {
+     "event": "D3 junction_clear (yield robot_5, robot_4) withheld (retreat room)",
+     "t_rel": 55.967,
+     "codes": [
+      "V3",
+      "G2",
+      "G1"
+     ],
+     "note": "other FU robots first and last in T1[D3] Y labels"
+    },
+    {
+     "event": "D2:robot_4:reverse FAILED deadline (moved 0.529/1.3)",
+     "t_rel": 62.481,
+     "codes": [
+      "X1"
+     ]
+    },
+    {
+     "event": "D4 junction_clear (reverse robot_5) withheld (retreat room)",
+     "t_rel": 66.033,
+     "codes": [
+      "V3",
+      "G1"
+     ]
+    },
+    {
+     "event": "robot_1 STALE 27.8 s (and later spans)",
+     "t_rel": 66.4,
+     "codes": [
+      "X4"
+     ]
+    }
+   ],
+   "confidence": "medium",
+   "notes": "X3 placed at the first completed command; the pinned pair robot_3|robot_5 does not include the commanded robot (R10 does not require it); robot_2|robot_3 does. Alt R3: U:T1_not_run at D2. D1 (14.7, withheld) precedes the chain start. ALT[R3]=U:T1_not_run; ALT[R8]=X2 (run from 25.07); ALT[X3-at-pin-start]=unchanged (pin already open at completion, A10)"
+  },
+  {
+   "sheet_id": "EV-a2cfc5",
+   "unit_id": "EPISODE",
+   "primary_code": "X3",
+   "step_fired": "episode",
+   "evidence": "Single FU.",
+   "contributing_codes": [
+    "G1",
+    "G2",
+    "V3",
+    "X1",
+    "X4"
+   ],
+   "event_codes": [],
+   "confidence": "medium",
+   "notes": "Episode contributing = union of all FUs' primary and contributing codes, minus the episode primary."
+  },
+  {
+   "sheet_id": "EV-a6761e",
+   "unit_id": "FU1",
+   "primary_code": "G4",
+   "step_fired": "4",
+   "evidence": "Gate all True. Step 2: chain (rubric) D1:robot_3:wait (D1 dispatched 12.0, t0 12.073); chain_start 12.0; step 3 skipped. Walk: D1 analysis yield robot_1 (involved robot_1,robot_4; neither in FU1), C2 False; unmatched (V2/V3 untestable). D1 grounding: G4_role_change_tags ['grounding=node_handoff:robot_1->robot_4'] and G6_verbatim_contradicted True (vlm_verbatim, dispatch_matches_plan False) -> G4 (pipeline order before G6, A2) at 12.0.",
+   "contributing_codes": [
+    "G6",
+    "X3",
+    "G2",
+    "G1"
+   ],
+   "event_codes": [
+    {
+     "event": "D1 analysis",
+     "t_rel": 12.0,
+     "codes": [],
+     "note": "V2/V3:U:T1_not_run"
+    },
+    {
+     "event": "D1 grounding/dispatch (robot_3:temporary_wait)",
+     "t_rel": 12.0,
+     "codes": [
+      "G4",
+      "G6"
+     ]
+    },
+    {
+     "event": "D1:robot_3:wait COMPLETED; robot_2|robot_3 close+stopped from 12.57, never exempt",
+     "t_rel": 68.0,
+     "codes": [
+      "X3"
+     ]
+    },
+    {
+     "event": "D2, D3, D4 yield robot_3 withheld (no executable retreat)",
+     "t_rel": 71.1,
+     "codes": [
+      "G2",
+      "G1"
+     ],
+     "note": "no Y labels in T1 motion -> no V3; heading_regrounded tag but withheld -> not G4"
+    }
+   ],
+   "confidence": "low",
+   "notes": "The G4/G6 of the chain-start decision concern robot_1/robot_4 roles, not FU1 robots; the chain links FU1 to D1 only through robot_3's wait. If deviations had to concern an FU robot, the walk would give X3 at 68.0. Alt R3: U:T1_not_run at D1. ALT[R3]=U:T1_not_run"
+  },
+  {
+   "sheet_id": "EV-a6761e",
+   "unit_id": "FU2",
+   "primary_code": "G4",
+   "step_fired": "4",
+   "evidence": "Gate all True. Step 2: chain (rubric) D1:robot_1:backup, D1:robot_4:escort, D1 waits; D1 dispatched 12.0, t0 69.773 (57.8 s before); chain_start 12.0. Walk: D1 analysis yield robot_1, C2 False; not matched to FU2 (V2/V3 untestable; D1 as-written fidelity 'differs'). D1 grounding: G4_role_change_tags ['grounding=node_handoff:robot_1->robot_4'], G6 True -> G4 at 12.0.",
+   "contributing_codes": [
+    "G6",
+    "X3",
+    "V1"
+   ],
+   "event_codes": [
+    {
+     "event": "D1 grounding",
+     "t_rel": 12.0,
+     "codes": [
+      "G4",
+      "G6"
+     ]
+    },
+    {
+     "event": "D1 legs COMPLETED; robot_1|robot_4 close+stopped from 70.07; exemption cleared 68.116",
+     "t_rel": 68.034,
+     "codes": [
+      "X3"
+     ]
+    },
+    {
+     "event": "FU V1 (0 matched)",
+     "t_rel": 69.773,
+     "codes": [
+      "V1"
+     ]
+    }
+   ],
+   "confidence": "medium",
+   "notes": "Alt R3: U:T1_not_run at D1. ALT[R3]=U:T1_not_run"
+  },
+  {
+   "sheet_id": "EV-a6761e",
+   "unit_id": "EPISODE",
+   "primary_code": "G4",
+   "step_fired": "episode",
+   "evidence": "Earliest t0 FU1 (12.073).",
+   "contributing_codes": [
+    "G1",
+    "G2",
+    "G6",
+    "V1",
+    "X3"
+   ],
+   "event_codes": [],
+   "confidence": "low",
+   "notes": "Episode contributing = union of all FUs' primary and contributing codes, minus the episode primary."
+  },
+  {
+   "sheet_id": "EV-b13ac7",
+   "unit_id": "FU1",
+   "primary_code": "X1",
+   "step_fired": "4",
+   "evidence": "Gate all True. Step 2: chain (rubric) [] (D1 14.4 after t0 12.24). Step 3: T2(t0) True, T1(t0) 60/237 non-empty, episode_gate_pass -> continue. Walk: D1 (matched) reverse robot_3,robot_4, reverse legs both (C1 False); T1[D1] pass, no robot in every motion label; vlm_verbatim, dispatch matches, no G tags. D1:robot_3:reverse min static 0.3898 (no G5); m4_terminal FAILED at 17.386 (moved 0.106/1.3, deadline False) -> X1.",
+   "contributing_codes": [
+    "X3",
+    "G2",
+    "G1",
+    "X2",
+    "V3",
+    "G6"
+   ],
+   "event_codes": [
+    {
+     "event": "D1 analysis",
+     "t_rel": 14.4,
+     "codes": [],
+     "note": "V4j not flagged: 'reversing will allow them to create enough clearance to negotiate passing' does not name one involved robot as continuing/passing while the other reverses (my reading)"
+    },
+    {
+     "event": "D1:robot_3:reverse FAILED",
+     "t_rel": 17.386,
+     "codes": [
+      "X1"
+     ]
+    },
+    {
+     "event": "D1:robot_4:reverse COMPLETED; robot_1|robot_3 (from 17.24), robot_3|robot_4 (from 38.94) pinned; exemption cleared 31.725",
+     "t_rel": 31.724,
+     "codes": [
+      "X3"
+     ]
+    },
+    {
+     "event": "D2 yield robot_1 withheld (no shared lane)",
+     "t_rel": 33.467,
+     "codes": [
+      "G2",
+      "G1"
+     ]
+    },
+    {
+     "event": "nav2 abort robot_2",
+     "t_rel": 34.31,
+     "codes": [
+      "X2"
+     ]
+    },
+    {
+     "event": "D3 junction_clear yield robot_4 withheld (retreat room)",
+     "t_rel": 37.467,
+     "codes": [
+      "V3",
+      "G2",
+      "G1"
+     ],
+     "note": "robot_3 first and last in T1[D3] Y labels"
+    },
+    {
+     "event": "D4 junction_clear reverse robot_4 + yield robot_1 withheld",
+     "t_rel": 41.7,
+     "codes": [
+      "V3",
+      "G1"
+     ]
+    },
+    {
+     "event": "D5 junction_clear reverse robot_4 withheld, vlm_verbatim contradicted",
+     "t_rel": 45.867,
+     "codes": [
+      "V3",
+      "G1",
+      "G6"
+     ]
+    },
+    {
+     "event": "D6 junction_clear no plan withheld",
+     "t_rel": 74.767,
+     "codes": [
+      "G1"
+     ]
+    }
+   ],
+   "confidence": "high",
+   "notes": "X2 runs cover >= 0.985 (uncovered < 60 s). ALT[R8]=X2 (run from 16.94)"
+  },
+  {
+   "sheet_id": "EV-b13ac7",
+   "unit_id": "EPISODE",
+   "primary_code": "X1",
+   "step_fired": "episode",
+   "evidence": "Single FU.",
+   "contributing_codes": [
+    "G1",
+    "G2",
+    "G6",
+    "V3",
+    "X2",
+    "X3"
+   ],
+   "event_codes": [],
+   "confidence": "high",
+   "notes": "Episode contributing = union of all FUs' primary and contributing codes, minus the episode primary."
+  },
+  {
+   "sheet_id": "EV-c49058",
+   "unit_id": "FU1",
+   "primary_code": "U:no_m4_clock_anchor",
+   "step_fired": "7 (first deviation undetermined: no m4 clock anchor)",
+   "evidence": "Layer-2-off coding (R2, rubric 7.6): no decision artifacts, no decisions/legs, m4.log < 2 sim_t= lines. Step 1: t0_snapshot True, m4_log True; decision artifacts not needed (no V/G). Step 2 never fires (nothing dispatched). Step 3: T2(t0) True, so G7 (not applicable by construction) vs continue is the only branch T1 could decide; continue. Step 4 (X only) from t0 17.173: X2 input runs for robot_3, robot_4, robot_5 start at ~t0 and last to censor, but safety-stop spans are present and unmapped (rel None; wall mapping U:no_m4_clock_anchor), so 'under an active Nav2 goal' cannot be decided (R8); no STALE span >= 10 s; no GT contact (gap <= 0.005) for FU robots; X3 needs a completed command (none).",
+   "contributing_codes": [
+    "N0"
+   ],
+   "event_codes": [
+    {
+     "event": "X2 input runs (stationary, no M4 leg, traveling)",
+     "t_rel": 17.173,
+     "codes": [
+      "U:no_m4_clock_anchor"
+     ],
+     "note": "cover fraction 0.0 is an artefact of unmapped safety-stop spans"
+    }
+   ],
+   "confidence": "medium",
+   "notes": "T1(t0) as written 11/237 non-empty: a Layer-2 action was available (yes); fidelity unverifiable_in_bundle. Alt R8 (every tool X2 input counts): primary X2 (run from ~t0). Alt R2 (treat as Layer-2-on with missing artifacts): U:no_decision_artifacts at step 1."
+  },
+  {
+   "sheet_id": "EV-c49058",
+   "unit_id": "FU2",
+   "primary_code": "U:no_m4_clock_anchor",
+   "step_fired": "7 (first deviation undetermined: no m4 clock anchor)",
+   "evidence": "Layer-2-off coding (R2, rubric 7.6): no decision artifacts, no decisions/legs, m4.log < 2 sim_t= lines. Step 1: t0_snapshot True, m4_log True; decision artifacts not needed (no V/G). Step 2 never fires (nothing dispatched). Step 3: T2(t0) True, so G7 (not applicable by construction) vs continue is the only branch T1 could decide; continue. Step 4 (X only) from t0 54.673: X2 input runs for robot_1, robot_2 start at ~t0 and last to censor, but safety-stop spans are present and unmapped (rel None; wall mapping U:no_m4_clock_anchor), so 'under an active Nav2 goal' cannot be decided (R8); no STALE span >= 10 s; no GT contact (gap <= 0.005) for FU robots; X3 needs a completed command (none).",
+   "contributing_codes": [
+    "N0"
+   ],
+   "event_codes": [
+    {
+     "event": "X2 input runs (stationary, no M4 leg, traveling)",
+     "t_rel": 54.673,
+     "codes": [
+      "U:no_m4_clock_anchor"
+     ],
+     "note": "cover fraction 0.0 is an artefact of unmapped safety-stop spans"
+    }
+   ],
+   "confidence": "medium",
+   "notes": "T1(t0) as written 29/88 non-empty: a Layer-2 action was available (yes); fidelity unverifiable_in_bundle. Alt R8 (every tool X2 input counts): primary X2 (run from ~t0). Alt R2 (treat as Layer-2-on with missing artifacts): U:no_decision_artifacts at step 1."
+  },
+  {
+   "sheet_id": "EV-c49058",
+   "unit_id": "EPISODE",
+   "primary_code": "U:no_m4_clock_anchor",
+   "step_fired": "episode",
+   "evidence": "Earliest t0 FU1 (17.173).",
+   "contributing_codes": [
+    "N0"
+   ],
+   "event_codes": [],
+   "confidence": "medium",
+   "notes": "Layer-2-off by sheet content (R2). Episode contributing = union of all FUs' primary and contributing codes, minus the episode primary."
+  },
+  {
+   "sheet_id": "EV-cb3996",
+   "unit_id": "FU1",
+   "primary_code": "G5",
+   "step_fired": "4",
+   "evidence": "Gate all True. Step 2: chain (rubric) D1:robot_2:reverse, D1:robot_4:reverse; D1 dispatched 13.4, t0 31.603; chain_start 13.4. Walk: D1 analysis reverse involved robot_1..robot_4, reverse legs all four (C1 False), V4j not flagged; not matched to FU1 (V2/V3 untestable). Grounding vlm_verbatim, matches, no G tags. D1:robot_2:reverse min static 0.2761 (no G5). D1:robot_4:reverse (start 15.233) recomputed min static gap -0.0 m to rack/NW_west (undeclared) at 22.6 -> G5.",
+   "contributing_codes": [
+    "EG2",
+    "X3",
+    "X1",
+    "V3",
+    "G2",
+    "G1"
+   ],
+   "event_codes": [
+    {
+     "event": "D1 analysis/grounding",
+     "t_rel": 13.4,
+     "codes": [],
+     "note": "V2/V3:U:T1_not_run"
+    },
+    {
+     "event": "D1:robot_4:reverse",
+     "t_rel": 15.233,
+     "codes": [
+      "G5",
+      "X1"
+     ],
+     "note": "FAILED deadline 60.453, moved 0.647/1.3"
+    },
+    {
+     "event": "gt_contact robot_4|rack/NW_west 22.0-54.4",
+     "t_rel": 22.0,
+     "codes": [
+      "EG2"
+     ],
+     "note": "inside the G5 leg -> not X5"
+    },
+    {
+     "event": "D1:robot_2:reverse COMPLETED; robot_2|robot_5 close+stopped from 31.9, non-exempt",
+     "t_rel": 29.62,
+     "codes": [
+      "X3"
+     ]
+    },
+    {
+     "event": "D4 junction_clear (yield robot_1, robot_2) withheld (retreat room)",
+     "t_rel": 66.233,
+     "codes": [
+      "V3",
+      "G2",
+      "G1"
+     ],
+     "note": "robot_4 first and last in T1[D4] Y labels"
+    }
+   ],
+   "confidence": "high",
+   "notes": "ALT[R3]=U:T1_not_run"
+  },
+  {
+   "sheet_id": "EV-cb3996",
+   "unit_id": "FU2",
+   "primary_code": "X3",
+   "step_fired": "4",
+   "evidence": "Gate all True. Step 2: chain (rubric) D1:robot_1:reverse, D1:robot_3:reverse; chain_start 13.4 (t0 37.803). Walk: D1 analysis reverse (C1 False), not matched to FU2 (V2/V3 untestable); grounding no G; legs min static 0.0763/0.2707 (no G5). D1:robot_3:reverse COMPLETED 29.628, D1:robot_1:reverse COMPLETED 29.712; robot_1+robot_3 leaves the exempt set at 29.744; X3 GT input robot_1|robot_3 close+stopped from 38.0 to censor -> X3 at 29.712.",
+   "contributing_codes": [
+    "X2",
+    "G2",
+    "G1"
+   ],
+   "event_codes": [
+    {
+     "event": "D1 analysis/grounding",
+     "t_rel": 13.4,
+     "codes": []
+    },
+    {
+     "event": "D1 reverse legs COMPLETED, pair pinned after exemption cleared",
+     "t_rel": 29.712,
+     "codes": [
+      "X3"
+     ]
+    },
+    {
+     "event": "nav2 abort robot_3",
+     "t_rel": 32.516,
+     "codes": [
+      "X2"
+     ]
+    },
+    {
+     "event": "D2, D3 yield robot_1 withheld (ambiguous lane)",
+     "t_rel": 57.233,
+     "codes": [
+      "G2",
+      "G1"
+     ]
+    },
+    {
+     "event": "D4 junction_clear withheld (not matched to FU2)",
+     "t_rel": 66.233,
+     "codes": [
+      "G2"
+     ],
+     "note": "V3/G1 untestable for FU2"
+    }
+   ],
+   "confidence": "medium",
+   "notes": "The pair was still exempt at the exact completion instant (cleared 0.03 s later); coded X3 because the pair stays pinned while non-exempt after the command. ALT[R3]=U:T1_not_run; ALT[X3-at-pin-start]=X2, nav2 abort robot_3 32.516 precedes pin start 38.0 (A10)"
+  },
+  {
+   "sheet_id": "EV-cb3996",
+   "unit_id": "EPISODE",
+   "primary_code": "G5",
+   "step_fired": "episode",
+   "evidence": "Earliest t0 FU1 (31.603).",
+   "contributing_codes": [
+    "EG2",
+    "G1",
+    "G2",
+    "V3",
+    "X1",
+    "X2",
+    "X3"
+   ],
+   "event_codes": [],
+   "confidence": "high",
+   "notes": "Episode contributing = union of all FUs' primary and contributing codes, minus the episode primary."
+  },
+  {
+   "sheet_id": "EV-db0df6",
+   "unit_id": "FU1",
+   "primary_code": "V4",
+   "step_fired": "4",
+   "evidence": "Gate all True. Step 2: chain (rubric) D3:robot_1/2/3:reverse; D3 dispatched 30.067, t0 54.607; chain_start 30.067. Walk: D3 analysis strategy reverse, involved_robots [robot_1, robot_2, robot_3, robot_4], reverse legs [robot_3, robot_4] (robot_1, robot_2 cross) -> contract C1 True -> V4 at 30.067 (V before the same decision's G4).",
+   "contributing_codes": [
+    "G4",
+    "X3",
+    "G2",
+    "G1"
+   ],
+   "event_codes": [
+    {
+     "event": "D3 analysis",
+     "t_rel": 30.067,
+     "codes": [
+      "V4"
+     ],
+     "note": "V4j not flagged (justification names only robot_4/robot_3 reversing); D3 unmatched to FU1 so V2/V3 untestable, but C1 needs no T1"
+    },
+    {
+     "event": "D3 grounding: node_handoff robot_1->robot_4, robot_4 dropped; dispatched robot_1/2/3 reverse",
+     "t_rel": 30.067,
+     "codes": [
+      "G4"
+     ]
+    },
+    {
+     "event": "D3 reverse legs COMPLETED (min static >= 0.0822); robot_2|robot_3 close+stopped from 54.91; exemption cleared 44.694",
+     "t_rel": 44.547,
+     "codes": [
+      "X3"
+     ]
+    },
+    {
+     "event": "D5, D6 yield withheld (no declared junction)",
+     "t_rel": 68.033,
+     "codes": [
+      "G2",
+      "G1"
+     ],
+     "note": "not a room refusal"
+    },
+    {
+     "event": "D7/D8 waits COMPLETED",
+     "t_rel": 84.445,
+     "codes": [
+      "X3"
+     ]
+    },
+    {
+     "event": "D9 junction_clear no plan withheld (matched to FU1)",
+     "t_rel": 99.767,
+     "codes": [
+      "G1"
+     ]
+    }
+   ],
+   "confidence": "high",
+   "notes": ""
+  },
+  {
+   "sheet_id": "EV-db0df6",
+   "unit_id": "FU2",
+   "primary_code": "V4",
+   "step_fired": "4",
+   "evidence": "Gate all True. Step 2: chain (rubric) D4:robot_4:reverse, D4:robot_5:reverse; D4 dispatched 49.067, t0 73.507; chain_start 49.067. Walk: D4 analysis strategy reverse, involved [robot_4, robot_5], reverse legs [robot_4] only (robot_5 continue) -> C1 True -> V4 at 49.067.",
+   "contributing_codes": [
+    "V4j",
+    "G6",
+    "X3"
+   ],
+   "event_codes": [
+    {
+     "event": "D4 analysis",
+     "t_rel": 49.067,
+     "codes": [
+      "V4",
+      "V4j"
+     ],
+     "note": "V4j: justification 'Robot 4 must reverse out of the passage so that Robot 5 can continue'"
+    },
+    {
+     "event": "D4 grounding vlm_verbatim, dispatch_matches_plan False",
+     "t_rel": 49.067,
+     "codes": [
+      "G6"
+     ]
+    },
+    {
+     "event": "D4 reverse legs",
+     "t_rel": 50.4,
+     "codes": [],
+     "note": "min static gaps 0.0055 / 0.0191 m (not < 0.005): no G5"
+    },
+    {
+     "event": "D4 legs COMPLETED; robot_4|robot_5 close+stopped from 73.61; exemption cleared 63.41",
+     "t_rel": 63.371,
+     "codes": [
+      "X3"
+     ]
+    },
+    {
+     "event": "D7/D8 waits COMPLETED",
+     "t_rel": 84.445,
+     "codes": [
+      "X3"
+     ]
+    },
+    {
+     "event": "D9 withheld (not matched to FU2)",
+     "t_rel": 99.767,
+     "codes": [],
+     "note": "G1 untestable for FU2"
+    }
+   ],
+   "confidence": "high",
+   "notes": ""
+  },
+  {
+   "sheet_id": "EV-db0df6",
+   "unit_id": "EPISODE",
+   "primary_code": "V4",
+   "step_fired": "episode",
+   "evidence": "Earliest t0 FU1 (54.607).",
+   "contributing_codes": [
+    "G1",
+    "G2",
+    "G4",
+    "G6",
+    "V4j",
+    "X3"
+   ],
+   "event_codes": [],
+   "confidence": "high",
+   "notes": "Episode contributing = union of all FUs' primary and contributing codes, minus the episode primary."
+  },
+  {
+   "sheet_id": "EV-e0f9cf",
+   "unit_id": "FU1",
+   "primary_code": "G4",
+   "step_fired": "4",
+   "evidence": "Gate all True. Step 2: chain (rubric) D1:robot_1:backup; D1 dispatched 13.7, t0 28.303; chain_start 13.7; step 3 skipped (T1(t0) U:T1_fidelity not deciding). Walk: D1 analysis yield robot_5 (involved robot_1,robot_5), C2 False; unmatched (V2/V3 untestable; as-written fidelity 'differs'). D1 grounding: verifier swap robot_1<->robot_5, G4_role_change_tags ['grounding=node_handoff:robot_1->robot_5','grounding=node_handoff_regrounded:robot_5->robot_1'], dispatched robot_1:yield -> G4 at 13.7.",
+   "contributing_codes": [
+    "V1",
+    "X1",
+    "V6",
+    "X6"
+   ],
+   "event_codes": [
+    {
+     "event": "D1 analysis",
+     "t_rel": 13.7,
+     "codes": [],
+     "note": "V2/V3:U:T1_not_run"
+    },
+    {
+     "event": "D1 grounding",
+     "t_rel": 13.7,
+     "codes": [
+      "G4"
+     ]
+    },
+    {
+     "event": "FU V1 (0 matched)",
+     "t_rel": 28.303,
+     "codes": [
+      "V1"
+     ]
+    },
+    {
+     "event": "D1:robot_1:backup FAILED deadline (moved 1.023/1.408)",
+     "t_rel": 56.272,
+     "codes": [
+      "X1"
+     ]
+    },
+    {
+     "event": "38 analyses backend_failed (ConnectionError) 99.2-207.9",
+     "t_rel": 99.2,
+     "codes": [
+      "V6"
+     ],
+     "note": "not on the FU timeline (no robots named); counted as FU events because they fall inside the FU window (A9)"
+    },
+    {
+     "event": "stop-rule censor",
+     "t_rel": 210.103,
+     "codes": [
+      "X6"
+     ]
+    }
+   ],
+   "confidence": "medium",
+   "notes": "Stop-flag episode. Alt R3: U:T1_not_run at D1. ALT[R3]=U:T1_not_run"
+  },
+  {
+   "sheet_id": "EV-e0f9cf",
+   "unit_id": "FU2",
+   "primary_code": "G4",
+   "step_fired": "4",
+   "evidence": "Gate all True. Step 2: chain (rubric) D1:robot_5:escort, D1:robot_5:wait, D2:robot_2:reverse; earliest qualifying dispatch D1 13.7 (t0 67.003, 53.3 s before); chain_start 13.7. Walk: D1 analysis (yield robot_5), C2 False, unmatched (V2/V3 untestable). D1 grounding: swap robot_5 -> robot_1 with node_handoff tags (G4_role_change_tags non-empty); FU robot robot_5 dispatched temporary_wait instead of its decided yield -> G4 at 13.7.",
+   "contributing_codes": [
+    "X3",
+    "G6",
+    "G5",
+    "X1",
+    "V1",
+    "X2",
+    "V6",
+    "X6"
+   ],
+   "event_codes": [
+    {
+     "event": "D1 grounding",
+     "t_rel": 13.7,
+     "codes": [
+      "G4"
+     ]
+    },
+    {
+     "event": "D1:robot_5:escort",
+     "t_rel": null,
+     "codes": [],
+     "note": "escort_not_admitted"
+    },
+    {
+     "event": "D1:robot_5:wait COMPLETED; robot_2|robot_4 close+stopped from 68.8, non-exempt",
+     "t_rel": 56.273,
+     "codes": [
+      "X3"
+     ]
+    },
+    {
+     "event": "D2 reverse robot_2,robot_4 (C1 False); dispatch robot_2 only (robot_4 dropped, handoff); vlm_verbatim contradicted",
+     "t_rel": 60.067,
+     "codes": [
+      "G4",
+      "G6"
+     ]
+    },
+    {
+     "event": "D2:robot_2:reverse",
+     "t_rel": 61.5,
+     "codes": [
+      "G5",
+      "X1"
+     ],
+     "note": "min static -0.0014 m obstacle_2 (declared); FAILED deadline 97.918, pinned"
+    },
+    {
+     "event": "gt_contact robot_2|obstacle_2 66.5 to censor",
+     "t_rel": 66.5,
+     "codes": [],
+     "note": "inside G5 leg -> not X5"
+    },
+    {
+     "event": "FU V1 (0 matched)",
+     "t_rel": 67.003,
+     "codes": [
+      "V1"
+     ]
+    },
+    {
+     "event": "backend_failed analyses from 99.2",
+     "t_rel": 99.2,
+     "codes": [
+      "V6"
+     ]
+    },
+    {
+     "event": "nav2 abort robot_5",
+     "t_rel": 102.944,
+     "codes": [
+      "X2"
+     ]
+    },
+    {
+     "event": "stop-rule censor",
+     "t_rel": 210.103,
+     "codes": [
+      "X6"
+     ]
+    }
+   ],
+   "confidence": "medium",
+   "notes": "Stop-flag episode. Alt R3: U:T1_not_run at D1. ALT[R3]=U:T1_not_run"
+  },
+  {
+   "sheet_id": "EV-e0f9cf",
+   "unit_id": "EPISODE",
+   "primary_code": "G4",
+   "step_fired": "episode",
+   "evidence": "Earliest t0 FU1 (28.303).",
+   "contributing_codes": [
+    "G5",
+    "G6",
+    "V1",
+    "V6",
+    "X1",
+    "X2",
+    "X3",
+    "X6"
+   ],
+   "event_codes": [],
+   "confidence": "medium",
+   "notes": "stop_flag Episode contributing = union of all FUs' primary and contributing codes, minus the episode primary."
+  },
+  {
+   "sheet_id": "EV-e26384",
+   "unit_id": "FU1",
+   "primary_code": "U:T1_fidelity",
+   "step_fired": "7 (entered from step 3: T1(t0) U:T1_fidelity)",
+   "evidence": "Gate all True. Step 2: chain (rubric) [] (D1 16.733 after t0 14.507). Step 3: T2(t0) True; T1(t0) as written 'U:T1_fidelity' (episode gate as-written false; 7/88 under +intents). T1 decides G7 vs continue -> U:T1_fidelity (R1).",
+   "contributing_codes": [
+    "X3",
+    "G2",
+    "G1",
+    "X6"
+   ],
+   "event_codes": [
+    {
+     "event": "D1 temporary_wait robot_1,robot_5 (matched; vlm_verbatim, matches)",
+     "t_rel": 16.733,
+     "codes": []
+    },
+    {
+     "event": "D1 waits COMPLETED; robot_1|robot_5 close+stopped from 15.31, never exempt",
+     "t_rel": 26.235,
+     "codes": [
+      "X3"
+     ]
+    },
+    {
+     "event": "D2, D3 yield robot_5 withheld (no shared lane)",
+     "t_rel": 29.4,
+     "codes": [
+      "G2",
+      "G1"
+     ]
+    },
+    {
+     "event": "stop-rule censor",
+     "t_rel": 108.807,
+     "codes": [
+      "X6"
+     ]
+    }
+   ],
+   "confidence": "medium",
+   "notes": "Stop-flag episode. Alt R1 (walk step 4 from t0): primary X3 at 26.235 (and under A7-B, G2 at D2 29.4)."
+  },
+  {
+   "sheet_id": "EV-e26384",
+   "unit_id": "EPISODE",
+   "primary_code": "U:T1_fidelity",
+   "step_fired": "episode",
+   "evidence": "Single FU.",
+   "contributing_codes": [
+    "G1",
+    "G2",
+    "X3",
+    "X6"
+   ],
+   "event_codes": [],
+   "confidence": "medium",
+   "notes": "stop_flag; alt R1: X3 Episode contributing = union of all FUs' primary and contributing codes, minus the episode primary."
+  },
+  {
+   "sheet_id": "EV-ef4e73",
+   "unit_id": "FU1",
+   "primary_code": "U:T1_fidelity",
+   "step_fired": "7 (entered from step 3: T1(t0) U:T1_fidelity)",
+   "evidence": "Gate all True. Step 2: chain (rubric) [] (D4 dispatched 92.7 and completed 164.0; not within 60 s before t0 184.407 nor executing at t0). Step 3: T2(t0) True; T1(t0) as written 'U:T1_fidelity' (also under +intents). T1 decides G7 vs continue -> U:T1_fidelity (R1).",
+   "contributing_codes": [
+    "X3"
+   ],
+   "event_codes": [
+    {
+     "event": "D6 temporary_wait robot_2,4,5 (matched; no plan, m3_default)",
+     "t_rel": 206.2,
+     "codes": [],
+     "note": "T1[D6] pass, no robot in every motion label"
+    },
+    {
+     "event": "D6 waits COMPLETED; robot_2|robot_5 (from 184.61) and robot_4|robot_5 (from 195.11) pinned, no exemption after 164.002",
+     "t_rel": 217.164,
+     "codes": [
+      "X3"
+     ]
+    }
+   ],
+   "confidence": "medium",
+   "notes": "Alt R1 (walk step 4 from t0): primary X3 at 217.164 (under A7-B no deviation -> step 7 U). The end-window chain variant would link D4."
+  },
+  {
+   "sheet_id": "EV-ef4e73",
+   "unit_id": "FU2",
+   "primary_code": "G5",
+   "step_fired": "4",
+   "evidence": "Gate all True. Step 2: chain (rubric) D5:robot_1:backup, D5:robot_3:escort, D5:robot_3:wait; D5 dispatched 171.7, t0 219.007; chain_start 171.7; step 3 skipped. Walk: D5 analysis yield robot_1, C2 False, not matched to FU2 (V2/V3 untestable); grounding vlm_verbatim, matches, no G tags. D5:robot_1:backup (start 175.6) recomputed min robot gap -0.0003 m to robot_3 at 226.61 -> G5 (gap of a commanded leg < 0.005 m; the pair was exempt robot_1+robot_3 during the leg, which the G5 clause does not exempt).",
+   "contributing_codes": [
+    "X4",
+    "X3",
+    "G2",
+    "X2"
+   ],
+   "event_codes": [
+    {
+     "event": "D5 analysis/grounding",
+     "t_rel": 171.7,
+     "codes": [],
+     "note": "V2/V3:U:T1_not_run"
+    },
+    {
+     "event": "D5:robot_1:backup",
+     "t_rel": 175.6,
+     "codes": [
+      "G5"
+     ],
+     "note": "COMPLETED 235.587 (moved 1.582/1.373)"
+    },
+    {
+     "event": "D5:robot_3:escort",
+     "t_rel": 204.634,
+     "codes": [
+      "G5"
+     ],
+     "note": "min robot gap -0.0003 to robot_1"
+    },
+    {
+     "event": "gt_contact robot_1|robot_3 222.31 to censor",
+     "t_rel": 222.31,
+     "codes": [],
+     "note": "begins inside the G5 legs -> not X5"
+    },
+    {
+     "event": "robot_1, robot_3 STALE 339.1 s",
+     "t_rel": 231.667,
+     "codes": [
+      "X4"
+     ]
+    },
+    {
+     "event": "D5 legs COMPLETED; robot_1|robot_3 close+stopped from 223.01; exemption cleared 235.627",
+     "t_rel": 235.635,
+     "codes": [
+      "X3"
+     ]
+    },
+    {
+     "event": "D7 yield robot_1 withheld (no shared lane), m3_default with plan",
+     "t_rel": 236.767,
+     "codes": [
+      "G2"
+     ],
+     "note": "T2[D7] False -> not G1"
+    },
+    {
+     "event": "nav2 'Failed to make progress'/abort robot_3 (repeated)",
+     "t_rel": 261.69,
+     "codes": [
+      "X2"
+     ]
+    }
+   ],
+   "confidence": "medium",
+   "notes": "G5 here is a robot-robot gap during an exempt (waivered) yield; if G5 were read as box-crossing only for exempt pairs, the walk gives X4 at 231.667. ALT[R3]=U:T1_not_run"
+  },
+  {
+   "sheet_id": "EV-ef4e73",
+   "unit_id": "EPISODE",
+   "primary_code": "U:T1_fidelity",
+   "step_fired": "episode",
+   "evidence": "Earliest t0 FU1 (184.407).",
+   "contributing_codes": [
+    "G2",
+    "G5",
+    "X2",
+    "X3",
+    "X4"
+   ],
+   "event_codes": [],
+   "confidence": "medium",
+   "notes": "Alt R1: X3 Episode contributing = union of all FUs' primary and contributing codes, minus the episode primary."
+  },
+  {
+   "sheet_id": "EV-f7ab58",
+   "unit_id": "FU1",
+   "primary_code": "G4",
+   "step_fired": "4",
+   "evidence": "Gate all True. Step 2: chain (rubric) D1:robot_1:backup (D1 dispatched 13.033, t0 14.903); chain_start 13.033; step 3 skipped (T1(t0) U:T1_fidelity not deciding). Walk: D1 analysis yield robot_5 (involved robot_1,robot_5), C2 False; unmatched (V2/V3 untestable). D1 grounding: swap robot_5<->robot_1 ('robot_5 has 0.00 m retreat room < 0.77 m required'), G4_role_change_tags ['yield_robot=regrounded','yield_robot_grounded_from=robot_5'], dispatched robot_1:yield -> G4 at 13.033.",
+   "contributing_codes": [
+    "X4",
+    "V3",
+    "G1",
+    "X3",
+    "V4",
+    "V4j",
+    "X6"
+   ],
+   "event_codes": [
+    {
+     "event": "D1 analysis",
+     "t_rel": 13.033,
+     "codes": [],
+     "note": "V2/V3:U:T1_not_run"
+    },
+    {
+     "event": "D1 grounding",
+     "t_rel": 13.033,
+     "codes": [
+      "G4"
+     ]
+    },
+    {
+     "event": "robot_1 STALE 10.73 s",
+     "t_rel": 45.167,
+     "codes": [
+      "X4"
+     ]
+    },
+    {
+     "event": "D2 junction_clear (reverse robot_3, yield robot_2) withheld (retreat room)",
+     "t_rel": 47.2,
+     "codes": [
+      "V3",
+      "G1"
+     ],
+     "note": "R:robot_1/R:robot_2/R:robot_4 in T1[D2]"
+    },
+    {
+     "event": "D1:robot_1:backup COMPLETED; robot_2|robot_3, robot_3|robot_4 pinned, non-exempt",
+     "t_rel": 55.972,
+     "codes": [
+      "X3"
+     ]
+    },
+    {
+     "event": "D3 reverse robot_3,robot_4, no plan (C1 None), waits dispatched and COMPLETED",
+     "t_rel": 107.597,
+     "codes": [
+      "X3"
+     ],
+     "note": "V4j not flagged"
+    },
+    {
+     "event": "robot_1 STALE 39.03 s",
+     "t_rel": 102.933,
+     "codes": [
+      "X4"
+     ]
+    },
+    {
+     "event": "D4 junction_clear reverse robot_2/robot_3 withheld (retreat room)",
+     "t_rel": 110.8,
+     "codes": [
+      "V3",
+      "G1"
+     ]
+    },
+    {
+     "event": "D5 reverse involved robot_1..robot_4, reverse legs robot_2,robot_3 (C1 True); verifier swap robot_2<->robot_4; waits dispatched",
+     "t_rel": 129.233,
+     "codes": [
+      "V4",
+      "V4j",
+      "G4"
+     ],
+     "note": "V4j: 'allowing robot_4 and robot_1 to eventually pass through'"
+    },
+    {
+     "event": "D6 junction_clear reverse robot_1/robot_4 withheld (retreat room)",
+     "t_rel": 142.0,
+     "codes": [
+      "V3",
+      "G1"
+     ]
+    },
+    {
+     "event": "stop-rule censor",
+     "t_rel": 144.303,
+     "codes": [
+      "X6"
+     ]
+    }
+   ],
+   "confidence": "medium",
+   "notes": "Stop-flag episode. Alt R3: U:T1_not_run at D1. ALT[R3]=U:T1_not_run"
+  },
+  {
+   "sheet_id": "EV-f7ab58",
+   "unit_id": "EPISODE",
+   "primary_code": "G4",
+   "step_fired": "episode",
+   "evidence": "Single FU.",
+   "contributing_codes": [
+    "G1",
+    "V3",
+    "V4",
+    "V4j",
+    "X3",
+    "X4",
+    "X6"
+   ],
+   "event_codes": [],
+   "confidence": "medium",
+   "notes": "stop_flag Episode contributing = union of all FUs' primary and contributing codes, minus the episode primary."
+  }
+ ]
+}
