@@ -20,6 +20,13 @@ from reasoning.rag.escort_clearance import (
     escort_park_violations,
     park_clearance_suffix,
 )
+from reasoning.rag.escort_obstacles import (
+    EscortObstacleHit,
+    escort_hits_obstacle_reason,
+    escort_obstacle_hits,
+    escort_obstacle_margin_m,
+    obstacle_hit_suffix,
+)
 from reasoning.rag.grounding_view import (
     GroundingView,
     apply_backup_line_hold,
@@ -1250,6 +1257,16 @@ DEGRADATION_TAGS: dict[str, str | None] = {
     # surviving candidate; when none survives the cause is the
     # `yield=infeasible:escort_hits_park:...` tag that follows.
     "retreat=escort_park_filtered": None,
+    # Escort obstacle guard (2026-11-15, demo take m5D_t01_a1): with
+    # `GroundingParams.escort_obstacle_guard`, a candidate whose escort leg
+    # would enter a declared static obstacle grown by the robot's half-width
+    # plus `retreat_box_margin_m` was dropped before stage 2
+    # (`filter_escort_park_candidates`). Suffix `:<label>:<passer>:
+    # <obstacle>:<clear m>`, the clear length being how far the passer could
+    # drive before entering the grown box; labels as for
+    # `escort_park_filtered`. Provenance: when none survives the cause is
+    # the `yield=infeasible:escort_hits_obstacle:...` tag that follows.
+    "retreat=escort_obstacle_filtered": None,
     # A supplied crossing order that is not a permutation of the non-yielders.
     "order=default:non_permutation": "non_permutation_order",
     # Three or more robots with no explicit crossing order: involved-robots
@@ -1497,10 +1514,19 @@ class RetreatSelection(BaseModel):
     escort_park_filtered: list[str] = Field(default_factory=list)
     # The best-ranked dropped candidate's `escort_hits_park:<passer>:<m>`
     # reasons: the yield's infeasibility cause when nothing survived, as the
-    # backstop would have named them for the default candidate.
+    # backstop would have named them for the default candidate. Empty when
+    # the escort obstacle guard dropped a better-ranked candidate.
     escort_park_infeasible: list[str] = Field(default_factory=list)
     # The same drops as `escort_park_filtered`, structured (A29 item (ii)).
     escort_park_dropped: list[DroppedCandidate] = Field(default_factory=list)
+    # The escort obstacle guard's drops, best-ranked first, as
+    # `<label>:<passer>:<obstacle>:<clear m>` per blocked escort leg (labels
+    # from before the re-lettering); empty when nothing was dropped.
+    escort_obstacle_filtered: list[str] = Field(default_factory=list)
+    # `escort_hits_obstacle:<passer>:<obstacle>:<m>` reasons of the
+    # best-ranked dropped candidate when the guard dropped it (else empty):
+    # the yield's infeasibility cause when nothing survived.
+    escort_obstacle_infeasible: list[str] = Field(default_factory=list)
 
 
 def _junction_same_axis_order(
@@ -1725,6 +1751,7 @@ def resolve_yield_roles(
 # and `_plan_yield_verdict` reads them back (prereg-v3 A16(v)).
 _SWEEP_REGROUNDED_TAG = "yield_robot=sweep_regrounded"
 _ESCORT_PARK_FILTERED_TAG = "retreat=escort_park_filtered"
+_ESCORT_OBSTACLE_FILTERED_TAG = "retreat=escort_obstacle_filtered"
 _NO_EXECUTABLE_RETREAT = "yield refused: no executable retreat"
 # Every layer that hands the yield to another robot tags it
 # `<layer>_regrounded:<from>-><to>` (prereg-v3 A17); only the plan verdict's
@@ -2127,17 +2154,58 @@ def _escort_park_legs(
     goal_references: Mapping[str, tuple[float, float]] | None,
 ) -> list[EscortLeg]:
     # prereg-v3 A28(ii), shared by the candidate filter and the post-selection
-    # backstop. The headings, the turn cap and any dropped escort come from
-    # the same `apply_escort_headings` pass `ground_reasoner_result` runs on
-    # the finished command, so the swept leg is the dispatched one.
-    final = apply_escort_headings(
+    # backstop.
+    final = _dispatched_escort_parameters(
+        yielder_id, yield_parameters, snapshot, geometry, params, goal_references
+    )
+    return escort_park_violations(yielder_id, final, snapshot, geometry, params.min_distance_m)
+
+
+def _dispatched_escort_parameters(
+    yielder_id: str,
+    yield_parameters: dict[str, Any],
+    snapshot: SnapshotFrame,
+    geometry: SceneGeometry | None,
+    params: GroundingParams,
+    goal_references: Mapping[str, tuple[float, float]] | None,
+) -> dict[str, Any]:
+    # The headings, the turn cap and any dropped escort come from the same
+    # `apply_escort_headings` pass `ground_reasoner_result` runs on the
+    # finished command, so a leg swept from these is the dispatched one.
+    return apply_escort_headings(
         {"actions": [{"robot_id": yielder_id, "action": "yield", "parameters": yield_parameters}]},
         snapshot,
         geometry,
         params,
         goal_references,
     )["actions"][0]["parameters"]
-    return escort_park_violations(yielder_id, final, snapshot, geometry, params.min_distance_m)
+
+
+def _escort_obstacle_legs(
+    yielder_id: str,
+    yield_parameters: dict[str, Any],
+    snapshot: SnapshotFrame,
+    geometry: SceneGeometry | None,
+    params: GroundingParams,
+    static_obstacles: Sequence[StaticObstacleInput],
+    goal_references: Mapping[str, tuple[float, float]] | None,
+) -> list[EscortObstacleHit]:
+    # The escort obstacle guard, shared by the candidate filter and the
+    # post-selection backstop. Without a geometry there is no footprint to
+    # sweep (`escort_obstacles` module docstring).
+    if geometry is None or not static_obstacles:
+        return []
+    final = _dispatched_escort_parameters(
+        yielder_id, yield_parameters, snapshot, geometry, params, goal_references
+    )
+    return escort_obstacle_hits(
+        yielder_id,
+        final,
+        snapshot,
+        geometry,
+        static_obstacles,
+        escort_obstacle_margin_m(geometry, params),
+    )
 
 
 def filter_escort_park_candidates(
@@ -2147,6 +2215,7 @@ def filter_escort_park_candidates(
     *,
     geometry: SceneGeometry | None = None,
     goal_references: Mapping[str, tuple[float, float]] | None = None,
+    static_obstacles: Sequence[StaticObstacleInput] = (),
 ) -> RetreatSelection:
     """Drop the retreat candidates whose escort leg would pass their park point.
 
@@ -2164,26 +2233,41 @@ def filter_escort_park_candidates(
     of the selection gets it through `prepare_filtered_retreat_selection`
     (prereg-v3 A29 item (i)), never by calling this on its own.
 
+    With `params.escort_obstacle_guard` the same pass also drops a candidate
+    whose escort legs (built the same way) enter a declared static obstacle
+    grown by `robot.half_width_m + retreat_box_margin_m`
+    (`escort_obstacles.escort_obstacle_hits`), recorded in
+    `escort_obstacle_filtered`. A candidate the park check drops is not
+    swept against the obstacles. Both drops share one re-lettering, so
+    every label in either tag is a generation label.
+
     Args:
         selection: `prepare_retreat_selection`'s output.
         snapshot: The frame the selection was prepared from.
-        params: Grounding parameters (the switch, `min_distance_m`).
+        params: Grounding parameters (the switches, `min_distance_m`,
+            `retreat_box_margin_m`).
         geometry: The geometry the selection was prepared on, or None.
         goal_references: Robot id -> current task node, as handed to the
             grounder (read only by `apply_escort_headings`).
+        static_obstacles: Fixed obstacles of the running scenario, read
+            only by the escort obstacle guard.
 
     Returns:
-        `selection` itself when the switch is off, it has no candidates or
-        nothing is dropped; otherwise a copy with the survivors,
-        `escort_park_filtered` recording each drop as a tag and
-        `escort_park_dropped` recording it structured.
+        `selection` itself when both switches are off, it has no candidates
+        or nothing is dropped; otherwise a copy with the survivors,
+        `escort_park_filtered` recording each park drop as a tag and
+        `escort_park_dropped` recording it structured, and
+        `escort_obstacle_filtered` recording each obstacle drop.
     """
-    if not params.escort_park_clearance or not selection.candidates:
+    if not (params.escort_park_clearance or params.escort_obstacle_guard):
+        return selection
+    if not selection.candidates:
         return selection
     order = selection.crossing_order
     survivors: list[RetreatCandidate] = []
     dropped: list[tuple[str, EscortLeg]] = []
     dropped_poses: list[tuple[float, float]] = []
+    blocked: list[tuple[str, EscortObstacleHit]] = []
     for candidate in selection.candidates:
         escort, crossing_clear = _candidate_escort(
             snapshot, selection.yielder_id, order, candidate, params, geometry
@@ -2203,24 +2287,53 @@ def filter_escort_park_candidates(
         if crossing_clear is not None:
             parameters["crossing_clear_m"] = list(crossing_clear)
             parameters["crossing_escort_m"] = list(crossing_clear)
-        legs = _escort_park_legs(
-            selection.yielder_id, parameters, snapshot, geometry, params, goal_references
+        legs = (
+            _escort_park_legs(
+                selection.yielder_id, parameters, snapshot, geometry, params, goal_references
+            )
+            if params.escort_park_clearance
+            else []
         )
         if legs:
             dropped.extend((candidate.label, leg) for leg in legs)
             dropped_poses.extend((park_x, park_y) for _ in legs)
+            continue
+        hits = (
+            _escort_obstacle_legs(
+                selection.yielder_id,
+                parameters,
+                snapshot,
+                geometry,
+                params,
+                static_obstacles,
+                goal_references,
+            )
+            if params.escort_obstacle_guard
+            else []
+        )
+        if hits:
+            blocked.extend((candidate.label, hit) for hit in hits)
         else:
             survivors.append(candidate)
-    if not dropped:
+    if not dropped and not blocked:
         return selection
-    return selection.model_copy(
-        update={
-            "candidates": reletter_candidates(survivors),
+    # The infeasibility cause is the best-ranked dropped candidate's, from
+    # whichever check dropped it; with the guard off that is always the park
+    # check, as before the guard existed.
+    ranked = [candidate.label for candidate in selection.candidates]
+    park_first = not blocked or (
+        bool(dropped) and ranked.index(dropped[0][0]) < ranked.index(blocked[0][0])
+    )
+    update: dict[str, Any] = {"candidates": reletter_candidates(survivors)}
+    if dropped:
+        update |= {
             "escort_park_filtered": [
                 f"{label}:{park_clearance_suffix(leg)}" for label, leg in dropped
             ],
             "escort_park_infeasible": [
-                escort_hits_park_reason(leg) for label, leg in dropped if label == dropped[0][0]
+                escort_hits_park_reason(leg)
+                for label, leg in dropped
+                if park_first and label == dropped[0][0]
             ],
             "escort_park_dropped": [
                 DroppedCandidate(
@@ -2233,7 +2346,18 @@ def filter_escort_park_candidates(
                 for (label, leg), (x, y) in zip(dropped, dropped_poses, strict=True)
             ],
         }
-    )
+    if blocked:
+        update |= {
+            "escort_obstacle_filtered": [
+                f"{label}:{obstacle_hit_suffix(hit)}" for label, hit in blocked
+            ],
+            "escort_obstacle_infeasible": [
+                escort_hits_obstacle_reason(hit)
+                for label, hit in blocked
+                if not park_first and label == blocked[0][0]
+            ],
+        }
+    return selection.model_copy(update=update)
 
 
 def prepare_filtered_retreat_selection(
@@ -2281,7 +2405,12 @@ def prepare_filtered_retreat_selection(
         static_obstacles=static_obstacles,
     )
     return filter_escort_park_candidates(
-        selection, frame, params, geometry=geometry, goal_references=goal_references
+        selection,
+        frame,
+        params,
+        geometry=geometry,
+        goal_references=goal_references,
+        static_obstacles=static_obstacles,
     )
 
 
@@ -2448,7 +2577,11 @@ def _ground_derived(
     if not selection.backup.feasible:
         degradations.append(f"yield=infeasible:{selection.backup.reason}")
         return _reroute_yielder(result, decision, roles, degradations)
-    if not selection.candidates and not selection.escort_park_filtered:
+    if (
+        not selection.candidates
+        and not selection.escort_park_filtered
+        and not selection.escort_obstacle_filtered
+    ):
         degradations.append("retreat=no-valid-candidate")
         return _reroute_yielder(result, decision, roles, degradations)
     if selection.deepened_from_m is not None:
@@ -2458,9 +2591,15 @@ def _ground_derived(
     degradations.extend(
         f"{_ESCORT_PARK_FILTERED_TAG}:{entry}" for entry in selection.escort_park_filtered
     )
+    degradations.extend(
+        f"{_ESCORT_OBSTACLE_FILTERED_TAG}:{entry}" for entry in selection.escort_obstacle_filtered
+    )
     if not selection.candidates:
         degradations.extend(
             f"yield=infeasible:{reason}" for reason in selection.escort_park_infeasible
+        )
+        degradations.extend(
+            f"yield=infeasible:{reason}" for reason in selection.escort_obstacle_infeasible
         )
         return _reroute_yielder(result, decision, roles, degradations)
 
@@ -2531,6 +2670,23 @@ def _ground_derived(
         )
         if hits:
             degradations.extend(f"yield=infeasible:{escort_hits_park_reason(leg)}" for leg in hits)
+            return _reroute_yielder(result, decision, roles, degradations)
+    if params.escort_obstacle_guard:
+        # Backstop, as for the park point: the chosen candidate survived the
+        # filter on the same leg.
+        blocked = _escort_obstacle_legs(
+            roles.yielder_id,
+            yield_parameters,
+            snapshot,
+            geometry,
+            params,
+            static_obstacles,
+            goal_references,
+        )
+        if blocked:
+            degradations.extend(
+                f"yield=infeasible:{escort_hits_obstacle_reason(hit)}" for hit in blocked
+            )
             return _reroute_yielder(result, decision, roles, degradations)
     actions: list[dict[str, Any]] = [
         {"robot_id": roles.yielder_id, "action": "yield", "parameters": yield_parameters}
@@ -4077,6 +4233,11 @@ def _derived_reroute_reason(
         return (
             "has no retreat candidate clearing its park point "
             f"({', '.join(selection.escort_park_infeasible)})"
+        )
+    if not selection.candidates and selection.escort_obstacle_infeasible:
+        return (
+            "has no retreat candidate whose escort clears the static obstacles "
+            f"({', '.join(selection.escort_obstacle_infeasible)})"
         )
     if not selection.candidates:
         return "has no retreat candidate surviving the sweep"
