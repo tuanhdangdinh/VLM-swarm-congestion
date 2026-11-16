@@ -4,6 +4,12 @@
 
 **Revision history:**
 
+- Addendum A36 (2026-10-22): S1b confirmatory tranche 1 outcome (provenance, per-episode table, A33 measures as scored, findings incl. vacuous completeness/makespan at H = 600 in both arms, GPU wall-clock DEVIATION with a proposed cap rule, and the tranche-2 design OWNER DECISION NEEDED), inserted after A26 and above A35, as A27-A35 were.
+- Addendum A35 (2026-10-21): Arm B Layer-2-off mode registered (M5 `reasoning_enabled: false`, its overlays, gates, md5s and smoke; operationally closes A34 R9 / A13(iii), so tranche 1 is runnable), inserted after A26 and above A34, as A27-A34 were.
+- Addendum A34 (2026-10-21): confirmatory tranche 1 rulings R6-R11 (RECORD as a dataset tag, sim-s cap with a dollar guard, S1b free-flow table frozen, Arm B ruled Layer-2-off classical with its launch mode BLOCKED, accepted types, every A33 PROPOSAL ruled) and the 10-episode tranche-1 run spec, inserted after A26 and above A33, as A27-A33 were.
+- Addendum A33 (2026-10-21): S1 scorer definitions frozen before confirmatory collection (every registered S1 outcome measure defined operationally; seed-policy and interleaving rulings; open owner decisions), inserted after A26 and above A32, as A27-A32 were.
+- Addendum A32 (2026-10-21): S1b configuration freeze for confirmatory collection (owner rulings R1-R5), inserted after A26 and above A31, as A27-A31 were.
+- Addendum A31 (2026-10-20): E24-E26 escort-filter mini-batch outcome, inserted after A26 and above A30, as A27-A30 were.
 - Rev 2 (2026-10-06): full revision after independent advisor review
   (2 blockers, 6 majors, 17 minors — all addressed). Material
   corrections: Step 1's premise was WRONG (the 0.22/0.30 m NavFn
@@ -945,6 +951,1910 @@ the stop-rule window (150 sim-s) is shorter than the one measured
 self-free (277 sim-s). S1's direction (engineer cluster-clearing vs
 accept the clogged regime and prioritize the registered S1b) is an
 OWNER decision pending.
+
+**A15. S1b first light: pass-check falsified the passing premise;
+S1b re-registered on a RESOLVABILITY axis (2026-10-10; report
+2026-10-09-s1b-first-light.md; integration @d470470 lineage).**
+(i) **Built and gated:** the S1b sparse floor (two staggered 0.30 m
+C55 islands, 9.78% tracked-band coverage, all gaps ≥0.90 m vs the
+0.88 m latch-aware bound; regime-axis density per agent: S1a
+5.44 nominal/5.02 inflated vs S1b 10.74/10.02). The S1a Monte Carlo
+was rebuilt (scripts/s1_mc.py, reproduces the published S1a row)
+and the MC gate was DERIVED from real S1a bundles (live-vs-MC lag
+1.25×): all six thresholds PASS (G1 1.000, G2 p90 20.1 sim-s,
+G3 0.275, G4 0, G5a-geo 0.818, G5b 2.55). Δ RULED 2.5 sim-s for
+this layout (R3.6a recompute; 4.0 produces 41/400 release
+artifacts). Node set and forbidden Wp-Wm leg kept so each seed
+draws the identical task stream on both floors.
+(ii) **LIVE PASS CHECK FAILED — premise falsified:** two opposing
+robots on the 0.90 m gap latched at 0.423 m M1 gap, offset only
+~0.15 m despite a 0.70 m zero-cost band (one run, narrowest gap;
+DWB-offset cause is inferred). Prior S1a bundles corroborate: 0/4
+opposing approaches ever cleared 0.45 m, even in a 1.2 m strip.
+CONCLUSION: autonomous passing does not exist on this stack at any
+tested width — corridor geometry was never the binding constraint;
+the latch is.
+(iii) **RULING — latch-on-pass is REGISTERED as S1b's conflict
+class, and the S1a/S1b axis is re-registered as a RESOLVABILITY
+axis** (supersedes the R3.6a "regime axis" wording): S1b = low-rate,
+predominantly pairwise conflicts, 81.8% geometrically resolvable by
+a single yield (G5a); S1a = early multi-robot latch clusters that
+grounding correctly refuses (A14). The architecture's passing
+mechanism IS Layer 2, by design. Alternatives RECORDED and ranked
+behind: one-way gaps (engineers the flow — adjacent to the carried
+swarm-flow-shaping exclusion), keep-right costmap bias (inside the
+Nav2-tuning exclusion unless map-scoped, registration burden),
+opposing-pair latch relaxation with the 0.20 m floor as backstop
+(amends the safety invariant — heaviest burden).
+(iv) **M3 resolution cap measured:** executable-yield rate on MC
+first conflicts is 0.405 (S1b) / 0.345 (S1a); causes: the
+ambiguous-branch refusal (A14(iii) item, now PRIORITIZED) and the
+swap gate retaining a yielder whose sweep finds no room → empty
+reroute no-op (NEW Step-6-priority item: swap to the partner when
+the sweep fails; also `refusal_no_action` does not withhold empty
+reroutes — close that hole with it).
+(v) **Latch-cluster exposure on S1b is NOT transient without
+Layer 2** (346/400 ≥3-robot clusters by 60 s vs S1a's 360/400,
+forming later: median 19.2 vs 11.3 s) — S1b's claim rests on
+Layer-2 intervention BEFORE cluster closure, which its later onset
+and pairwise-first structure make feasible where S1a's 7 s window
+did not. The S1b pilot (staged) is the test of exactly that.
+(v-bis) **Citation pair for the thesis (coordinated note):** the
+forcing audit's Section 3 F3 observed this mechanism from code
+alone — "inside a 1.2 m aisle the 0.45 m latch makes NON-commanded
+resolution nearly impossible — the safety layer is simultaneously
+the reason 'VLM plan resolved it' is credible and the reason almost
+any spatial strategy token resolves." A15(ii) upgrades that
+read-only observation to a MEASURED architectural property (0/4
+clears at 1.2 m; 0.423 m latch at 0.90 m) — cited together, the
+resolvability-axis re-registration is the audit's prediction
+confirmed, not a retreat. The same pair cuts both ways before a
+committee: Layer 2 is NECESSARY (the strength) AND resolution
+credit partially belongs to the exemption machinery (the audit's
+honest-claim boundary) — the provenance metrics carry that load.
+
+(vi) Program stopped at the pass check per the pre-registered rule;
+staged and not run: S1b pilot episodes, M1 coverage session,
+free-flow legs, S1a anchor (anchor since authorized and running
+separately). Merge state: feat/v3-s1b → integration @a0e2f44 +
+docs @d470470, suite zero-delta.
+
+**A16. M3 resolvability fixes + rulings (2026-10-10; integration
+@31c8ce0).** Shipped (footprint/dynamic mode only, goldens
+byte-identical, suite zero-delta): bearing-axis fallback for
+ambiguous passers (tag `dynamic_arms:bearing_lane`), yield handover
+to a lane-aligned facing partner for ambiguous yielders
+(`heading_regrounded`), partner retry when the kept yielder has no
+executable retreat — infeasible backup OR failed sweep OR infeasible
+escort (`yield_robot=sweep_regrounded`, 37/8 occurrences
+S1b/S1a), honest refusals with true reasons everywhere
+(`ambiguous_refused`, `parallel_refused`; zero fabricated 0.00 m on
+the ambiguous branch), and `refusal_no_action` extended to withhold
+the empty-waypoint reroute fallback (`dispatch_withheld:
+empty_reroute`; M2-chosen or declared-detour reroutes still
+dispatch). Replay rates: S1b 0.405→0.515, S1a 0.345→0.365; empty
+reroutes 124/166→0/0. RULINGS: (i) shared-heading-axis lanes for
+side-by-side pairs (+19/+29 yields) REJECTED — raises executed-path
+robot conflicts; (ii) node-handoff occupants stay EXCLUDED from the
+retry (would be 0.55) — the arriver-yields/occupant-passes semantic
+is registered and not traded for rate; (iii) NEW GUARD RULED: the
+crossing view requires a DECLARED junction in scenario_geometry —
+on S1b (none declared) it anchored to S1a's junction and grounded
+phantom geometry for 57/400 first conflicts; absent a declaration it
+must refuse honestly (fix rides the S1b pilot deploy); (iv) the S1a
+anchor runs on pre-A16 M3 — any S1a/S1b floor comparison must use
+same-M3 data (re-run the 3 anchor seeds on A16 M3 if the comparison
+is ever confirmatory). Residuals carried (pre-existing, found not
+caused): sweep follows the lane axis while M4 backs along heading
+(18–27° off → up to 0.7 m drift); room-gate swap checks no heading;
+lane yields with an away-facing yielder still ground; model-proposed
+plan yield legs are room-checked without the partner retry (echo
+emits no plan — live plans WILL hit this). All A16 behavior is
+offline-replay-verified only; closed-loop verification belongs to
+the S1b pilot.
+**A16(v) COORDINATED RULING (both sessions, 2026-10-10): the
+plan-leg/derived-path retry asymmetry is a provenance-fairness
+defect (audit-R2 class) and MUST be fixed before any live S1b
+episode with the plan channel on.** Model-proposed plan yield legs
+failing room checks that the derived path retries around would
+differentially convert would-be vlm_verbatim outcomes into
+repaired/m3_default — biasing the distribution the
+dispatch-model-order arm exists to measure. Fix shape per the
+A13(iii) shared-function principle: plan-leg feasibility calls the
+SAME retry logic as the derived path (one function, both provenance
+classes, identical treatment); pinned offline by a scripted-plan
+fixture whose named yielder fails the sweep while the partner
+passes. Cross-reference: A16's honest-refusal package (zero
+fabricated 0.00 m) discharges the measurement half of A14(iii); the
+remaining A14(iii) residue is only the Step-6 wording.
+
+**A17. Plan-leg parity shipped; bias direction corrected; heading
+handover ruled (2026-10-10; integration @aca00de).** A16(v)'s fix
+landed with one factual correction: the asymmetry OVER-credited the
+plan channel, not under- (pre-fix, a plan naming a sweep-failing
+yielder verified `vlm_verbatim` with dispatch_matches_plan=False
+while dispatch retried to the partner). Shipped semantics — the
+verifier's verdict equals what dispatch does, via the shared
+`resolve_yield_roles` call (`_plan_yield_verdict`): retry-success →
+`repaired` with exactly one logged swap matching
+`yield_robot=sweep_regrounded`; retry-refusal → `m3_default` with
+the dispatched waits. MC provenance shift (400 first conflicts):
+S1b vb/rep/m3 222/98/80 → 132/95/173; S1a 216/116/68 → 107/54/239;
+zero cases move away from dispatch. The model's leg is never
+silently rewritten — every change is a logged edit. Scorer fix: the
+`plan unrepairable` prefix now maps to `repair_bound_exceeded` in
+plan_metrics (round-trip pinned). ADOPTED for the freeze:
+`repaired_yield_retry_only` stratum (edits = exactly one swap whose
+ids equal the sweep_regrounded pair; precedent repaired_order_only/
+parked_only). NEW RULING (same R2 principle): the A16 heading
+handover (`heading_regrounded`) produces the identical over-credit
+(8+7/400) — the plan verdict must reflect the FULL derived
+pipeline's final yielder (view handover included), fixed BEFORE any
+plan-channel live episode; echo pilots unaffected. Residuals
+carried: refuse-mode/declared-geometry plan legs still get no
+backup/sweep/escort check; junction_clear yield-axis sub-plans
+don't consult the verdict; a plan naming the partner directly stays
+`inconsistent` (contradicts its own yield_robot — registered
+behavior); 12+2 MC repaired cases mismatch only on the pre-existing
+lane-scoped off-lane cross hold.
+
+**A17-bis (coordinated, 2026-10-10).** Two cross-lineage notes:
+(1) the "only post-A17 vb is load-bearing" rule has a REGISTERED
+v1/v2 mirror — `verbatim_dispatch_matched` (added 2026-10-06 against
+gpt-4o's trivially-verbatim plans) — so BOTH lineages headline
+vb∧dispatch_matched, never raw vb; the thesis states the invariant
+once. (2) FREEZE-TIME FAMILY RULE proposed for the repair strata
+(now three: repaired_order_only, repaired_parked_only,
+repaired_yield_retry_only): any mechanically-separable repair cause
+gets its own stratum — defined once as a rule rather than
+enumerated ad hoc.
+
+**A18. Verdict identity rule shipped; residual map final
+(2026-10-10; integration @72151a6).** The A17 heading-handover fix
+landed as an IDENTITY rule — the verdict fires whenever the full
+derived pipeline's final yielder differs from the robot a consistent
+plan must name (shared `_resolve_yield_outcome`, extracted verbatim
+from the default-plan builder; any future re-grounding layer is
+covered automatically). SCOPE EXPANSION ACCEPTED: node-handoff and
+rear re-groundings are corrected by the same rule (S1b +1 vb→rep,
++6 repaired-yielder corrections; S1a +1). CORRECTION to A17's
+figures: the true heading over-credit was 6/400 S1b and 0/400 S1a
+(the 8+7 counted tags, including handover-then-retry-refusals
+A16(v) already scored correctly). Final MC split: S1b 126/101/173,
+S1a 106/55/239; zero moves away from dispatch-match. Composed
+handover+retry-success is structurally impossible (the retry's only
+partner is the handed-from robot, which fails backup_follows_retreat
+— 0/800 carry both tags). STRATUM RULED: rename to
+`repaired_regrounding_only` with per-layer sub-counts (view: heading
+/rear/node-handoff; retry: sweep) — one stratum, the A17-bis family
+rule applied; the room gate's `yield_robot=regrounded:` stays
+outside (different tag grammar, different mechanism).
+RESIDUAL MAP (post-fix, ranked), with the defusing note that the
+A17-bis headline invariant (vb∧dispatch_matched, never raw vb)
+already prevents these from inflating CLAIMS — they matter for
+repair attribution and the dispatch-order arm:
+(1) OFF-LANE CROSS HOLD — plan gives `cross` to a lane_scoped robot
+dispatch holds; never checked (S1a 36/106 vb mismatch; size is
+script-dependent). RULED: fix before any plan-channel LIVE episode,
+as a repair (substitute cross→wait, one edit, separable) — same
+gate as the A16(v)/A17 chain, lower urgency than they were because
+the invariant defangs claim inflation.
+(2) Non-retry refusals stay verdict-free BY DESIGN (dispatch
+waits-all, plan keeps its yield → mismatched vb/repaired; J1
+no-passer + same-side classes, ~13-25/floor) — carried, invariant
+covers claims.
+(3) The verdict's one hole: it reads the default-plan derivation,
+which disagrees with dispatch in 6-7/400 per floor (predates this
+change; mostly node-handoff + multi-passer nearest-first) —
+"verdict = dispatch" is exact except there; carried with sizes.
+(4) Declared-geometry/refuse-mode plan legs and junction_clear
+yield-axis sub-plans remain outside the verdict (registered);
+a plan naming the handed-over partner directly stays
+`inconsistent` (under-credit, registered).
+
+**A19. S1a anchor complete; first task-stream resolution; exemption
+scope ruled (2026-10-10; report 2026-10-10-s1a-anchor.md; integration
+@56836a4 lineage).** 3/3 anchor episodes (seeds 3-5, H=300, echo,
+pre-A16 deployed tree). COMBINED ANCHOR ROW (n=6): time-to-gridlock
+median 60.8 rel-s (24.6–338.2; E2-condition n=4 median 31.6), first
+encounter median 17.64 (14.44–19.17), outcomes 3 partial/3 gridlock,
+every episode ends in permanent latch clusters; no spontaneous latch
+self-free anywhere — the one transient latch was cleared BY a yield.
+MILESTONE: A1 holds the FIRST closed-loop resolution event in
+task-stream traffic (executed yield 32ce6702: gate_admit 55.6 →
+release 100.6 on the 45 sim-s backstop → 2 tasks, gridlock delayed
+to 147.1). Seed variance is order-of-magnitude — single-episode
+gridlock comparisons are UNINFORMATIVE (cell design note).
+NEW RULING — latch-aware exemption scope: a dispatched clearing
+command is futile when the yielder is latched to a THIRD robot (A2:
+pair-scoped exemption r1+r5 while r1 was latched to r2 → zero
+motion, FAILED ~15 s). During a clearing command's window the
+yielder must be exempted against ALL its latch partners (the 0.20 m
+hard-contact floor remains the backstop); fix rides the S1b pilot
+deploy. LIVE CONFIRMATIONS: the dispatched-fallback loop at full
+cadence (A3: 12 near-identical reroute+wait dispatches to horizon,
+each cancelling held Nav2 goals — the already-merged
+empty_reroute_fallback withhold @31c8ce0 targets exactly this; A3
+is its named regression scenario); escort_turn_cap live-exercised
+(2.485→1.558 m). BOOKKEEPING: censoring caveat (ep1's 338.2
+gridlock and ~282 wedge self-free would be right-censored at
+H=300); the s1b report's ep1 first-encounter 20.5 is corrected to
+19.17 by the committed stats script (append-only note); anchor ran
+on the pre-A16 M3 per the A16(iv) caveat. OPS: the new VM's clock
+lags ~1 day — STAMP dates on it read 2026-10-09; join runs by run
+id, never by STAMP date.
+
+**A20. S1b pilot 1: zero events, three ruling artifacts identified
+(2026-10-10; report 2026-10-10-s1b-pilot.md; integration @47fde2d).**
+Both echo episodes refused everything (13/13 withheld, 0 dispatches,
+0 events). Diagnosis — all three causes are apparatus/ruling
+artifacts, not floor physics: (1) E1's 8/8 = the A16(iii) crossing
+guard, correctly blocking S1a-phantom geometry but exposing that
+S1b DECLARES NO real crossings; counterfactual: ungated, E1's one
+"executable" yield would have grounded on the phantom box — the
+guard did its job. RULED: S1b's overlay declares its REAL crossing
+boxes, measured from its own island-corner geometry (build item).
+(2) E2's 5/5 = ambiguous handoff arriver at 33° (3° past the snap).
+RULED: an ambiguous ARRIVER yields along ITS OWN HEADING (retreat
+axis = heading; the footprint sweep runs along that axis — M4
+natively backs along heading, so this is the physically consistent
+conversion the A16 snap-widening rejection does not forbid), capped
+at 45° with the sweep as guard. (3) Echo names the lowest-id
+stalled robot — often latch-free and dwelling (82/400 MC). RULED
+(apparatus): echo prefers members of an engaged latch pair for
+involved/yielder. POSITIVES: A3 regression PASS on the new tree
+(13/12 hammer → 3/1, suppression armed, gridlock 24.6→62.9 — and
+the empty-reroute withhold now has NO live regression scene, noted);
+A19 exemption fixture flipped (one-sided waiver, frozen partner
+set); free-flow 18/18 (median 0.176 m/s — MC's 0.15 assumption is
+conservative, legs ~0.85×); M1 coverage 24/25 (marker 2 @Wp 0.874,
+one 8.3 s static STALE burst — recheck next pass). CARRIED NEW:
+backup-into-moving-traffic (A3-rerun: grounded yield backed into a
+parallel-track robot 0.34 m off the line — the latch caught it;
+sweep-vs-moving-traffic is a Step 6 design question, not patched
+ad hoc); five-stack bring-up aborts 3/11 (raise
+NAV2_LAUNCH_STAGGER_SEC next wave). CORRECTION to A19's ops note:
+the "VM clock lags ~1 day" is a timezone artifact (VM on UTC, Mac
+UTC+7) — join by run id stands, the lag claim is withdrawn. MC
+prediction for the two live seeds was 1 event/2 episodes; seed 2
+lost it to a 0.5 s arrival-order flip — single-pilot event counts
+carry seed noise (cell-design note, echoing A19's variance warning).
+
+**A21. Churn ruling (owner choice iii, 2026-10-10): measure first,
+bound later from data.** E3's phenomenon is CLASSIFIED: family S1
+(emergent), configuration = S6-class dual-conflict (two simultaneous
+latch clusters, self-formed in traffic), dynamics =
+coordination-level LIVELOCK (the Layer-2 analogue of the reciprocal
+dance: the coordinator alternates interventions between conflict
+groups — state changes, no progress), outcome class = the registered
+`intermittent` (first live specimen). E3 is thereby empirical
+motivation for S6's addresses-both oracle: serial pairwise
+intervention on a multi-conflict scene can oscillate indefinitely;
+a scene-wide plan has nothing to alternate between.
+CROSS-CITATION (coordinated): A19's "no spontaneous latch self-free
+anywhere" across the n=6 anchor is the strongest corroboration of
+A15(ii)'s passing-does-not-exist conclusion — the two entries cite
+each other; and A19's all-partners exemption scope is structurally
+sound on safety-invariant grounds precisely because the A9-era
+0.20 m hard-contact floor remains the un-exempted limit beneath it.
+RULED (iii): (a) MEASURE NOW — intermittent classification for S1
+episodes + churn metrics (dispatches per latch-break, alternation
+count, resolution-time share), zero behavior change; (b) BOUND
+LATER — per-cluster dispatch budget + alternation-aware loop
+detector built DEFAULT-OFF, parameter values frozen only after
+churn data exists (target: p95 of productive-resolution counts),
+enabled per registered cell; (c) the attribution test is a LIVE
+episode — E3's oscillation arose under the echo's naive yielder
+choice, so architecture-churn vs apparatus-churn separates only
+with a real model. Consequence: the LAST pre-plan-live gate (A18's
+off-lane cross hold: plan cross leg on a lane_scoped held robot →
+substitute cross→wait, one edit) is built in this wave, clearing
+the first live S1b episode WITH the plan channel on. Minor
+apparatus fixes ride along: echo names ONE cluster (the closest),
+refusal text names the 45° cap when the cap is what refused.
+
+**A22. First live S1b episode; S6-in-S1 answered; batch ruled
+(2026-10-10; report 2026-10-10-churn-and-first-live.md; integration
+@d7dae79).** E6 (ER-2, plan channel ON — all pre-live gates closed):
+5 analyses, 0 refusals, churn_class RESOLVED (alternation 0), two
+productive resolutions incl. S1b's FIRST clearance-released yield
+(model named r4, M3 swapped to r2 — repaired∧matched — executed
+end-to-end), 4/25 tasks, gridlock 173.2 rel-s, ~$0.034. ANSWERS:
+(i) S6-in-S1 = NO — the model named ONE cluster in all 5 analyses
+and no plan addressed both (S6's reason-to-exist now has live
+evidence); (ii) churn attribution INDETERMINATE by the
+pre-registered opportunity rule (max 2 clearing dispatches into one
+cluster vs required ≥3) — provisional direction: no livelock under
+a real model, and the corrected echo did not reproduce E3 either;
+(iii) first field vb∧dispatch_matched: 1/5 analyses, 1/3 dispatched
+(vb 1/rep 2/m3 2; the one mismatch is the known A18 residual-2, not
+a parity failure). PARITY COMPLETE at MC level: after the off-lane
+hold fix (cross/continue on lane_scoped held robots → substitute
+wait, stratum repaired_lane_scope_only), vb-mismatched = 0/400 on
+BOTH floors; final vb∧matched S1a 0.3775, S1b 0.455. NEW APPARATUS
+FINDING (E5): the one-cluster echo STARVES — it re-names the same
+unresolvable pair while suppression holds the scene, and the second
+cluster is never analysed; RULED: the echo rotates to the next
+engaged pair after a refusal on the current one (apparatus-only).
+RULINGS/DEFERRALS: junction_clear on S1b = OUT OF SCOPE (extends
+A11(ii); its junction geometry is unsolved there — the model's one
+junction_clear fell to a 0.00-m legacy refusal, withheld); composed
+repairs (regrounding swap + lane-scope substitutes, sitting at the
+bound of 4) get a `repair_bound_pressure` flag and an A17-bis
+family-rule extension (strata compose as a multiset of separable
+causes) — final wording at Step 6 with data; MC is REGISTERED as an
+upper bound for live yield probability (0/5 live first-conflict
+yields vs 4/5 predicted across pilots); churn-bound values still
+unfreezable (productive counts: A1=1, E6=2). OWNER-APPROVED NEXT:
+echo-rotation fix + a 3–5 episode LIVE batch (~$0.10–0.17) to power
+the attribution rule, accumulate productive-resolution counts for
+the A21 bound, and replace MC with empirical event rates. Bring-up
+remains the infra sore spot (2/4 aborts at stagger 6).
+
+**A23. Live batch closed (2026-10-11; report s1b-live-batch Rev 2;
+integration @dfe4e49).** Four live episodes ran (E6-E8, E10 censored
+at 123.5 sim-s by credit exhaustion); E9/E11 never ran (3 bring-up
+aborts each). FINAL AGGREGATES: (a) churn attribution INDETERMINATE
+by the opportunity rule (0/4 episodes reached ≥3 clearing dispatches
+into one cluster) — but 0 alternations anywhere; the provisional
+direction (no livelock under a real model) stands unrefuted;
+(b) productive resolutions [2,0,0,1*]; all-episode p95 = 2;
+dispatches-per-productive-event p95 = 2 — STILL TOO THIN to freeze
+budget_k; (c) live first-conflict yield 0/4 (CI 0-0.60) vs MC 2/4 —
+the MC-is-upper-bound registration is reconfirmed; (d) wandering vs
+park UNDECIDED (one finisher ever; 0/21 occupied-node arrivals
+involved a finisher); (e) cost median $0.0281/episode, batch total
+$0.107 incl. E6. E7-OVERTURN QUANTIFIED: both clusters named in
+2/15 valid live analyses (2/8 two-cluster scenes); a scene-wide plan
+dispatched verbatim∧matched ONCE (E7) — real but rare; the S6
+rationale stands WITH the nuance that the capability exists
+unprompted at low frequency. NEW RULING (apparatus/pipeline): a
+backend failure (decision=None) must arm the scene-unchanged
+suppression (outcome backend_failed) — E10's dead-backend 402 loop
+re-analysed every ~3 sim-s until MAX_ANALYSES(40); fix rides the
+next wave. INFRA ESCALATION: five-stack bring-up aborts 9/16 (0.56)
+across the stagger-6 era, abort class now includes planner_server
+bond timeouts — stagger tuning is NOT the fix; a dedicated bring-up
+investigation (sequential lifecycle bring-up or per-stack
+retry-with-backoff) is REGISTERED as the next infra wave; until
+fixed it is the dominant wall-clock cost of every S1 wave.
+BLOCKER: Gemini prepaid credits DEPLETED 20:13Z 2026-10-10 (HTTP 402)
+— no live ER-2 until the owner tops up; OpenAI credit state unknown
+(exhausted 09-25, possibly topped up before the 10-06 pilot). All
+live-dependent items (attribution n, budget_k freeze, yield-rate CI,
+wandering) are PAUSED on billing, not on engineering.
+A23 CORRIGENDUM (2026-10-11): a direct 1-token probe of
+gemini-robotics-er-2-preview returned HTTP 200 (serviceTier
+standard) — credits are WORKING again (cycle refresh or untracked
+top-up); the billing blocker is lifted and live work is unblocked.
+
+**A24. Bring-up solved; E11 ruled; V-JEPA pilot closed
+(2026-10-11; reports bringup-and-resume, s1b-live-batch Rev 3,
+vjepa-probe-pilot; integration @4be1d84).**
+(i) BRING-UP: all five-stack aborts share a launch-overlap signature
+(bond timeouts at the moment another stack launches; get_state during
+concurrent configure; GUI autorun exonerated; timeout bumps ruled out
+— the Jazzy bond wait is a hard 2 s and get_state has no parameter).
+FIX: NAV2_BRINGUP_MODE=sequential (harness-only; stack k+1 waits for
+k active + health check). Validation 0/8 vs parallel 9/20 (Fisher
+p≈0.024); cost +21 s/attempt, M5 starts ~6 sim-s later. RULED:
+sequential is the DEFAULT for all S1 run lines.
+(ii) backend_failed suppression shipped (E10's 402 loop replays
+38→2); trade-off recorded: a transient backend failure on a frozen
+scene silences re-analysis until the scene moves.
+(iii) E11 RULED: NOT citable as architecture-churn — the opportunity
+precondition is unmet (annotation degenerates to "1 of 0"), zero
+alternations, and both "unproductive" labels are window-attribution
+artifacts (r4 reached S immediately after r5's clearing reverse;
+credited to neither event). PREDICATE FIX registered: progress by
+any robot of the dispatched cluster within the window — including
+arrivals enabled by the cleared path — counts productive; and the
+architecture-churn verdict henceforth requires BOTH the ≥3-dispatch
+opportunity bar AND ≥1 alternation. Pooled verdict stands:
+no livelock evidence under a real model (0 alternations across 6
+live episodes).
+(iv) AGGREGATES (E6-E11): first-conflict yield 0/6 (CI 0-0.46) vs
+MC 3/6; productive p95=2 (budget_k still unfreezable); both-clusters
+2/31 analyses, scene-wide plan dispatched once (E7); cost median
+$0.031/ep, all-live total $0.227. E12 skipped on the $0.04 budget
+floor.
+(v) V-JEPA PILOT CLOSED (side branch feat/v3-vjepa-probe, unmerged):
+verdict "a paragraph, not a table" — the frozen V-JEPA 2 probe's
+13/13 + 12/12 on mapped battery items is matched by a single-frame
+control on conflict and does not transfer (held-out 0.53 vs a
+classical closest-approach rule's 0.83). SHARPENED INSIGHT for the
+thesis: gpt-4o's temporal failure is NOT missing pixel information
+(status colour alone scores 11/12) — it is a REASONING/inversion
+failure. H-JEPA assessment verdict (a) is now empirically confirmed
+on our own data (with state available, video adds no forecasting
+value at this scale). Future-protocol note: a meaningful
+encoder-vs-VLM test needs raw unannotated recordings (recorder
+change) + an arrow/colour-free condition.
+
+**A25. Batch 2: escalation class ruled; no-admit yield defect is
+the registered mystery (2026-10-12; reports live-batch2 + Rev 4;
+integration @cd35ae1).**
+(i) DISCLOSURE: batch spent $0.2568 vs the $0.25 cap (one call over;
+cost_watch checks post-billing). FIX RULED: caps reserve one
+estimated call. All-live spend $0.4840.
+(ii) Predicate fix landed exactly as designed: ONE label flipped
+(E11 c417cbff → productive via released-robot credit; E11 class →
+resolved, verdict → INDETERMINATE); E3 remains the only ARCH episode
+(echo). 27 tests, zero-delta.
+(iii) NEW CLASS RULED — ESCALATION: intermittent + opportunity bar
+met + 0 alternations (E13/E16/E17). It is neither ARCH-livelock
+(no oscillation) nor an apparatus artifact (real model, real
+grounding): the coordinator persistently retries different
+strategies on the SAME blocking cluster. The livelock question is
+now answered more strongly: 0 alternations across 23 live clearing
+dispatches — oscillation was the echo's disease (cites A21/A24).
+(iv) THE REGISTERED MYSTERY: 6/9 dispatched live yields ran ACTIVE
+191-294 s then FAILED with NO gate_admit, while all 3 admitted
+yields COMPLETED. This single defect plausibly suppresses the yield
+rate (1/12 live vs MC 7/12), starves the productive distribution
+(budget_k bar unmet: 5/24 nonzero vs the pre-registered ≥8), and
+manufactures ESCALATION episodes. RULED: diagnose the six no-admit
+bundles OFFLINE before buying more live episodes — the cheapest
+path to budget_k runs through this fix, not through 9-18 more
+episodes. Reference-only triple (3, 130 s, 0) recorded, explicitly
+undefendable at n=6 events.
+(v) Updates: both-clusters naming 12/36 in batch 2 (14/67 pooled,
+E17 alone 7 — scene-wide attention is commoner than the E6-era
+read); E17 best live episode (9/25 tasks, censored by the cap);
+sequential bring-up 6/6 first-attempt, pooled 0/14 vs parallel 9/20
+— the A24 fix holds at batch scale; backend_failed suppression still
+unexercised live; wandering-vs-park still undecided (1 finisher,
+0/33).
+
+**A26. No-admit mystery resolved: two mechanisms; shield ruled
+(2026-10-12; report no-admit-diagnosis; integration @0f9d423).**
+The 6 no-admit yield failures split cleanly: MECHANISM A (2 cases,
+FIXED) — M3 checked retreats along the snapped lane axis while M4
+backed along the robot's own heading (18-23° off → 0.42-0.62 m path
+miss → island contact); fix mirrors the escort pattern
+(backup_facing/reference keys, dynamic-footprint-only, ≤45° turns,
+declared-mode byte-identical) — controller replay on all 9 real
+yields lands ≤0.031 m from M3's target and island contact
+disappears. The passer_reference hypothesis was RULED OUT (unset on
+all 9 incl. the completers; gate_admit fires at hold start
+regardless of the passer). The step time limits that fired are M4's
+own motion formulas (backup max(d/0.1·15,30); sidestep
+(π/0.5+|L|/0.1)·15). MECHANISM B (4 cases): a semantics gap — M3
+checks retreats only against decision-time positions; a moving
+bystander enters the retreat mid-maneuver, forming a NEW latch that
+A19's command-start waiver does not cover; both robots freeze to
+the limit. RULINGS: (i) B1 ADOPTED WITH INTENT — a retreat shield:
+grounding holds (unlinked, tagged grounding=retreat_shield:<id>)
+any bystander whose current-goal path crosses the active retreat,
+with M3 reading M5's task intent through the SAME registry channel
+the node-handoff rule already uses; precedent for holding unnamed
+robots = the lane-scope waits; config-gated, default-off, S1 cells
+only; the intent read is what covers dwelling-robot blockers (E14/
+E17b). (ii) B3 ADOPTED as stop-gap: M4 fails fast when the clearing
+robot and its blocker share a fresh latch (saves ~150-200 s/event,
+earlier failure context). (iii) B2 REJECTED (banning node-adjacent
+retreats would refuse most yields by construction). "Admitted ⇒
+completed" is recorded as uninformative (the hold timer guarantees
+completion; only E6 released on real clearance). Projected effect
+of A alone: admits 3/9→5/9; B is the bigger lever (covers both
+MC-matched failed yields). Deploy note: A touches live-mounted M3
+files AND colcon-built M4 files — rebuild + md5 both.
+
+**A36. S1b confirmatory tranche 1 outcome (2026-10-22; report
+`docs/reports/2026-10-21-s1b-confirmatory-tranche1.md` Rev 4, branch
+`feat/v3-confirm-t1`, merged into `feat/v3-integration` @68e67b5;
+scores `data/logs/vm_runs/batch6/scores_t1/` and `batch6/agg_b6.json`,
+untracked; VM log appended to `batch6/p10/NOTES_vm_b6.md`).** The
+first confirmatory S1b tranche ran in full under A32-A35. This addendum
+records its provenance and its A33 measures as the scorer emitted them.
+It also records one deviation, the GPU wall-clock, and one open owner
+decision, the design of tranche 2. Nothing below changes a registered
+measure, parameter or ruling. Line cites are "at 9a5eb8f" (this
+document before A36 was inserted). The labels are A33's: **PROPOSAL**
+and **OWNER DECISION NEEDED**.
+
+- **A36(1) Provenance.**
+  - Host: `vgu-thu-base-isaac-vm-asia-northeast1-a` (asia-northeast1-a,
+    L4). This is the batch-5 host. It started at the first attempt
+    (ephemeral IP 34.84.196.224), and `md5sum -c kit_md5.txt` passed on
+    the VM (delta 6e8b40fab5ab68aebe4b3e4f827b7536).
+  - Runtime: `feat/v3-arm-b-mode` 1624db1 (A35). Installed md5s
+    (measured, report §3.2):
+    - `command_grounder.py` (/ws live mount) cfbd1fb882e5cf9d3b9f45c6e8f67aec;
+    - `models.py` 273bbf7f7d01755226506fd892a380fa;
+    - `orchestrator_node.py` e1b3b289ec05e3c21921fa0253829542;
+    - `retreat_stage2.py` cf0dad3ebf6b96c09f32ec8d5fbe1301;
+    - `fc_launch.sh` (host, `:-180`) 055db01eff423c72d74de6ed30cbc3b6;
+    - escort grounding yaml 409688866d25289309e081dcb9433037;
+    - `safety.yaml` c41913f02cf4e988162c30a44a5dda04 (src + installed,
+      floor 0.20) during the tranche, restored to 59839662 afterwards
+      (`RESTORE PRISTINE OK`).
+    The pinned `orchestrator.yaml` 1f656533 is unchanged in src and
+    installed.
+  - Scenario USD md5s (measured): E27 2c16f8d2285df079c1a853c5e26af228,
+    E28 b0ce58126f0ce6f3782ea6d1c44992ed, E29
+    1364fd432a2440fb4a3d8a910651daee, E30
+    29331415f1574424ef9971651cd514ae, E31
+    e170acf03ccea2181091defc140f2766. The seed 2-5 USDs are byte-identical
+    to their pilot-era USDs, because their yamls differ in comments only.
+  - Scorers (Mac, `vgu-vlm-swarm-v3` @e794952, which contains 3c71503,
+    with an empty `benchmarks/s1_scoring` diff against it): `score_p10.py`
+    7378ba251342a3f06be4f760706d45fa, `score_p10_gates.py`
+    49e4592f0905ff54d711a1bc83c83f5b, `aggregate_b6.py`
+    e2f0c5549652e9148767c4d7e648a6fa. These are the A34-registered md5s,
+    re-measured on the files that ran. The free-flow table is
+    b4002d7697f4d8f27c31792a9b269162 (A34 R8).
+  - Deploy and pin gates: `PINS_PRE OK`; gen `VM == MAC`; build rc 0;
+    every deploy sentinel printed, including `SMOKE A35 reasoning_enabled
+    default True status_line reasoning_enabled=false`; `FLOOR INSTALLED
+    OK`; `ov_p10.sh` `VM == MAC (... Arm A + Arm B)`. The chain pin gate
+    passed before all 11 attempts. The `ep_run_p10.sh` arm check matched
+    on every attempt. The post-run `pins_pre_p10.sh` FAILS BY DESIGN on
+    exactly the 5 deployed files plus the `_confT1_` run files
+    (`p10_vm/pins_post.log`).
+  - Arm B silence gate: PASS 5/5. Each run had 0 artifacts, 0 `starting
+    analysis` lines, exactly 1 status line, 1 `tasks_*.jsonl`, and
+    2465 / 2484 / 2441 / 2430 / 2487 scene lines. This is the first live
+    run of the A35 mode, and it behaved as the Mac smoke did.
+  - Safety gates (A33/A34 §1.6 forms, `gates_p10.jsonl`):
+    - all-pairs GT minimum ≥ 0.18 m in 10/10 runs. The lowest is
+      **0.225 m** (E28 B, r1–r5, 44.8 sim-s), and the highest is 0.424 m;
+    - 0 `hard_contact_floor` stops and 0 B3 fast-fails in all 10;
+    - escort/park legs **0.490 / 0.538 / 0.458 m** (E28 `3c234140`, E29
+      `14aefebe`, E31 `60afd0c1`) against the 0.45 m clearance. E29
+      `5622ed9c` has no leg. There are 0 SAFETY FLAGs, and
+      `tags_vs_dropped_mismatch` is empty everywhere.
+  - Budget (A34 R7): no guard, pin or analysis stop fired, and every run
+    reached GT 600.0 sim-s (censor reason `horizon`). Arm A est
+    $0.0859 / 0.0340 / 0.0373 / 0.0317 / 0.0238, totalling $0.2127 of
+    $1.30 by the cost logs. `agg_b6.json` reads E30 as 0.0318 (rounding),
+    giving $0.2128. R7's worst case of about $0.242 per episode was
+    never approached (max $0.0859).
+  - The D4 condition is MET. The scorer's arm-delta record still carries
+    `conditional_on: owner decision D4 (Arm B identity and parity,
+    A13(iii))`, a string written before R9. A34 R9 ruled D4, A35 built the
+    mode, and the live silence gate above passed 5/5, so the delta below
+    is not conditional on any open decision.
+
+- **A36(2) Per-episode table** (run order per A33(9); tasks = A33(1)
+  `dwell_complete` count by T_end; min pair = GT all-pairs minimum;
+  analyses = decision artifacts).
+
+  | Seed / ep | Arm | Analyses | Yields dispatched | Tasks / 25 | Min pair (m) | est $ |
+  |---|---|---|---|---|---|---|
+  | 1 / E27 | A | 11 (2 `congestion_detected=false`) | 0 (4 refused) | 8 | 0.424 | 0.0859 |
+  | 1 / E27 | B | 0 | n/a | 5 | 0.395 | 0 |
+  | 2 / E28 | B | 0 | n/a | 1 | 0.225 | 0 |
+  | 2 / E28 | A | 4 | 1 (`3c234140`, r1 for r5) | 2 | 0.333 | 0.0340 |
+  | 3 / E29 | A | 5 | 2 (`14aefebe` r1 for r4; `5622ed9c` r3, no leg) | 0 | 0.261 | 0.0373 |
+  | 3 / E29 | B | 0 | n/a | 0 | 0.301 | 0 |
+  | 4 / E30 | B | 0 | n/a | 6 | 0.297 | 0 |
+  | 4 / E30 | A | 5 | 0 (4 refused) | 5 | 0.349 | 0.0317 |
+  | 5 / E31 | A | 3 | 1 (`60afd0c1`, r3 for r4, regrounded) | 1 | 0.341 | 0.0238 |
+  | 5 / E31 | B | 0 | n/a | 0 | 0.388 | 0 |
+
+  - Bring-up: 11 attempts. E27 B a1 was a sequential bring-up abort
+    (robot_2 not active within the 180 s per-stack default, $0, `GATE OK`
+    / `RESTORE OK`). Per A33(9) the same (seed, arm) was retried, and a2
+    passed the idle gate at 0 s. The a1 directory is `not_an_episode`
+    under A33(0) and is not scored.
+
+- **A36(3) A33 measures, exactly as `benchmarks/s1_scoring` reported
+  them** (`scores_t1/s1_scoring.jsonl`; no measure recomputed here).
+  - **Completeness (A33(1)): 0/10 `complete`.** All 10 runs are
+    `failed` (reason `horizon`), not `censored`. Tasks completed are Arm A
+    16/125 and Arm B 12/125. The scorer emits no across-episode Wilson
+    interval, and none is added here.
+  - **Makespan (A33(2)): censored in 10/10** at T_end (568.8-572.0
+    rel-s, reason `horizon`). No KM step occurs in either arm.
+  - **Delay (A33(4)), pooled segments, scored / censored / never
+    departed:** Arm A 18 / 20 / 1; Arm B 14 / 19 / 3. Mean scored delays
+    are small, from −0.20 to +0.23 s, except E28 A at 25.45 s and E31 A
+    at 40.60 s. E31 B has no scored segment.
+  - **Per-conflict, Arm A (A33(5)-(6)):**
+    - 11 GT conflicts, 9 detected: recall 9/11 (0.818);
+    - 26 positive analyses, 0 false positives (precision 1.0),
+      0 `backend_failed`;
+    - type accuracy 7/9 = 0.778 against accepted {"deadlock"} (R10).
+      The label distribution over all 26 positives, which R10 requires,
+      is deadlock 17, crowding 5, bottleneck 4. The first-matched labels
+      that missed are E27 `bottleneck` and E31 #1 `crowding`;
+    - involved-set F1, conditional on detection, 0.915. The unconditional
+      per-conflict values score the 2 undetected conflicts (E29 #3,
+      E30 #2) as 0. The scorer emits no pooled unconditional F1, and none
+      is computed here;
+    - mean detection latency 17.6 s over the 9 detected conflicts, with
+      2 censored latencies (E29 #3 at 497.4 s, E30 #2 at 540.0 s);
+    - plan quality: (i-a) emission 0.923 and (ii) agreement 0.077.
+  - **Arm B:** 10 GT conflicts, 0 detected, 0 positives. Every
+    per-conflict delta is `degenerate_arm_b` by construction (A33(7),
+    A34 R9).
+  - **Arm A − Arm B (A33(7);** 5 seed pairs, τ_i 570.7 / 568.8 / 570.1 /
+    570.7 / 569.2 s, 0 unpaired; paired percentile bootstrap, B = 10000,
+    seed 20261021, 95%):
+
+    | Measure | Arm A | Arm B | Delta A − B | 95% CI | Scorer status |
+    |---|---|---|---|---|---|
+    | throughput at τ | 0.128 | 0.096 | +0.032 | [−0.008, +0.080] | ok |
+    | restricted makespan (s) | 569.88 | 569.88 | 0.0 | [0.0, 0.0] | ok |
+    | mean delay lower bound (s) | 323.4 | 354.9 | −31.5 | [−71.6, −0.6] | ok |
+    | detection recall | 0.818 | 0.0 | 0.818 | [0.636, 1.0] | degenerate_arm_b |
+
+    - The restricted makespan is **uninformative**. Both arms are
+      censored at τ_i in all 5 pairs, so min(M, τ_i) = τ_i in every pair
+      and δ_i = 0 by construction. The scorer status `ok` is correct, but
+      the row carries no arm information.
+    - The delay row is the **mean delay lower bound**, A33(7)'s
+      lower-bound-charged mean. Censored segments dominate it: 39 of 71
+      departed segments are censored, and each is charged
+      T_end − departure − ff. It therefore mostly measures how early
+      robots stopped completing legs inside τ_i. It is not a mean of
+      observed excess travel times.
+  - **Reading (conservative; R3.6a item 4 registers CI estimation, not
+    a test):**
+    - the throughput CI includes 0;
+    - the delay-lower-bound CI excludes 0 by 0.6 s, with Arm A lower;
+    - with n = 5 pairs a percentile bootstrap has few distinct
+      resamples, and one pair can move an endpoint across 0;
+    - these are interval estimates for the S1b regime at tranche 1 only.
+      No directional claim is registered, and none is made here. The
+      registered estimate is the one computed over the full 20 seeds.
+  - **Secondary reading (A22 MC upper bound, `agg_b6.json`):**
+    first-conflict yield 2/5 (E28, E31), Clopper-Pearson [0.053, 0.853],
+    against the MC upper bound 3/5 (s2, s4, s5).
+
+- **A36(4) Findings.**
+  - **(i) Completeness and makespan are vacuous at the registered
+    horizon in BOTH arms.** 0/10 runs completed all 25 tasks, and the
+    best was E27 A with 8/25. Makespan is censored in 10/10, and its
+    paired delta is 0 by construction. A34 R7 removed the dollar cut, so
+    this is not a censoring artifact. At about 570 observed rel-s the
+    S1b task stream cannot be drained with or without Layer 2. This is a
+    SCENARIO-DESIGN LIMITATION of the registered H = 600 sim-s with
+    25 tasks (scene doc line 156; scenario yaml `duration_sec: 600.0`).
+    It is not a Layer-2 result, and it does not read as "both arms
+    fail". Two of the four registered per-run measures carry no arm
+    information on this design. Throughput and delay still do.
+  - **(ii) An MC-predicted escort filter tag fired live for the first
+    time.** E28 A `3c234140` carried `escort_park_filtered:A:robot_5:0.230`
+    against MC's `A:robot_5:0.231` (tranche-1 prereg §1.9), with MC's
+    pair (r1+r5) and yielder (r1). A31(ii) had recorded that the
+    MC-predicted tags did NOT fire in E24-E26. Tranche 1 also had
+    unpredicted filter firings: E28 `A:robot_2:0.316` ×2, and E29
+    `B:robot_4:0.263` / `A:robot_4:0.262`, where MC predicted
+    EMPTY_REROUTE and live dispatched the surviving candidate at
+    0.538 m. One match in 5 seeds confirms that MC can predict a firing.
+    It does not show that MC predicts firings reliably.
+  - **(iii) Arm A grounding refusals.** These are M3 refusals of
+    VLM-requested yields, not VLM refusals. Each refused yield degrades
+    to `temporary_wait` and is still dispatched.
+    - E30 A: 4 yields refused as "ambiguous lane: robot_3 heads 39 deg off
+      both axes (beyond the 30 deg snap)". MC had predicted an executable
+      yield r4.
+    - E27 A: 4 yields refused, as "no shared lane" ×2 (r3 and r4 both run
+      along y) and "no feasible yielder" ×2. MC predicted this refusal
+      ("no shared lane").
+    Neither episode dispatched a yield, and both are `clogged` (A21(iii)
+    churn class). E30 is the only seed where MC predicted an executable
+    first-conflict yield and live did not (2/5 against 3/5).
+  - **(iv) One bring-up abort at the new 180 s default** (E27 B a1,
+    robot_2). It cost $0 and was retried under A33(9), and the retry came
+    up at once. It is recorded here so that tranche 2 can track the
+    abort rate (1 in 11 attempts at tranche 1).
+
+- **A36(5) DEVIATION: GPU wall-clock.**
+  - Measured: the chain ran 14:07:06Z → 23:25:33Z, **9 h 18 min**. VM
+    uptime was at least 9 h 31 min: the earliest VM kit log is 13:54:28Z
+    and `p10_vm/pins_post.log` was written at 23:25:53Z, with boot and
+    stop extra. Neither the report nor the VM log records the
+    VM-up-to-stop time. The ~9.7 h figure used in the brief is an
+    estimate consistent with these bounds and is not a measurement.
+  - Planned: about 3 h (operator brief).
+  - Cause: A34 R7 runs every episode to the full 600 sim-s horizon. At
+    a real-time factor of about 0.18, each episode takes about 55 min of
+    wall time, as the full-horizon pilots E7/E8 did (about 56 min). The
+    3 h figure was carried over from batch 5, whose $0.05 cap cut
+    episodes at about 140 sim-s. The pace was detected 20 wall-min into
+    E27 A (`NOTES_vm_b6.md` log 14:30Z, projecting about 9.5 h). The
+    chain was left running because no cap applied.
+  - Status: this is NOT a protocol violation. Neither the tranche-1
+    prereg §1, A34 nor the runbook sets a wall-clock or GPU-hour cap, and
+    every registered stop rule (budget guard, pin stop, gates) behaved
+    as registered. It IS a PLANNING ERROR. The R7 sim-s ruling changed
+    the per-episode wall time by about 4×, and the plan did not rescale.
+  - **RULING PROPOSED (OWNER DECISION NEEDED):** every future runbook
+    header carries an explicit wall-clock / GPU-hour cap, derived as
+    55 min × episodes × 1.15 (overhead for bring-up retries, setup and
+    close-out). The pre-registration of that tranche states the same
+    cap. A cap breach is a stop-and-report event under the same
+    `ON_SEED_FAIL=stop` discipline. An episode cut by it is censored
+    `stop_flag` and kept, never dropped. For tranche 2 (30 episodes) the
+    formula gives 30 × 55 min × 1.15 ≈ **31.6 h**.
+
+- **A36(6) OWNER DECISION NEEDED: tranche 2 design** (seeds at
+  positions 6-20 of `config/s1_seeds.yaml`, 15 × 2 arms = 30 episodes,
+  A33(8)). The options are presented neutrally. Costs scale with the
+  measured 55 min per full-horizon episode. The raw figure is
+  30 × 55 min = 27.5 h ≈ 28 h of GPU time, or ≈ 31.6 h under the
+  A36(5) cap formula. The dollar figure, ≈ $25 of L4 time "at current
+  rate", is the planner's estimate. No L4 hourly rate is recorded in
+  this document or the tranche-1 report. Arm A ER-2 spend is extra and
+  small (tranche 1: $0.2127 for 5 episodes).
+  - **Option A: keep the registered H = 600 sim-s and 25 tasks.**
+    - For: there is no change to a registered parameter after seeing
+      data, so tranche 1 and tranche 2 pool directly under A33(7). The
+      registered estimate stays the one registered.
+    - Against: about 28-32 GPU-h. Completeness and makespan are almost
+      certainly vacuous again (0/10 at tranche 1), so the 20-seed
+      estimate rests on throughput and the delay lower bound.
+  - **Option B: register a horizon or task-count change by addendum.**
+    - This changes a registered design parameter (H, scene doc line 156;
+      or `tasks_total` 25) AFTER seeing tranche-1 data. It MUST be
+      stated as a POST-HOC AMENDMENT with its justification. Tranche 1 is
+      then reported under both the registered and the amended
+      definitions.
+    - Re-scoring tranche 1 under both works only for a SHORTER horizon
+      or a SMALLER task count, for example completeness of the first k
+      tasks by T_end. No data exists past GT 600 sim-s. A LONGER horizon
+      therefore leaves tranche 1 as a separate stratum at H = 600, or
+      forces its re-run.
+    - A longer horizon also scales GPU time linearly. For example
+      H = 1200 is about 2 × 28 h, before any tranche-1 re-run.
+    - H lives in two places: the scenario yaml `duration_sec` (Isaac run
+      length, which takes effect only through a USD rebuild and therefore
+      needs new USD md5s and pins) and the M5 overlay `horizon_sim_sec`.
+      Both, plus the A33(0) T_end / "by H" reading, would be re-frozen
+      before any tranche-2 episode.
+    - For: completeness and makespan could become informative. Against:
+      a post-hoc change to the design, a rebuild, and a larger budget.
+  - **Option C: keep H; demote completeness and makespan; promote the
+    throughput and delay deltas to primary.**
+    - This is also POST-HOC, because it changes which registered measures
+      are primary after seeing that two of them are vacuous. It must be
+      stated as such.
+    - The GPU cost is as in A. There is no rebuild and no re-freeze, and
+      tranche 1 pools directly.
+    - Against: the primary set is chosen with knowledge of tranche-1
+      outcomes. The delay lower bound is dominated by censored segments
+      (A36(3)), so promoting it promotes a lower-bound quantity.
+  - **PROPOSAL (recommendation, not a ruling):** Option A, for protocol
+    integrity, unless the budget forbids about 28-32 GPU-h. Under A,
+    Option C's emphasis is reported as a clearly labelled SECONDARY
+    ANALYSIS: the throughput and delay-lower-bound deltas reported first,
+    with completeness and makespan reported as registered and their
+    vacuity stated. The registered primaries are not demoted. A
+    reduced-task completeness from Option B may be added as an
+    exploratory reading only. If the budget forbids A, the choice
+    between B and C is the owner's, and either must be labelled post-hoc.
+    In every option the A36(5) cap goes into the tranche-2 runbook
+    header and its prereg before the VM starts.
+
+- **Closes / leaves open.** Tranche 1 is CLOSED as collected and scored
+  under A32-A35 with no protocol violation. A36(5)'s cap rule and A36(6)'s
+  tranche-2 design are OWNER DECISIONS NEEDED, and no tranche-2 episode
+  runs before both are ruled. Pilots E6-E26 stay excluded (A32). The
+  A33(8) limitation, that the confirmatory seeds are not unseen, stands.
+
+**A35. Arm B Layer-2-off mode registered (2026-10-21; owner approved
+building it 2026-10-21; code `feat/v3-arm-b-mode` @1624db1 cut from
+integration @afc5e4d; kit `data/logs/vm_runs/batch6/p10/`, untracked,
+pre-A35 copy `p10_pre_a35/`).** This builds A34 R9's "Needed" item. It
+closes R9 and A13(iii) operationally, so the tranche-1 run spec is
+RUNNABLE. Nothing in A34's rulings changes.
+
+- **The key.** `OrchestratorConfig.reasoning_enabled: bool = True`
+  (`swarm_orchestrator/models.py`). It is read from the overlaid yaml
+  like its neighbours (`dispatch_enabled`, `t0_probe_mode`). The pinned
+  `orchestrator.yaml` (1f656533) is not edited and parses True.
+  `rag.yaml`, the S1b grounding files and `safety.yaml` are untouched.
+- **Semantics when False.** These pure functions in `models.py` are
+  unit-tested without ROS2: `resolve_layer2_gate`,
+  `should_submit_pipeline` and `reasoning_status_line`.
+  - Detection. `_on_scene_state` returns just before
+    `CongestionDetector.update` (`orchestrator_node.py:748` at 1624db1).
+    No stall event, analysis, decision artifact or dispatch can follow.
+  - M2/M3. `_build_default_pipeline` is never called, so
+    `build_backend`, `Reasoner` and the stage-2 marker are never
+    constructed. No ER-2 call or bill is possible.
+  - Forced off, with a warning for each one that was set:
+    `shadow_classical`, `t0_probe_mode` and the contradiction trigger.
+  - The manual trigger service is refused.
+  - `_submit_pipeline` and `_submit_probe` raise `RuntimeError` as a
+    last guard.
+  - Every `Reasoner` / `build_backend` / `pipeline.run` /
+    `pipeline.analyze` / `note_dispatch_outcome` site in the node was
+    checked. Each is unreachable when the key is False.
+- **What still runs, unchanged.** The scene log (`m5_scene.jsonl`), the
+  arrival gate, the task registry and its publication, and the task
+  stream (releases, issues, dwell, `tasks_*.jsonl`, manifest). These are
+  A33(0)'s Arm B inputs. True is the unchanged node and logs no new line.
+- **Status line.** At startup M5 logs exactly one line,
+  `reasoning_enabled=false layer2=off detection=off m2=off m3=off
+  shadow_classical=off t0_probe=off contradiction_trigger=off
+  dispatch=off` (`REASONING_OFF_STATUS_LINE`, matched verbatim by
+  `cond_p10.py`).
+- **Overlays.** `s1b_l2off_orch_seed{k}.yaml` is the md5-gated
+  `base_s1b_orch_seed{k}.yaml` (Arm A's starting point, before its escort
+  sed) plus one appended line, `reasoning_enabled: false`. That is 1 diff
+  line against base and 3 against the Arm A overlay. The escort grounding
+  line is absent because M3 never runs. md5s:
+  - seed1 0bb7c9e1e89588af3dbdb351ce5067a9
+  - seed2 cec7590c7743e2926ef73aab04b06f9a
+  - seed3 7097f3a73cf85e5843dac246a4ee7486
+  - seed4 397e0399867ec322912c741f0bc6d3d2
+  - seed5 77bc12f2b872844802c095f8abb7479d
+  `mac_gen_ov_armb_p10.sh` makes them and parses them with the 1624db1
+  loader, giving `reasoning_enabled False`. `ov_p10.sh` remakes them on
+  the VM and byte-compares them with the Mac copies.
+- **Gates.**
+  - GOTCHA: `OrchestratorConfig` ignores unknown keys. On a stale
+    `models.py`, or with a misspelt key, the Arm B overlay would run a
+    full, billed Arm A.
+  - `ep_run_p10.sh` therefore parses the overlaid yaml with the DEPLOYED
+    loader before launch. It refuses unless the result is False for
+    ARM=B and True for ARM=A.
+  - `chain_p10.sh` (`ARM_B_MODE=reasoning_enabled_false`, preflight
+    refusal kept for an empty mode) checks both arms' overlays and the
+    key's absence/presence per seed before either arm runs.
+  - `cond_p10.py` Arm B requires all of: 0 artifacts, 0 `starting
+    analysis` lines, exactly 1 status line, exactly 1
+    `decisions/tasks_*.jsonl` and a non-empty `m5_scene.jsonl`. The
+    silence gate alone also passes on an M5 that crashed at startup.
+    Arm A requires 0 status lines.
+  - BACKEND stays gemini in both arms. Under Arm B the backend is never
+    constructed, so this is not R9's excluded congestion mock.
+- **Runtime and deploy.** 1624db1 = 3efcd78 + `models.py` +
+  `orchestrator_node.py` over reasoning/ros2_ws/scripts/config/isaac
+  (checked by `mac_build_delta_p10.sh`). Manifest rows against the
+  deployed 9a018ca:
+  - `models.py` a76e3c00 → 273bbf7f
+  - `orchestrator_node.py` f149ecff → e1b3b289 (new row)
+  - the other four rows unchanged
+  `manifest_p10.txt` is 50376db3b76b99a14f71942d175768f8 and
+  `delta_p10.tar` (6 files) is 6e8b40fab5ab68aebe4b3e4f827b7536.
+  `deploy_p10.sh`'s single swarm_orchestrator rebuild installs both M5
+  files and prints an A35 smoke line. The chain pin gate expects
+  273bbf7f / e1b3b289.
+- **Kit md5s** (supersede A34's for these files):
+  - `chain_p10.sh` 487372e049ad859b070bdd25ece17cdb
+  - `ep_run_p10.sh` 14759ed21336f362c4add703f72ca2f7
+  - `cond_p10.py` 4ec27c317067d36382bc3f44e44fc958
+  - `pins_pre_p10.sh` a7ff5f84cd62c549ba6422018e621579
+  - `deploy_p10.sh` eca49cf5fb83fdb8bbccd93571209ba2
+  - `ov_p10.sh` 0264402f7e6050a42972771480e47c49
+  - `parse_ov_p10.py` 6fa7c0cb880894f583fa12a1af28af7d
+  - `mac_gen_ov_armb_p10.sh` 40d2e7fc26d270e35704767d3ee99e64
+  - `mac_build_delta_p10.sh` d5a19ee61b73f702ceb2fe7289528cf2
+  - `cost_watch.py` 0defa143 (unchanged)
+  - `kit_md5.txt` lists all of them.
+- **Tests.** Commits `3bafa7d` (feat), `eb08fb2` (26 tests,
+  `tests/unit/test_m5_node_reasoning_off.py`) and `1624db1`
+  (implementation notes). The tests cover:
+  - the default is True;
+  - the pinned yaml parses True and an overlay parses False;
+  - no submission, analysis line, artifact or command on stall scenes;
+  - the builders are never called with `pipeline=None`;
+  - shadow, probes and contradiction forced off;
+  - the manual trigger is refused and the guards raise;
+  - one status line when off, none when on;
+  - the scene log, task-stream release, arrival, dwell and next-task
+    issue still run.
+  Suite 57 failed / 3 errors, the same 60 ids as
+  `a27/final_ids.txt` minus tests/simulation (before: 57 / 6877 passed
+  / 3; after: 57 / 6903 / 3). ruff is clean on the touched files.
+- **Smoke** (`p10/smoke_armb/mac_armb_smoke.log`; the real node with
+  ROS2 stubbed and no pipeline injected).
+  - The seed-1 Arm B overlay, 240 stopped-robot scenes: 0 builder
+    calls, 0 `starting analysis`, 0 artifacts and 0 commands. Shadow,
+    probes and contradiction are None. There is exactly one status line,
+    one tasks log (stream_start, start_check, released, issued,
+    manifest) and 240 scene-log lines.
+  - The same scenes on the Arm A overlay with a fake pipeline start 3
+    analyses.
+  - `cond_p10.py` gives rc 0 for that Arm B bundle under the B gate.
+    It gives rc 1 under the A gate, rc 1 with an empty `m5.log`, and
+    rc 1 for a reasoning-on bundle under the B gate.
+  - `DRY_RUN=1 bash chain_p10.sh` prints 10 rows with the Arm B rows
+    resolved to `s1b_l2off_orch_seed{k}.yaml`.
+  - `bash -n` and `py_compile` pass on every kit script.
+- **Closes.** A34 R9 is BLOCKED → BUILT, and A13(iii) is closed
+  operationally. The tranche-1 run spec's "Arm B: … BLOCKED" now reads
+  as this mode. Its runtime commit is 1624db1 (the deploy delta above
+  supersedes 3efcd78's d19466a7). Limitation: the smoke is Mac-side
+  only. The first live Arm B episode is the mode's first VM run, and
+  the chain's gates stop the tranche if it does not behave.
+
+**A34. Confirmatory tranche 1 rulings R6-R11 (2026-10-21; owner
+rulings approved 2026-10-21; code `feat/v3-freeflow-freeze` cut from
+integration @3efcd78; kit `data/logs/vm_runs/batch6/p10/`, untracked).**
+Six owner rulings close A33(10) D1-D6 before the first confirmatory S1b
+episode. Each gives the ruling, its evidence and its artifact. Line
+cites are "at f7a8d62" (this document before A34 was inserted). One
+ruling, R9, is decided but cannot yet be executed, so the tranche is
+NOT RUNNABLE until R9's launch mode exists (see R9 and the run spec).
+
+- **R6. RECORD is a dataset tag only (closes A33(10) D1).**
+  - Ruling: the harness stays identical to the pilots. fc_launch gets
+    `RECORD=0`, as `ep_run.sh` hard-coded for every pilot E6-E26, so no
+    recorder runs. A32's "RECORD=1" (FIRST CONFIRMATORY CELL NEEDS) is
+    read as the dataset flag, now spelled `confirmatory=1`. Every
+    bundle's `CONDITION.txt` carries `tag=confirmatory_t1 record=0
+    confirmatory=1 arm=<A|B>`.
+  - Evidence: tranche-1 prereg §1.8(c) and kit NOTES item (c): RECORD=1
+    switched on the video recorder, a harness difference from every
+    pilot (CPU/RTF, bring-up).
+  - Artifact: `ep_run_p10.sh` refuses `RECORD`≠0 and requires
+    `CONFIRMATORY=1` and `ARM`; `cond_p10.py` gates the four fields;
+    `score_p10_gates.py` and `aggregate_b6.py` read them. md5s are in the
+    run spec below.
+- **R7. Cap by sim-s; dollars are a safety ceiling only (closes D2).**
+  - Ruling: every episode runs to the Isaac 600 sim-s horizon.
+    `CAP_EP` $0.25 is a guard only: `cost_watch.py` touches the Isaac
+    stop flag when est + one call (A25 rule, reserve $0.008) reaches
+    min(`CAP_EP`, `CAP_TOTAL` − spent). `CAP_TOTAL` $1.30 counts the Arm A
+    cost logs of this tranche; `MIN_REMAINING` $0.25 is the start floor
+    checked before each Arm A episode. Arm B spends $0 (no VLM) and is
+    exempt from the budget gate. For this tranche this supersedes A32
+    R2's $0.10.
+  - Censoring: an episode cut by the guard is right-censored at T_end
+    with reason `stop_flag` (A33(0); `run_manifest` does not tell a cap
+    from an operator stop). A33(7)'s common window τ_i = min(T_end,A,
+    T_end,B) still applies, so a guard-cut Arm A episode shrinks its
+    pair's window and is never dropped.
+  - Analysis-count stop OFF (`MAX_ANALYSES=0`). The pre-A34 kit also
+    stopped at 40 analyses (ep_run sidecar and `cost_watch.py`). That is
+    a stop that is neither sim-s nor dollars, and it fires first on a
+    backend-failure-heavy episode (E10: 38/40 `backend_failed` at about
+    $0). `cost_watch.py` now treats `max_analyses` ≤ 0 as off; before
+    A34 a 0 fired on the first poll. The sidecar already skipped at 0.
+  - Still standing: the pre-registered pin stop rule (`pin_watch.py`,
+    rule 4/11: a physical pin not self-freed within 300 sim-s). It is
+    not a dollar cap and applies to both arms; a pin-stopped episode is
+    also `stop_flag`-censored.
+  - Budget check: an Arm A episode can reach about $0.242 before the
+    guard fires. Five of them total about $1.21 < $1.30, and before the
+    fifth at least $0.33 remains, so the start floor never leaves a seed
+    unpaired.
+  - Evidence: A31 finding (i) (all three $0.05 episodes cut at 133-174
+    of 600 sim-s); A33(7) and A33(10) D2 (at $0.10 Arm A stops near
+    270-350 rel-s while Arm B runs about 570).
+  - Artifact: the `chain_p10.sh` OWNER HEADER and `cost_watch.py`.
+- **R8. S1b free-flow table frozen from the 2026-10-10 harvest (closes
+  D3).**
+  - Harvest: the 18 solo-in-space legs of the S1b pilot
+    (`docs/reports/2026-10-10-s1b-pilot.md` §8). Raw bundles are
+    `data/logs/vm_runs/s1b_pilot/s1b_ff_<a>_<b>` (Mac pull), fc_launch
+    stamps 20261009_231102..20261010_005723 (VM clock), default mock,
+    0 dispatches, 18/18 GT arrivals, VM runtime = integration 3d307f8
+    delta.
+  - Frozen file: `benchmarks/s1_scoring/data/free_flow_s1b_2026-10-10.json`,
+    table_id `free_flow_s1b_2026-10-10`, md5
+    b4002d7697f4d8f27c31792a9b269162. It is keyed (`mapd_5_s1b`,
+    "A->B"), and each leg carries robot_id, run_id, gt_hash (sha256 of
+    `ground_truth.jsonl`), departure and arrival. It sits beside the
+    scorer, not under `config/`, so the VM runtime diff is unchanged.
+  - Values: `scripts/free_flow_table.py` `derive_entries`
+    (`solo_in_space`) on each bundle's GT with unchanged rules:
+    `own_departure` = the first GT speed > 0.03 m/s, and
+    `gt_within_0.35_stay_0.5`. These are exactly the rules `delay.py`
+    applies per segment.
+  - DISCREPANCY with §8: §8 timed departure from the first GT
+    displacement > 0.03 m from spawn, so its leg times are 0.2-0.4 s
+    shorter (11.1-29.9 s against 11.3-30.1 s); arrivals are identical.
+    Freezing §8's numbers would have biased every delay by that amount,
+    so the derived values are frozen and §8's table is not.
+  - Scorer: `delay.py` loads the table by default for every `mapd_5*`
+    scene key (the parameter is kept). An explicit `table=None` or CLI
+    `--no-free-flow` still scores `no_table`; `--free-flow` overrides.
+    Commits `f008616` (code + table), `9ae402a` (tests: md5 pin, the
+    18-leg key set, a synthetic 18-robot S1b bundle that scores all 18
+    segments), `3c71503` (implementation notes). Suite 57 failed / 3
+    errors, the 3efcd78 baseline; ruff clean on the touched files.
+  - Pilot smoke re-run (`batch6/s1_scoring_pilots.jsonl`, previous copy
+    `_pre_r8`): 21/21 episodes non-vacuous, 75 scored / 95 censored /
+    4 never_departed segments, 0 `no_baseline`. Every non-delay field is
+    byte-identical to the pre-R8 smoke.
+  - LIMITATION: a pilot harvest on the s1b-pilot VM, not re-harvested on
+    the confirmatory host. §8's cross-VM caveat stands as a limitation,
+    not a blocker.
+- **R9. Arm B = Layer-2-off classical: RULED; implementation BLOCKED
+  (D4; A13(iii)).**
+  - Ruling: Nav2 stack only, no congestion mock, M2/M3/M5 reasoning
+    disabled. Same scenario yaml, USD and seed as Arm A, same 0.20 m
+    floor swap (install `safety.yaml` c41913f0), same GT scan.
+  - Finding: no existing flag or config produces it at 3efcd78.
+    - M5 cannot be dropped. S1's task stream (releases, issues, arrival
+      gate, dwell, `tasks_*.jsonl`) and `m5_scene.jsonl` belong to M5,
+      and A33(0) refuses a bundle without them. fc_launch
+      `BRINGUP_ONLY=1` never starts M4 or M5.
+    - The v2 Layer-2-off (`BACKEND_ID=mock` with no decision file;
+      `docs/reports/2026-10-06-layer2off-pilot.md`) is a no-congestion
+      mock, which the ruling excludes.
+    - `dispatch_enabled: false` still runs M2 and M3 (bills ER-2).
+    - `t0_probe_mode` adds off-trigger probes; it removes nothing.
+    - The scene callback reaches `CongestionDetector.update` →
+      `_submit_pipeline` with no config gate (`orchestrator_node.py`
+      ~726-757 at 3efcd78), and the detector has no off value.
+  - Needed (not built; for the owner to commission): one M5 config key,
+    default off, that skips detector → analysis (no M2/M3 call, no
+    decision artifact, `shadow_classical` off) while the task stream,
+    arrival gate, registry and scene log run unchanged; an Arm B overlay
+    that differs from the Arm A seed overlay only in that key and what
+    it implies; unit tests, a dry-run smoke and md5 pins. The Arm B
+    silence gate is already in `cond_p10.py` (0 `starting analysis`
+    lines, 0 artifacts).
+  - A13(iii): under this definition the parity question is moot. Arm B
+    reads no geometry, so there is no geometry-source asymmetry, and the
+    per-conflict deltas are `degenerate_arm_b` by construction (A33(7)).
+    A13(iii) is closed as a ruling but NOT operationally: no S1 A/B
+    claim until the flag exists and its smoke passes.
+  - Kit: `chain_p10.sh` carries the interleaved Arm B rows but REFUSES
+    at preflight while `ARM_B_MODE` is empty, and `ep_run_p10.sh`
+    refuses `ARM=B`. No Arm A episode can run before Arm B can, so no
+    unpaired confirmatory episode is created.
+- **R10. MAPD accepted types = {"deadlock"}: RULED (D5, types half).**
+  A33(6)'s proposal stands; the label distribution is always reported.
+  Accepted strategies were not ruled here: the scorer keeps A33(6)'s
+  `accepted_strategies=None` for plan quality.
+- **R11. Every A33 PROPOSAL is RULED at its default (D6).** These are
+  the `ConflictParams` and CLI defaults at 3efcd78, unchanged by R8:
+  - A33(0) "by H" = by T_end of an uncut run: Isaac stops at absolute
+    GT 600 sim-s, so about 570 rel-s is observed after robot_1's
+    release. The scorer reports T_end and the absolute GT end side by
+    side.
+  - A33(1) across episodes: the proportion `complete` among the
+    non-`censored` episodes with a Wilson 95% CI, plus the count of
+    `censored` episodes.
+  - A33(2) across episodes: Kaplan-Meier and RMST to τ; per arm alone,
+    τ = that arm's smallest T_end; for the delta, τ per A33(7). No naive
+    mean over censored runs.
+  - A33(3): `grid_s` 1.0; across episodes, the mean of Θ_e(t) over
+    episodes with T_end ≥ t, reported with n_at_risk(t).
+  - A33(4): window end = the segment's `dwell_complete`, else T_end;
+    segments pooled across episodes; `scene_key` `mapd_5_s1b`.
+  - A33(5): `merge_gap_s` 2.0, `min_duration_s` 0.0; finished and
+    parked robots are not excluded.
+  - A33(6): `pre_s` 0.0, `post_s` 5.0, `min_overlap` 1; tie-break by
+    largest |D ∩ I|, then latest onset ≤ t_a, then earliest onset; an
+    undetected latency is censored at min(end_c + `post_s`, T_end) −
+    onset_c; F1 conditional on detection with the unconditional form
+    (undetected = 0) co-reported; `incremental_fraction_bound` 0.5; the
+    across-episode pooling as written.
+  - A33(7): pairs by `stream_start.seed`; common window τ_i; paired
+    differences as written; the mean of δ_i with a paired percentile
+    bootstrap, B = 10000, seed 20261021, 95%; `degenerate_arm_b`; one
+    invocation per regime.
+  - A33(9): order p1 A→B, p2 B→A, p3 A→B, p4 B→A, p5 A→B; a bring-up
+    abort retries the same (seed, arm).
+
+TRANCHE-1 RUN SPEC (supersedes the 5-episode kit of the tranche-1
+prereg before A34).
+- Episodes: 5 seeds × 2 arms = 10. Seeds = `config/s1_seeds.yaml`
+  positions 1-5 (978442588, 1181837745, 537191633, 90907664,
+  1912308941; labels E27-E31), interleaved per R11. Bundles are named
+  `s1b_E<E>_seed<k>_armA_er2_confT1_a<n>` and
+  `s1b_E<E>_seed<k>_armB_l2off_confT1_a<n>`; arms are read from
+  `CONDITION.txt`, never from names.
+- Arm A: Layer 2 on, `gemini-robotics-er-2-preview`, per-seed overlays
+  pointing at `config/grounding/s1b_dynamic_shield_escort.yaml` (md5
+  409688866d25289309e081dcb9433037, A32 R1), A32 condition (churn bound
+  off, sequential bring-up with the 180 s default, 0.20 m floor).
+- Arm B: Layer-2-off classical per R9. BLOCKED.
+- Budget: R7 (`CAP_EP` 0.25 guard, `CAP_TOTAL` 1.30, `MIN_REMAINING`
+  0.25, `MAX_ANALYSES` 0).
+- Abort rule: `ON_SEED_FAIL=stop`, 3 bring-up attempts per (seed, arm).
+- Host: `vgu-thu-base-isaac-vm-asia-northeast1-a`.
+- Runtime commit 3efcd78. It is identical to 97d68e0 over `reasoning`,
+  `ros2_ws`, `scripts`, `config` and `isaac`. The deploy delta against
+  the deployed 9a018ca is the same 4 files plus the escort overlay
+  (`manifest_p10.txt` 7e59322ca8029c3d430adbd15d8eeb3f, unchanged;
+  `delta_p10.tar` d19466a764b785dbc2abde6af722ea5b, rebuilt @3efcd78).
+- Scoring: Mac-side only, at `feat/v3-freeflow-freeze` 3c71503;
+  `benchmarks/s1_scoring` is not shipped to the VM.
+- Kit md5s (`data/logs/vm_runs/batch6/`): `p10/chain_p10.sh`
+  2b3a850778a89da9a2ed841dd3479b5f, `p10/ep_run_p10.sh`
+  c087dfb9f1bce17b29a9bdef6aa30d29, `p10/cond_p10.py`
+  5ebb820626fb0610c0ce4405f6bece82, `p10/cost_watch.py`
+  0defa14304c4b78f651af91f0a2789bb, `p10/pins_pre_p10.sh`
+  5b60ad471a24f2488c13d766853b062f, `p10/deploy_p10.sh`
+  fa3134bfbb5a52cd0e1f85fd832d0c0a, `score_p10.py` (the A34 wrapper)
+  7378ba251342a3f06be4f760706d45fa, `score_p10_gates.py`
+  49e4592f0905ff54d711a1bc83c83f5b, `aggregate_b6.py`
+  e2f0c5549652e9148767c4d7e648a6fa.
+- Pilots E6-E26 stay excluded (A32). The confirmatory seeds are not
+  unseen (A33(8) limitation).
+
+**A33. S1 scorer definitions frozen before confirmatory collection
+(2026-10-21; owner-approved task 2026-10-21; code
+`benchmarks/s1_scoring/` on `feat/v3-s1-scorers`, cut from
+integration @97d68e0).** The tranche-1 pre-registration
+(`docs/reports/2026-10-21-s1b-confirmatory-tranche1.md` §1.5 and
+§1.8(f), branch `feat/v3-confirm-t1`) lists registered S1 outcome
+measures that no scorer computes. Confirmatory data must not be
+scored by code written after seeing it, so this addendum fixes every
+one of them before any confirmatory episode runs. The scorer
+implements A33 verbatim, and each of its functions cites the
+paragraph it implements. Every line cite below is "at 24fa2bc"
+(this document before A33 was inserted; scene doc =
+`docs/superpowers/specs/2026-10-06-v3-scene-design.md`; v2 doc =
+`docs/superpowers/specs/2026-09-30-prereg-v2-design.md`). The labels
+are:
+
+- **REGISTERED**: the quoted text fixes the choice.
+- **PROPOSAL**: A33 makes the choice because no registered text does.
+  The scorer exposes it as a named parameter with this default. The
+  owner may overrule it before the first confirmatory number is
+  computed, never after.
+- **OWNER DECISION NEEDED**: A33 cannot pin the choice down; see
+  A33(10).
+
+A33(0) COMMON INPUTS, CLOCK AND CENSORING.
+
+- **Bundle records read.**
+  - `decisions/tasks_*.jsonl` (exactly one per bundle). It provides
+    the `stream_start` keys `seed`, `tasks_total`, `nodes`,
+    `start_nodes`, `sequences` and `horizon_sim_sec`; `released`,
+    `issued`, `arrived` and `dwell_complete` events with
+    `robot_id`, `task_index`, `node` and `sim_t`; and the last
+    `manifest` line's `makespan_sim_sec` and `tasks_completed`.
+  - `gt/ground_truth.jsonl`: `sim_time_sec` and
+    `robots.<id>.{x, y, speed_mps}`.
+  - `gt/run_manifest.json`: `completed`, `aborted`, `abort_reason`
+    and `aborted_at_sim_time_sec`.
+  - `m5_scene.jsonl` (`scene.stamp`, `scene.robots[].{robot_id,
+    status, x, y}`), used only for the offset fit.
+  - `decisions/<uuid>.json`: `scene.stamp`, `decision`, `plan`,
+    `plan_state`, `request_id` and `diagnostics.error_type`. These
+    are sorted by `scene.stamp`, never by file name, because the
+    names are UUIDs.
+- **Never read.**
+  - GT `conflict_type`, `involved_robots` and
+    `robot_robot_contacts`. They are scenario-declared values or
+    stubs (A14 corrigendum, line 1817).
+  - Any `m5.log` stamp. They are wall-clock.
+  - `run_manifest.completed` as a task outcome. It means only that
+    Isaac reached its run length.
+- **Clock (REGISTERED).** "the per-run GT-offset fit as the only
+  sanctioned GT↔ROS join" (lines 288-289).
+  - Operationally this is `scripts/s1_live_conflict_stats.py`
+    `_gt_offset` at 97d68e0: offsets 0.00-1.00 s in 0.01 s steps, the
+    median position error of MOVING M1 rows subsampled to at most
+    3000, smallest median wins.
+  - t0 is robot_1's `released` `sim_t` (M1 clock) mapped to GT:
+    t0_gt = t0 − offset.
+  - Every reported time is rel-s = GT sim-s − t0_gt. M1-clock times
+    (tasks `sim_t`, artifact `scene.stamp`) are mapped by subtracting
+    the offset.
+- **Observation end.** T_end = last GT sample − t0_gt. This is the
+  tracked `gt_end_rel_s` of `scripts/s1_gridlock_stats.py`.
+- **Horizon (finding plus PROPOSAL).**
+  - The registered text is "**H = 600 sim-s.**" (scene doc line 156).
+  - Isaac stops at absolute GT 600 sim-s, while robot_1 is released
+    24-31 sim-s in (pilots E6-E26). An uncut episode therefore
+    observes about 570 rel-s, and "600 sim-s after release" is never
+    observed.
+  - PROPOSAL: "by H" means "by T_end of an uncut run". The scorer
+    reports T_end and the absolute GT end side by side.
+- **Censoring (one rule for every time-to-event quantity).** Every
+  episode is right-censored at T_end, with a reason label taken from
+  `run_manifest`:
+  - `horizon`: `completed: true`;
+  - `stop_flag`: `aborted`, `abort_reason: stop_flag`. This covers the
+    cost cap or an operator stop, which `run_manifest` does not
+    distinguish; A12 shows the flag is not cap-only;
+  - `aborted_other`: any other abort.
+
+  A censored quantity is reported as {value null, censored true,
+  censor_time T_end, reason}, never as missing, and no episode is
+  dropped for being censored.
+- **What counts as an episode.** A bundle is an episode only if its
+  tasks JSONL has a `stream_start` and a `released` event for
+  robot_1. Anything else is refused as `not_an_episode` and is never
+  scored. That includes a bring-up abort's attempt directory: E24 f1
+  and E25 f1 in batch 5 have a GT log and a stop-flag
+  `run_manifest`, but no task stream. There is no fallback t0.
+- **Exclusions.** The scorer excludes no episode.
+  - Pilots E6-E26 are excluded by Discipline item 2 and A32 at
+    aggregation time (`batch6/aggregate_b6.py` filters on the
+    `CONDITION.txt` tag), not by these functions.
+
+A33(1) COMPLETENESS.
+
+- **Registering text.** "completeness via outcome classes" (scene doc
+  line 157); "Scoring per run: completeness (all 25 tasks done by H)"
+  (scene doc line 368).
+- **Definition.**
+  - completed = the number of `dwell_complete` events with rel-s ≤
+    T_end.
+  - total = `stream_start.tasks_total` (25).
+  - The status is one of:
+    - `complete`: completed == total;
+    - `failed`: not complete, reason `horizon` (GECCO's "failed
+      run");
+    - `censored`: not complete, reason `stop_flag` or
+      `aborted_other` (completeness unknown).
+- **Outcome classes.** The registered "outcome classes" reading is
+  the tracked `outcome_class` of `scripts/s1_gridlock_stats.py` at
+  97d68e0, already frozen by the tranche-1 §1.8(f). A33 does not
+  re-implement it.
+- **Across episodes (PROPOSAL).** The proportion `complete` among
+  the non-`censored` episodes, with a Wilson 95% CI, plus the number
+  of `censored` episodes.
+
+A33(2) MAKESPAN ≡ TIME-TO-FULL-RESOLUTION.
+
+- **Registering text.** "Makespan and time-to-full-resolution" (scene
+  doc line 157). The v2 doc maps the two to one quantity: "makespan ↔
+  time-to-full-resolution" (v2 doc lines 1144-1145). A33 therefore
+  defines ONE measure, not two.
+- **Definition.**
+  - When `complete`: makespan = the latest `dwell_complete` rel-s.
+    The offset cancels, so this equals M5's manifest
+    `makespan_sim_sec`; the scorer cross-checks the two and reports a
+    mismatch above 0.05 s.
+  - Otherwise: right-censored at T_end per A33(0).
+- **Across episodes (PROPOSAL).** Kaplan-Meier over episodes, and the
+  restricted mean (RMST) up to τ. τ is set in A33(7) for the delta;
+  per arm alone, τ = that arm's smallest T_end. A naive mean over
+  censored runs is never reported (v2 doc lines 643-647).
+
+A33(3) THROUGHPUT CURVE.
+
+- **Registering text.** "throughput as completed tasks / 25 over sim
+  time" (scene doc line 157); "throughput curve" (scene doc line 369).
+- **Definition.**
+  - Θ_e(t) = (number of `dwell_complete` with rel-s ≤ t) / 25.
+  - It is a right-continuous step function, defined on [0, T_end]
+    only. It is undefined after T_end and never carried flat past
+    censoring.
+  - Output: the completion event times, and Θ on a grid of
+    `grid_s` = 1.0 s (PROPOSAL).
+- **Across episodes (PROPOSAL).** For each t, the mean of Θ_e(t) over
+  the episodes with T_end ≥ t, reported with n_at_risk(t).
+
+A33(4) DELAY_VS_FREE_FLOW PER SEGMENT.
+
+- **Registering text.**
+  - "plus `delay_vs_free_flow` per segment" (scene doc line 157);
+    "per-segment `delay_vs_free_flow`" (scene doc line 369).
+  - "delay_vs_free_flow needs PER-TASK-SEGMENT baselines; the
+    solo-in-space method extends per segment (same single-method
+    rule), a `free_flow` table keyed by (scene, segment)" (lines
+    239-242).
+  - "excess delay vs the same-robot free-flow baseline" (R3.1, line
+    344).
+  - "keys each entry by (`mapd_5`, `A→B`)" (scene doc line 393).
+- **Segment.**
+  - Segment k of robot r runs from node A to node B. A is
+    `start_nodes[r]` for k = 0, else `sequences[r][k−1]`;
+    B = `sequences[r][k]`. The key is "A->B" under scene key
+    `scene_key` (default `mapd_5_s1b`).
+  - The table is keyed by segment, not by robot, as scene doc line
+    393 registers. R3.1's "same-robot" is read as "same leg, solo".
+- **Timing rules.** These are the two frozen in every free-flow
+  table, `origin_rule` `own_departure` and `arrival_rule`
+  `gt_within_0.35_stay_0.5` (`config/free_flow/free_flow_v2.json`;
+  `scripts/free_flow_table.py`), applied per segment:
+  - departure = the first GT sample at or after the segment's
+    `issued` time with `speed_mps` > 0.03;
+  - arrival = the first sample after departure within 0.35 m of node
+    B (`stream_start.nodes`), such that every later sample up to the
+    segment window end is within 0.5 m.
+  - The window end is the segment's `dwell_complete` (mapped), else
+    T_end. This window bound is a PROPOSAL.
+- **Delay.**
+  - delay = (arrival − departure) − ff(scene_key, "A->B").
+  - A segment that departed but did not arrive by T_end is
+    `censored`, with `delay_lower_bound` = T_end − departure − ff.
+  - A segment with no departure is null (`never_departed`).
+  - With no table or no key, the result is null (`no_table` /
+    `no_baseline`), never fabricated.
+- **Per episode.** n_scored, the mean delay over arrived segments,
+  and the mean over departed segments of (delay, or the lower bound
+  if censored), flagged as a lower bound.
+- **Across episodes (PROPOSAL).** Segments are pooled. Report the
+  mean delay over all arrived segments, the mean of (delay, or the
+  lower bound) over all departed segments (flagged as a lower bound),
+  and the counts of scored and censored segments.
+- **BLOCKER.** No frozen S1b baseline exists, so until A33(10) D3 is
+  ruled this measure is VACUOUS (`no_table`):
+  - `free_flow_v2.json` holds no `mapd_5*` scene;
+  - the S1b 18-leg harvest (`docs/reports/2026-10-10-s1b-pilot.md`
+    §8) is "not a frozen free-flow baseline" (cross-VM caveat);
+  - the scene doc's leg table (lines 378-386) gives S1a distances in
+    metres, not S1b times.
+
+A33(5) GT CONFLICT EPISODES.
+
+- **Registering text.**
+  - "S1 needs a family `mapd` and an "emergent" conflict declaration:
+    no pre-declared involved set; the conflict episodes are found by
+    a GT detector" (scene doc lines 357-359).
+  - "the SAME conflict definition as S1a's MC" (R3.6a item 4, line
+    479).
+  - "latch-on-pass is REGISTERED as S1b's conflict class" (A15(iii),
+    line 973).
+- **Pair encounter (REGISTERED by the MC definition).** A maximal run
+  of consecutive GT samples in which a pair's centre distance is
+  < 0.45 m (`ENCOUNTER_M` of `scripts/s1_live_conflict_stats.py`).
+- **Merging into conflict episodes (PROPOSAL).**
+  - Pair intervals are graph nodes. Two of them are joined when they
+    share a robot and their spans overlap or are separated by at
+    most `merge_gap_s` = 2.0 s; the same pair's re-encounters merge
+    under the same rule.
+  - A conflict episode is a connected component, with onset = the
+    minimum onset, end = the maximum end, involved set I = the union
+    of the robots, and a `to_end` flag.
+  - There is no minimum duration (`min_duration_s` = 0.0), because
+    the M4 latch fires at 0.45 m.
+- **Not excluded.**
+  - Dwelling robots. "A dweller with a latched arriver beside it *is*
+    a node-handoff conflict. That is the conflict, not a false
+    positive." (scene doc lines 350-352).
+  - Finished or parked robots (PROPOSAL, for the same reason).
+
+A33(6) PER-CONFLICT SCORING.
+
+- **Registering text.** "Scoring per conflict episode: detection (GT
+  encounter → trigger latency), type label, involved-set F1, and
+  plan-quality metrics (i-a)–(vi) as in v2." (scene doc lines
+  366-367).
+- **Analyses.** Each decision artifact is one analysis at
+  t_a = rel-s of `scene.stamp`. Its class is:
+  - `backend_failed`: `decision` is null. It is counted but is
+    neither a detection nor a false positive. E10 has 38/40.
+  - `negative`: `congestion_detected` is false.
+  - `positive`: `congestion_detected` is true, with D =
+    `decision.involved_robots`.
+  - No artifact carries the trigger instant on the sim clock, so the
+    analysis snapshot stamp is the operational trigger time.
+- **Matching (PROPOSAL).**
+  - A positive analysis matches conflict c iff
+    onset_c − `pre_s` ≤ t_a ≤ end_c + `post_s` (`pre_s` = 0.0,
+    `post_s` = 5.0) and |D ∩ I_c| ≥ `min_overlap` = 1.
+  - Ties go to the largest |D ∩ I_c|, then the latest onset ≤ t_a,
+    then the earliest onset.
+  - An analysis matches at most one conflict. A conflict may be
+    matched by many analyses.
+  - A positive analysis that matches nothing is a false positive.
+- **Detection and latency.**
+  - c is detected iff at least one analysis matches it.
+  - latency = t_first_match − onset_c.
+  - For an undetected c, latency is right-censored at
+    min(end_c + `post_s`, T_end) − onset_c (PROPOSAL).
+- **Type label.**
+  - The label is `decision.type` of the first matched analysis.
+  - No accepted label is registered: latch-on-pass maps to no
+    `decision.type` value, and "**No `accepted_strategies` per
+    episode.** Rule it explicitly at the freeze" (scene doc lines
+    364-365) was not ruled by A32.
+  - PROPOSAL: `accepted_types` = {"deadlock"}. The label distribution
+    is always reported. OWNER DECISION D5.
+- **Involved-set F1.**
+  - F1 = 2|D ∩ I| / (|D| + |I|), using the first matched analysis.
+  - It is reported conditional on detection. The unconditional form
+    with an undetected conflict scored 0 is co-reported (PROPOSAL).
+- **Plan quality (i-a)-(vi).**
+  - Registering text: v2 doc lines 829-846, "(i-a) *plan emission
+    rate* … (vi) *plan stability* … replan count per episode, churn
+    …, revision cause …, and revision type".
+  - Every matched analysis is scored with the tracked
+    `reasoning.rag.plan_metrics.score_decision_artifact` at 97d68e0,
+    with `oracle_order=None` and `accepted_strategies=None`.
+  - Per conflict:
+    - (i-a) emitted / scored;
+    - (i-b) consistent / emitted;
+    - (ii) agreement / scored;
+    - (iii) the mean finite edit distance;
+    - (iv) provenance counts;
+    - (v) NOT APPLICABLE, null: no S1 order oracle is registered;
+    - (vi) the replan count is the number of distinct non-held
+      `plan.plan_id` values minus 1, with
+      `compute_episode_plan_stability` churn at
+      `incremental_fraction_bound` = 0.5 (the module's own
+      placeholder, PROPOSAL). The revision cause of each replan is
+      `classify_revision_cause` over the robots whose `plan_state`
+      leg is `failed` or `exhausted` in the replanning artifact.
+  - The v2 text says "per episode", so (vi) is also reported per run.
+- **Per run.** n_conflicts, n_detected, recall (null when there are
+  0 conflicts), n_positive, n_false_positive, precision (null when
+  there are 0 positives), and n_backend_failed.
+- **Across episodes (PROPOSAL).** Pooled exactly as in A33(7):
+  - recall = Σ detected / Σ conflicts;
+  - precision = Σ matched positives / Σ positives;
+  - type accuracy = Σ correct / Σ detected;
+  - (i-a) = Σ emitted / Σ scored, and (ii) = Σ agreement / Σ scored;
+  - latency and F1: means over detected conflicts, with the count of
+    censored latencies reported;
+  - backend_failed: summed.
+
+A33(7) ARM A − ARM B ESTIMAND.
+
+- **Registering text (REGISTERED).** "The Arm A−Arm B comparison
+  across regimes is registered as **CI estimation of the delta per
+  regime**, with the Goldilocks expectation (delta maximal at
+  intermediate difficulty) recorded as interpretation, not as a
+  directional hypothesis." (R3.6a item 4, lines 480-484).
+- **CI method: NOT REGISTERED for v3.** The nearest registered
+  method is the v2 rev-6 block: "Paired two-arm design keyed on
+  (scenario, seed); McNemar exact tests on paired binary outcomes;
+  Wilson CIs on proportions; scenario-clustered or bootstrap SEs"
+  and "Kaplan–Meier time-to-resolution curves + RMST-difference at
+  the horizon with bootstrap CI" (v2 doc lines 638-645). The
+  following is PROPOSAL, built on that precedent:
+  - **Pairing.** Pairs are formed by `stream_start.seed`. Unpaired
+    episodes are reported and left out of the delta.
+  - **Common window per pair.** τ_i = min(T_end,A,i, T_end,B,i).
+    The dollar cap stops only the arm that spends: Layer-2-off
+    spends $0 and runs to about 570 rel-s, while Arm A at $0.10
+    stops near 270-350. An end-of-episode comparison would therefore
+    measure window length, not arms.
+  - **Paired differences on the common window.**
+    - Throughput: δ_i = Θ_A,i(τ_i) − Θ_B,i(τ_i).
+    - Makespan: δ_i = min(M_A,i, τ_i) − min(M_B,i, τ_i). This is
+      exactly observable, because both episodes are observed to
+      τ_i.
+    - Delay: δ_i = the difference of the per-episode
+      lower-bound-charged mean over segments departed before τ_i,
+      with segments censored at τ_i.
+    - Per-conflict measures: computed on conflicts with onset ≤ τ_i,
+      and pooled as recall, mean latency of detected conflicts,
+      type-accuracy proportion, mean F1, and (i-a)/(ii) rates.
+  - **Estimand and CI.** The mean of δ_i (pooled-ratio difference
+    for proportions), with a paired percentile bootstrap over pairs:
+    B = 10000, seed 20261021, 95%. Identical arms give δ = 0 and a
+    CI of [0, 0].
+  - **Degeneracy.** When Arm B has zero positive analyses, the
+    per-conflict deltas are reported as `degenerate_arm_b`. This is
+    the A2/S6 precedent, and it is the case if Arm B is the v2
+    no-intervention mock; see D4.
+  - **Regime.** "Per regime" means one invocation per regime. S1b is
+    one regime.
+
+A33(8) SEED POLICY RULING (owner, 2026-10-21).
+
+- The registered confirmatory seeds are KEPT: positions 1-20 of
+  `config/s1_seeds.yaml` (scene doc line 155, "from the first 20
+  seeds").
+- All 20 already ran as pilots: E1-E5 echo, E6-E20 live. The
+  confirmatory seeds are therefore not unseen. Pilot-informed
+  expectations, and MC per seed, exist for them.
+- This is recorded as a LIMITATION in any claims text. Pilots stay
+  excluded from every count (A32).
+
+A33(9) ARM INTERLEAVING RULING (owner, 2026-10-21).
+
+- Tranche 1 = 5 seeds × 2 arms, interleaved:
+  - Arm A = Layer-2-on, ER-2 with the shield escort overlay
+    (40968886, A32 R1);
+  - Arm B = "Layer-2-off classical" (owner's words; see D4).
+- The order is a PROPOSAL. Counterbalanced by seed position: p1 A→B,
+  p2 B→A, p3 A→B, p4 B→A, p5 A→B.
+- A bring-up abort retries the same (seed, arm) before the chain
+  moves on.
+
+A33(10) OWNER DECISION NEEDED (none blocks freezing the code; each
+blocks the measure it names).
+
+- **D1 RECORD semantics.** Is it the video recorder
+  (`fc_launch.sh`, a harness difference from every pilot) or the
+  dataset flag only? (tranche-1 §1.8(c))
+- **D2 Dollar cap vs sim-s cap.**
+  - At $0.10, Arm A is cut near 270-350 rel-s while Arm B runs about
+    570.
+  - A33(7)'s common window keeps the delta valid but shrinks every
+    pair to Arm A's window.
+  - Completeness and makespan of Arm A are then censored in
+    practice.
+  - A sim-s cap equal in both arms would remove the asymmetry.
+- **D3 Free-flow baseline for S1b.** Either freeze the 2026-10-10
+  harvest under a new table id, or re-harvest the 18 legs on the
+  confirmatory host. Until then A33(4) is vacuous.
+- **D4 Arm B identity and parity.**
+  - The scene doc says "**Arms:** Layer 2 on, against Layer-2-off"
+    (lines 370-371).
+  - The v2 Layer-2-off is "the decision layer answers no-congestion
+    throughout (mock, zero dispatches verified)" (v2 doc lines
+    321-324).
+  - A13(iii) says "Arm B on S1 is blind … Until ruled, no S1 A/B
+    claim is valid" (lines 865-871), and the "Arm B parity question"
+    is still "unchanged" (line 1637).
+  - The owner said "Layer-2-off classical". Which of these is Arm B,
+    and is A13's parity condition met? Every A33(7) delta is
+    CONDITIONAL on this ruling.
+- **D5 MAPD accepted strategies and accepted type labels** (scene doc
+  lines 364-365). A33(6)'s {"deadlock"} stands only as a PROPOSAL.
+- **D6 Bulk approval of the PROPOSAL parameters:** `merge_gap_s` 2.0,
+  `min_duration_s` 0.0, `pre_s` 0.0, `post_s` 5.0, `min_overlap` 1,
+  `grid_s` 1.0, `incremental_fraction_bound` 0.5, `scene_key`
+  `mapd_5_s1b`, the H reading, and the A33(7) pairing, window,
+  bootstrap and degeneracy rules.
+
+**A32. S1b configuration freeze for confirmatory collection
+(2026-10-21; owner rulings R1-R5 approved 2026-10-21; code on
+`feat/v3-s1b-freeze` cut from integration @d80ee49).** Five rulings
+close A31's open owner decisions and A29's item (ii). Each names the
+addendum it rests on and the exact artifact.
+
+- **R1. Escort/park filter ON in shield cells, OFF elsewhere.**
+  Evidence: A31 (P1-P4 PASS; the one live firing dropped a
+  non-default candidate; E24 re-ground), A30 (one filtered selection
+  for every reader; switch off byte-identical), A29. Artifact:
+  `config/grounding/s1b_dynamic_shield_escort.yaml`, md5
+  409688866d25289309e081dcb9433037, is PROMOTED to the registered
+  shield config for confirmatory S1b cells, unedited. Its
+  non-comment content is the pinned `s1b_dynamic_shield.yaml`
+  (ee5fe68f) plus exactly the line `  escort_park_clearance: true`
+  (the headers differ only in comments); pinned by
+  `tests/unit/test_a30_escort_overlay.py` (md5 of both files and the
+  content diff), commit `b2555b9`. Every other cell keeps its current
+  grounding file, where `escort_park_clearance` is absent and
+  therefore off. Pinned files unchanged: rag e18c723c, s1b_dynamic
+  535f5281, s1b_dynamic_shield ee5fe68f, install `safety.yaml`
+  59839662.
+- **R2. Episode cost cap $0.05 → $0.10 for confirmatory runs.**
+  Evidence: A31 finding (i) (all three episodes cut by the $0.05 cap
+  at 137 / 174 / 133 of 600 sim-s). Artifact: KIT/RUNBOOK ONLY, no
+  code. The batch cap and the start floor are per cell and are set
+  in the kit, not in code. The kit is not built by this addendum.
+- **R3. Per-robot bring-up "not active" timeout 120 s → 180 s.**
+  Evidence: A31 finding (iv) (E24 f1 robot_1 and E25 f1 robot_3 not
+  active 120 s after launch; pooled sequential aborts 3/26). The 120 s
+  was the default of `NAV2_STACK_ACTIVE_TIMEOUT_SEC` in the tracked
+  launcher `scripts/vm/fc_launch.sh` (sequential mode, per-stack
+  budget), not a kit value. Artifact: default changed to 180,
+  commit `d975f13`, with a dry-run test
+  (`test_sequential_mode_per_stack_budget_defaults_to_180s_when_unset`).
+  The overall lifecycle gate `NAV2_ACTIVE_TIMEOUT_SEC` (240; S1b run
+  lines 360) and the health grace (45 s) are unchanged. Kit
+  constraint: keep `NAV2_BRINGUP_MODE=sequential` (the 180 s applies
+  only there; the batch-5 p9 chain sets it and does not set the
+  per-stack variable) and leave the variable unset or set it to 180.
+- **R4. Churn bound 3/130/0 stays registered and DEFAULT-OFF.**
+  Evidence: A29 churn sweep, A21(iii), A31 (not re-derived). No code
+  or config change.
+- **R5. A29 item (ii) closed: the stage-2 record carries the
+  dropped candidates.** Evidence: A29 (ii), A30 ("still open,
+  non-blocking"), A31 E24 re-ground (needed a full replay to recover
+  what the record could have shown). Artifact: commit `6abea45`.
+  `RetreatStage2Record.dropped_candidates`, one entry per violating
+  escort leg, with the pre-filter label, the park pose (x, y), the
+  passer id, the clearance in metres and the reason
+  `escort_hits_park`, filled from `filter_escort_park_candidates`.
+  The key is omitted from the dump when empty, so a switch-off
+  record is byte-identical: the A29 golden
+  `tests/unit/data/a29_filter_parity/golden_off.json` passes
+  unchanged. A29 item (iii) (replay-kit letter mapping) stays
+  DEFERRED.
+
+PILOTS EXCLUDED. Episodes E6-E26 were pilots, run before this
+freeze, and stay excluded from every confirmatory count, as
+Discipline item 2 requires ("pilots are excluded from confirmatory
+counts", this document, Discipline item 2, lines 75-76 when A32 was
+written).
+
+FIRST CONFIRMATORY CELL NEEDS: shield config = the escort overlay
+(md5 40968886); episode cap $0.10; bring-up per-stack timeout 180 s;
+RECORD=1; churn bound off; plus the standing A28(i) requirement that
+the 0.20 m floor swap and the pre/post arm gates run "in EVERY
+future S1b live cell, shield or not" (A28(i), line 1776 when A32
+was written); and the VM deploy of this branch: `command_grounder.py`
+(live-mounted M3), `models.py` and `retreat_stage2.py` (colcon-built
+`swarm_orchestrator`: rebuild, then md5 source vs install) and
+`scripts/vm/fc_launch.sh`, since A31 left the A28/A29 runtime
+deployed and R3/R5 exist only on `feat/v3-s1b-freeze`. This addendum does not set N
+or name cells. The registered figures are the existing ones: "S1's
+own budget (R=20/arm ≈ 40–48 h)" (this document, R3.7, line 506 when A32 was written) and
+"Confirmatory n is **R = 20 per arm, registered**, from the first
+20 seeds; seeds 21–100 are an extension only"
+(`docs/superpowers/specs/2026-10-06-v3-scene-design.md` line 155,
+S1 runs row). S1b inherits the S1 budget through R3.6: "Runs only
+if S1a lands and budget (R3.7) permits" (line 452 when A32 was written). No
+S1b-specific N appears in A15-A31; any departure from R = 20 per arm
+needs its own ruling.
+
+**A31. E24-E26 escort-filter mini-batch outcome: P1-P4 all PASS;
+the one live filter firing dropped a non-default candidate; all
+three episodes budget-censored (2026-10-20; report
+escort-filter-minibatch Rev 3; integration @d80ee49 = merge of
+`feat/v3-escort-live`).** The A30 batch ran as pre-registered on
+the A28/A29 runtime with the switch-on overlay
+`s1b_dynamic_shield_escort.yaml` (40968886), the 0.20 m floor swap
+and every pre/post gate; deploy md5s matched source on all 10
+manifest files plus the floor; COND `switch_on = shield_on = 6`
+in every episode. HOST CHANGE: an L4 stockout (~57 h) in
+asia-southeast1-b moved the batch to the zone-moved snapshot clone
+`vgu-thu-base-isaac-vm-asia-northeast1-a` (same disk image,
+different physical host and zone; owner-authorized 2026-10-19);
+the md5 pins establish software identity only, so the cross-VM
+caveat stands. Spend est $0.1395 of $0.15; VM STOPPED after;
+pristine `safety.yaml` restored (59839662). The A28/A29 M3/M5
+runtime REMAINS DEPLOYED with `escort_park_clearance` default-off,
+inert without the overlay. PREDICTIONS: P1 escort clears park
+>= 0.45 m — PASS 3/3 non-vacuous (0.575 / 1.730 / 1.036 m); P2 no
+GT pair < 0.18 m and zero floor firings — PASS (all-pairs minima
+0.404 / 0.338 / 0.323 m, 0 floor, 0 B3); P3 filter fires live —
+PASS, one tag `retreat=escort_park_filtered:A:robot_4:0.215` on
+E24 `dfb33b91`, dispatched, on a cluster MC never modelled; P4
+admitted == dispatched — PASS 3/3, all released by clearance.
+
+| Ep | Dispatched yield (VLM → M3) | Leg clearance | Filter tag | GT closest pair | Productive | est $ |
+|---|---|---|---|---|---|---|
+| E24 | `dfb33b91` yield r4 → r3 yields for r4, post-filter B | 0.575 m | `A:robot_4:0.215` | r3–r4 0.404 m | 1 | 0.0488 |
+| E25 | `c1fd8b36` yield r5 → r1 yields for r5, letter B = label A | 1.730 m | none | r1–r5 0.338 m | 1 | 0.0470 |
+| E26 | `cf77ca65` yield r1 → r5 yields for r1, single candidate | 1.036 m | none | r2–r3 0.323 m | 0 (censored) | 0.0437 |
+
+REV 7 vs REV 6 (E6-E26 vs E6-E23; `aggregate_b5.py` reproduces
+`agg_b4.json` block-for-block on the prior 18): admitted/dispatched
+pooled 11/17 → 14/20, A26+ runtime 8/8 → 11/11; clearance releases
+4 → 7 (+ the one E20 contact push); first-conflict yield 5/18 (CI
+0.097-0.535) vs MC 12/18 → 6/21 (CI 0.113-0.522) vs MC 15/21;
+alternations 0 in 18 → 0 in 21, NO LIVELOCK; productive nonzero
+8/30 → 10/33 all-classified (live 7/18 → 9/21); vb∧matched 16 / 13
+→ 17 / 14 (shield-excluded / raw); all-live cost $0.7546 over 18 →
+$0.8941 over 21. The churn triple stays registered and default-off
+(A29), not re-derived.
+
+E24 OFFLINE RE-GROUND (report §9.1; the §9 item 3 measurement).
+The recorded inputs of `dfb33b91` replayed on `9a018ca` with the
+switch on reproduce the live stage-2 record and dispatched yield
+exactly (candidates, letters, listing, parameters, degradations);
+no earlier E24 artifact carries a filter tag, so draw index 2
+holds. With the switch OFF stage 2 offers 4 candidates: pre-A
+(0.022, 1.225) 0.215 m rank 1 (the dropped one), pre-B 0.505 m,
+pre-C (0.382, 1.225) 0.575 m rank 0, pre-D 0.865 m. DETERMINISTIC:
+the dropped candidate is NOT the default; the switch-off default is
+pre-C, the dispatched pose, so a defaulted or failed stage 2 would
+have dispatched the identical yield; the live model picked rank 0.
+NOT DETERMINISTIC: the stage-2 model's answer to the switch-off
+4-mark prompt (letters A→pre-B, B→pre-D, C→pre-A, D→pre-C), so
+whether it would have picked the 0.215 m pose is undeterminable
+offline. LETTER REPLAY (A29(iii)): the recorded letter B read under
+the switch-off lettering grounds pre-D (0.865 m), not A; matched by
+pose the live pick is pre-C. The n = 1 firing is no evidence that
+the filter averted a contact.
+
+FINDINGS (not predicted). (i) BUDGET CENSORING: all three episodes
+were stopped by the $0.05 episode cap at 137 / 174 / 133 of 600
+sim-s with 6 analyses each, so the productive scores are weak;
+E26's yield released 23.7 sim-s before the cut. OWNER DECISION
+NEEDED: raise the episode cap for the next live cells, or accept
+cap-censored productive scoring. (ii) MC-PREDICTED TAGS DID NOT
+FIRE: neither the s25 (`A:robot_5:0.126`) nor the s26
+(`B:robot_3:0.179`) tag fired. E25 had MC's pair and yielder at
+about MC's time but grounded through the dynamic crossing view
+with a 1.169 m escort against MC's 1.95 m leg; MC records no
+grounding-view tags, so the cause is NOT ISOLATED (the §1.6 MC
+caveat). E26's first conflict on MC's pair was a `reverse`
+dispatched as waits. Recorded; no ruling. (iii) E26 RE-LATCH: the
+escorted passer r1 and its parked yielder r5 re-latched at 0.433 m
+GT about 3 sim-s after the clearance release and stayed latched to
+the cut (no contact) — another admitted, unproductive yield after
+E21 and E22 (A28(iii)), and budget-censored. Recorded, not ruled. (iv)
+BRING-UP ABORTS ON THE NEW HOST: 2 of 5 attempts (E24 f1 robot_1,
+E25 f1 robot_3 not active 120 s after launch), both $0, both
+retries succeeded; pooled sequential aborts 1/21 → 3/26. OWNER
+DECISION NEEDED: watch as a host effect, or lengthen the
+per-robot active timeout. Still open from the report: whether
+`escort_park_clearance` becomes the default in shield cells
+(n = 1 live firing, which by the re-ground changed no default);
+shield and B3 still unexercised live (shield armed on all 18
+artifacts, no hold placed).
+
+**A30. A29(i) closed: one filtered retreat selection for every
+reader; kept-yielder swap trigger stays unfiltered; next = switch-on
+overlay + mini-batch E24-E26 (2026-10-17; integration @5fbec0f =
+merge of `feat/v3-filter-parity`).** The escort/park filter now runs
+ONCE in `command_grounder.prepare_filtered_retreat_selection`; the
+two per-call-site applications are removed. Dispatch, stage 2
+(`retreat_stage2._run`), `shadow_classical.classical_retreat_answer`,
+the plan verifier (`_derived_reroute_reason(escort_park=True)` →
+`_plan_yield_verdict` reroute branch) and the junction yield phases
+all read that selection with the grounder's `goal_references`;
+dropped candidates persist only in `escort_park_filtered`. The
+verifier certifies a no-survivor yield as a legitimate
+yield→reroute degradation (E20 `f269ab37`: `m3_default`,
+`dispatch_matches_plan` True; was `vlm_verbatim` + mismatch). A15(iv)
+swap: the PARTNER side treats zero survivors as no executable
+retreat (same as a sweep-empty partner) — with the switch ON this
+turns the S1 `s1a/s1b_sweep_regrounded_exec` cases from
+partner-reroute into a certified wait fan-out; the KEPT-YIELDER
+trigger stays UNFILTERED (RULING, owner 2026-10-17: filtering it
+would turn `f269ab37` from A29's recorded reroute into a wait
+fan-out; not adopted before the mini-batch). Switch OFF is
+byte-identical to 6ce2b92 on all eight fixtures (golden
+`tests/unit/data/a29_filter_parity/golden_off.json`, written before
+the code change). Suite 62/6812/153/3, same 65 failing ids. Still
+open, non-blocking: A29(ii) stage-2 record omits dropped
+candidates; A29(iii) replay kits must map letters through
+`escort_park_filtered`; production shadow still grounds on declared
+geometry without goal refs (Arm B parity question, unchanged).
+RULING (owner 2026-10-17): proceed to a PRE-REGISTERED mini-batch
+E24-E26 on the A28/A29 runtime with a NEW overlay grounding file
+that sets `escort_park_clearance: true` and re-enables the shield
+config's escort leg (A28(ii) carry-forward lifted by A29/A30);
+pinned grounding files unchanged; 0.20 m floor swap + pre/post arm
+gates mandatory (A28(i)); budget cap $0.15, start floor $0.04,
+per-episode cap $0.05; predictions to be frozen in the report's §1
+before any live call, including: P1 every dispatched yield's
+escort leg clears its park point by >= 0.45 m (sweep on the
+dispatched command); P2 zero GT contacts and zero floor firings;
+P3 at least one `retreat=escort_park_filtered` tag fires live;
+P4 admitted/dispatched stays >= batch-4 rate. VM must be started
+for this batch and STOPPED after it.
+
+**A29. A28(ii) escort/park fix landed as CANDIDATE FILTERING;
+churn-bound option sweep; lineage pushed (2026-10-16; integration
+@6ce2b92 = merge of `feat/v3-escort-park`; churn sweep
+`data/logs/vm_runs/batch4/churn_options/REPORT.md`).** The rule
+"escort leg clears the parked partner's park point by >= 0.45 m"
+was first built as a post-selection veto of the chosen yield
+(`reasoning/rag/escort_clearance.py`: point-to-segment distance from
+(retreat_x_m, retreat_y_m) to each passer's escort leg, mirroring
+M4's heading incl. turn cap and the odometry release distance).
+Offline re-grounding showed the blanket veto rejects yields that
+were SAFE live, because the default pull-off lateral is 0.36 m:
+E20 `f269ab37` 0.447 m, E6 0.438 m, E17a/b 0.235/0.208 m, the
+canonical declared head-on 0.360 m; only the E20 contact `6cf402ed`
+(0.131 m) was the target, and in that scene candidates B/C cleared
+by 0.589/0.949 m — only the model's pick A hit the park point.
+RULING (owner, 2026-10-16): the rule moves to candidate filtering
+BEFORE stage 2 (`command_grounder.filter_escort_park_candidates`,
+also applied in `retreat_stage2._run`, which now receives the
+grounder's `goal_references` so both sides letter identically);
+violating candidates are dropped and survivors re-letter A.. in
+rank order (the existing sweep-veto precedent,
+`retreat_candidates.reletter_candidates`); the yield is infeasible
+(`yield=infeasible:escort_hits_park:<passer>:<m>` → reroute
+fallback) only when NO candidate survives; the post-selection check
+stays as a backstop. Provenance: `retreat=escort_park_filtered:
+<label>:<passer>:<m>` per dropped candidate (cause None) plus
+`RetreatSelection.escort_park_filtered`. Everything sits behind
+`GroundingParams.escort_park_clearance` (default OFF, absent from
+params dumps when off); pinned grounding files unchanged
+(rag e18c723c, s1b_dynamic 535f5281, s1b_dynamic_shield ee5fe68f).
+Fixture outcomes with the switch ON: E20 `6cf402ed` A dropped,
+B/C survive, grounds; E21 `04457772` and E23 `9803bd34` keep their
+live pose; E6/E10/E13/E14/E15 each lose a sub-0.45 candidate and
+keep a 0.53–0.92 m one; E20 `f269ab37`, E17a, E17b and the
+declared head-on are STILL VETOED (no candidate clears 0.45 m) —
+accepted as the rule applied as stated, recorded as a known cost.
+Suite 62/6772/153/3, same 65 failing ids (+34 new tests, −7
+superseded veto tests). OPEN before any live cell enables the
+switch: (i) `shadow_classical`, the plan verifier
+(`_derived_yield_degrades_to_reroute`) and the A15(iv) swap read
+the UNFILTERED selection, so certification/shadow can disagree
+with dispatch when the switch is on — must be reconciled first;
+(ii) stage-2 records do not list dropped candidates (provenance
+only in degradations); (iii) a replayed live letter now denotes a
+different pose (E20 live "A" grounds old B) — replay kits must
+map through `escort_park_filtered`. Escort leg of the shield
+config stays OFF until (i) lands (A28(ii) carried forward).
+
+CHURN-BOUND SWEEP (offline replay, same 30 classified episodes as
+A28, first-order withholds). Baseline 3/130/0 reproduced (0
+productive withheld; E3 2 by alternation; A3 6 by budget). Grid
+budget_k {2,3,4,5} × window {90,130,200,300,∞}: only k=2 with
+window >= 130 withholds a productive event (E17 `9cf93ebe`); k=3
+with window >= 200 withholds one unproductive live dispatch; every
+grid point still catches E3; A3 is lost at k >= 4 with window 90.
+The two halves catch different failures: alternation_max=0 is
+load-bearing for E3 (dispatches 38–77 s apart never trip the
+budget), budget alone catches A3 (12 dispatches, no alternation);
+raising alternation_max to 1 loses E3. Leave-one-out: budget_k ∈
+{2,3} (set by the single E17 event; the triple derived without E17
+is (2,130,0) and withholds E17 itself), window ∈ {90,130} (set by
+the single E6 gap; 90 never withholds a productive event, only
+weakens the catch). Per-cell enablement at 3/130/0: S1a-only
+withholds A3 6; S1b (incl. shield) withholds E3 2; shield-only 0;
+all 30 → 8; NO option withholds a productive event and NO option
+changes any of the 18 live episodes (0 real-model alternations
+ever). RULING: triple (3,130,0) stays REGISTERED and DEFAULT-OFF
+in every cell; no k=4 ruling is opened (it adds margin but is not
+what the registered procedure yields); re-derive budget_k when
+~20 productive events exist, when the nearest-rank p95 stops
+being the maximum.
+
+LINEAGE: `feat/v3-integration` f6598e6 and `feat/v3-design`
+d54e19b pushed to origin 2026-10-16 (first remote copies);
+`feat/prereg-v2-composite` dd5f93c and `prereg-v1-hotfix` 3988524
+fast-forwarded on origin. VM `vgu-vgu-thu-base-isaac-workstation-vm`
+found TERMINATED 2026-10-16; next start must re-apply the 0.20 m
+floor swap before any S1b live cell (A28(i)).
+
+**A28. Mini-batch E21-E23: triple derived (3/130/0); E20
+clearance-release corrigendum (2026-10-12; report
+shield-fix-and-minibatch; integration @f6598e6).** All four A27
+rulings landed: de-exemption (M3 tags `retreat_shield_hold`; M4
+drops those robots from `admitted_partners` in every phase; A19's
+command-start waiver treats a shielded robot as a bystander so a
+standing latch cannot freeze the yielder before B3 can fire), the
+0.20 m floor as a per-run install swap (`safety_floor020.yaml`,
+byte-identical to IB10's c41913f0) with pre/post arm gates, the B3
+structured log line, and the shielded-excluded vb∧matched reading
+(reproduces batch 3's 3 raw / 5 excluded). Suite 62/6708/153/3,
+same 65 failing ids. E18 replay fixture: under the new command the
+yielder latches at the first scene inside 0.45 m and B3 fires; the
+floor ALONE would not have caught E18 (0.231 m > 0.20) — the
+de-exemption is load-bearing. Mini-batch: 3/3 dispatched yields
+admitted, 2 clearance releases (E21, E23), zero contacts, zero
+floor/B3 firings, one productive event (E23, the 8th nonzero
+episode), spend $0.1069 of $0.15. P1/P2/P4 pass; P3 partially
+untested — no live B3 opportunity arose, so latch→B3 evidence
+remains replay-only (recorded, not citable as live). TRIPLE
+DERIVED at the ≥8 bar: budget_k=3 (p95 of [1,1,1,1,1,2,2,2,3]),
+window_sim_sec=130 (max of 79.3 s latency p95 and the 122.6 s E6
+gap, rounded up), alternation_max=0; ChurnLedger replay over all
+30 classified episodes withholds no productive event and withholds
+in E3 (2) and A3 (6) as designed; equals the reference-only
+triple. RULING: the triple is REGISTERED as the frozen bound
+values but the bound stays DEFAULT-OFF per A21(iii); per-cell
+enablement is a future owner call; fragility disclosed (budget_k's
+single 3 and the window's single 122.6 s gap each rest on one
+observation in 9).
+
+CORRIGENDUM to A26/A27 and the batch-3 report: E20 release
+`6cf402ed` was a CONTACT, not a clearance release. The escorted
+passer r3 drove into the parked yielder r1 on an escort line 0.14 m
+off its park point; GT distance fell below 0.18 m from 251.8 sim-s
+(minimum 0.109 m) and both robots stayed frozen to episode end.
+Batch-3 clearance releases read 2→1; A27's "TWO released by real
+passer clearance" reads ONE. It was not a productive event, so
+budget_k and the triple are unaffected (checked). This is the
+first live contact on the A26 runtime and was caught by the
+distance-recompute policy (fc73151 lineage) at the pre-arm gate.
+RULINGS: (i) the E20 class (clearing pair: escort into parked
+yielder) is NOT covered by A27 de-exemption — clearing pairs keep
+their exemption by design — but IS backstopped by the 0.20 floor
+(0.109 < 0.20): the floor swap + mandatory pre/post arm gates are
+therefore required in EVERY future S1b live cell, shield or not;
+the pinned install default stays 59839662 and no config selector
+is built for now. (ii) Escort grounding must clear a parked
+partner's park point by at least the 0.45 m latch radius; queued
+as the next integration fix with its own fixture set — the escort
+leg of the shield config stays OFF until it lands. (iii) Admitted
+≠ productive recorded as a metric distinction (E21 and E22 each
+had an admitted, unproductive yield). VM state: pristine
+safety.yaml restored; the box is NOT shield-ready without
+re-applying the swap; rule-16 pre-registration lives in VM NOTES.
+
+**A27. Batch 3: admits 5/5; shield safety ruled; budget_k one
+short (2026-10-12; report shield-and-batch3 + Rev 5; integration
+@c08904a).** The A26 stack's first live outing: admitted/dispatched
+5/5 (vs 3/9 pre-A26), TWO clearance releases (only E6 ever before),
+E20 8/25 tasks, first-conflict yield 3/15 (CI 0.043-0.481) vs MC
+10/15. The shield met all five required fixtures with NO E16
+special case (the discriminator is the PIN RULE: a robot mutually
+pinned with a non-command robot is never shielded) and needed a
+SECOND intent leg (next task node + remaining dwell via
+TaskStreamTracker.departure — no A25 blocker was actually dwelling
+at decision time). RULINGS: (i) E18's near-pass (shielded robot
+drifted 0.70 m during the M2 call; yielder passed at 0.23 m centres)
+— shield-only robots are REMOVED from the clearing exemption
+(option b): they are not clearing agents; a too-close hold now
+latches and B3 fast-fails — honest refusal-by-physics; PLUS the
+0.20 m hard-contact floor is ENABLED in S1 shield cells (its A9
+backstop role); option (a) predictive re-check recorded as optional
+refinement. The shield stays OFF until this lands. (ii) E21 +
+seeds 22-23 form the next PRE-REGISTERED mini-batch (the agent's
+floor-discipline stop is endorsed; n_more=3 puts the ≥8 budget_k
+bar in reach — the triple is derived in that batch if met).
+(iii) B3 gains a structured log line before any measured citation
+(one live firing so far, inferred from timing). (iv) vb∧matched is
+READ with shielded robots excluded (lane-scope precedent; raw
+count co-reported) — batch 3: 3 raw / 5 excluded. Over-holds
+(5/10 fixtures, ~6/7 live) accepted as recorded cost. Rev 5:
+livelock still ZERO under the real model (5 opportunity episodes,
+0 alternations/15); both-clusters 14/89; wandering undecided
+(1 finisher, 0/41); cost median $0.0335/ep, all-live $0.6477.
+
+**A14 corrigendum (2026-10-09).** A14(iv)'s "GT
+robot_static_contacts logged 0 rows during a physical pin" implied
+an under-detecting detector. The truth is stronger:
+acceptance_logging.py:99 HARD-CODES the field to [] on every
+lineage — it never could log any static contact. The docs-lineage
+caveat (fc73151) states it that way; v3 scorers must treat the
+field as a stub, not a measurement, until a real detector ships.
 
 **A7. Step 0 status note.** The merged tree's rotation-probe
 signature PASSED (0/142 closed columns vs 12–13 pre-fix). The stage-1
