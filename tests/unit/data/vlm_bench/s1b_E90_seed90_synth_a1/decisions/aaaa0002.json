@@ -1,0 +1,350 @@
+{
+ "prompt": {
+  "system_prompt": "You are a helpful assistant.",
+  "system_sha256": "75357d685f238b6afd7738be9786fdafde641eb6ca9a3be7471939715a68a4de",
+  "user_prompt": "synthetic prompt",
+  "user_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+ },
+ "prompt_version": 3,
+ "robot_presentation_order": "id_asc",
+ "prompt_conditions": {
+  "candidate_options": null,
+  "candidate_options_requested": false,
+  "construct_constrained_selection": false,
+  "metric_grid": {
+   "m1_drawn": false,
+   "requested": false,
+   "stated": false
+  },
+  "metric_grid_spacing_m": null,
+  "motion_trails": {
+   "m1_drawn": false,
+   "requested": false,
+   "stated": false
+  },
+  "permutation_votes": 1,
+  "prompt_version": 3,
+  "zoom_tile": null,
+  "zoom_tile_requested": false
+ },
+ "grounding_params_source": {
+  "aisle_y_band_override_m": null,
+  "params": {
+   "aisle_x_band_m": [
+    -2.36,
+    2.36
+   ],
+   "aisle_y_band_m": [
+    -1.66,
+    1.66
+   ],
+   "backup_band_m": [
+    0.5,
+    2.0
+   ],
+   "backup_clearance_m": 1.7,
+   "dynamic_handoff_radius_m": 0.5,
+   "dynamic_scene_arms": true,
+   "escort_band_m": [
+    1.0,
+    3.5
+   ],
+   "escort_clearance_m": 0.5,
+   "escort_park_clearance": true,
+   "escort_turn_cap": true,
+   "hold_backstop_sec": 45.0,
+   "junction_recede_cost_follower_weight": 0.5,
+   "junction_recede_cost_space_weight": 1.0,
+   "junction_recede_hold_sec": 120.0,
+   "junction_recede_order_epsilon": 0.15,
+   "junction_recede_tolerance_m": 0.1,
+   "lateral_m": 0.35,
+   "min_distance_m": 0.45,
+   "mode": "derived",
+   "resolution_backstop_sec": 150.0,
+   "retreat_box_margin_m": 0.05,
+   "retreat_fast_fail": true,
+   "retreat_shield": true,
+   "retreat_shield_margin_m": 0.05,
+   "sweep_step_m": 0.1,
+   "wait_backstop_sec": 120.0
+  },
+  "path": "config/grounding/s1b_dynamic_shield_escort.yaml",
+  "section_present": true
+ },
+ "diagnostics": {
+  "attempts": 1,
+  "backend_id": "gemini",
+  "decision_degradations": [],
+  "error_message": null,
+  "error_type": null,
+  "finish_reason": "completed",
+  "image_fallback_attempt": null,
+  "image_fallback_used": false,
+  "latency_ms": 6479,
+  "parse_status": "valid",
+  "reasoner_config_effective": {
+   "backend_id": "gemini",
+   "effort": null,
+   "image_fallback_after_attempts": null,
+   "max_attempts": 2,
+   "max_tokens": 2048,
+   "model_id": "gemini-robotics-er-2-preview",
+   "payload_format": {
+    "image_detail": null,
+    "image_position": "after_text",
+    "json_guidance": "prompt_only",
+    "system_placement": "system_instruction",
+    "version": "v1"
+   },
+   "presence_penalty": 0.0,
+   "reasoning_effort": null,
+   "seed": null,
+   "served_model": "gemini-robotics-er-2-preview",
+   "system_fingerprint": null,
+   "temperature": 0.6,
+   "thinking_level": "low",
+   "thinking_mode": null,
+   "top_k": 20,
+   "top_p": 0.95,
+   "unsupported_sampling": {
+    "presence_penalty": 0.0,
+    "temperature": 0.6,
+    "top_k": 20.0,
+    "top_p": 0.95
+   }
+  },
+  "refusal_attempts": 0,
+  "refusal_category": null,
+  "request_id": "4ec0e90e27894ced96b34e2bf5f0fa33",
+  "served_model": "gemini-robotics-er-2-preview",
+  "system_fingerprint": null,
+  "token_usage": {
+   "cached_tokens": 0,
+   "completion_tokens": 319,
+   "input_tokens_image": 1064,
+   "input_tokens_text": 2191,
+   "prompt_tokens": 3255,
+   "thought_tokens": 230,
+   "tool_use_tokens": 0,
+   "total_tokens": 3804
+  },
+  "unsupported_sampling": {
+   "presence_penalty": 0.0,
+   "temperature": 0.6,
+   "top_k": 20.0,
+   "top_p": 0.95
+  }
+ },
+ "reasoner_config_effective": {
+  "backend_id": "gemini",
+  "effort": null,
+  "image_fallback_after_attempts": null,
+  "max_attempts": 2,
+  "max_tokens": 2048,
+  "model_id": "gemini-robotics-er-2-preview",
+  "payload_format": {
+   "image_detail": null,
+   "image_position": "after_text",
+   "json_guidance": "prompt_only",
+   "system_placement": "system_instruction",
+   "version": "v1"
+  },
+  "presence_penalty": 0.0,
+  "reasoning_effort": null,
+  "seed": null,
+  "served_model": "gemini-robotics-er-2-preview",
+  "system_fingerprint": null,
+  "temperature": 0.6,
+  "thinking_level": "low",
+  "thinking_mode": null,
+  "top_k": 20,
+  "top_p": 0.95,
+  "unsupported_sampling": {
+   "presence_penalty": 0.0,
+   "temperature": 0.6,
+   "top_k": 20.0,
+   "top_p": 0.95
+  }
+ },
+ "shadow_classical": {
+  "decision": {
+   "blocker_kind": null,
+   "congestion_detected": true,
+   "crossing_order": null,
+   "involved_robots": [
+    "robot_1",
+    "robot_3",
+    "robot_4"
+   ],
+   "justification": "classical policy: unknown scenario waits once, then reroutes (prior_attempts=4)",
+   "proposed_plan": [
+    {
+     "action": "reroute",
+     "robot_id": "robot_1"
+    },
+    {
+     "action": "reroute",
+     "robot_id": "robot_3"
+    },
+    {
+     "action": "reroute",
+     "robot_id": "robot_4"
+    },
+    {
+     "action": "continue",
+     "robot_id": "robot_5"
+    },
+    {
+     "action": "continue",
+     "robot_id": "robot_2"
+    }
+   ],
+   "root_cause": "classical: unclassified stall of robot_1, robot_3, robot_4",
+   "strategy": "reroute",
+   "type": "anomaly",
+   "yield_robot": null
+  },
+  "params": {
+   "arrival_tie_sec": 1.0,
+   "arrived_exclusion_radius_m": 0.35,
+   "axis_cross_max_deg": 135.0,
+   "axis_cross_min_deg": 45.0,
+   "fcfs_zone_radius_m": 1.0,
+   "goal_beyond_max_deg": 60.0,
+   "heading_opposition_min_deg": 150.0,
+   "r_block_m": 1.0,
+   "r_conflict_m": 1.5,
+   "stopped_speed_mps": 0.05
+  },
+  "prior_attempts": 4,
+  "sample_period_sec": 0.25,
+  "window_sec": 60.0
+ },
+ "request_id": "aaaa0002",
+ "scene": {
+  "stamp": 30.0,
+  "frame_id": "overhead_camera",
+  "dropped_frame": false,
+  "robots": [
+   {
+    "goal": [
+     2.3,
+     0.0
+    ],
+    "linear_velocity": 6.735827210882725e-21,
+    "robot_id": "robot_1",
+    "stamp": 30.0,
+    "status": "STOPPED",
+    "task": "pickup",
+    "theta": -0.6823087697023883,
+    "x": 1.9895799607138596,
+    "y": 0.3922439169847328
+   },
+   {
+    "goal": [
+     -2.3,
+     1.35
+    ],
+    "linear_velocity": 0.14939272275378354,
+    "robot_id": "robot_2",
+    "stamp": 30.0,
+    "status": "MOVING",
+    "task": "pickup",
+    "theta": 3.141592653589793,
+    "x": -0.7899482319373207,
+    "y": -1.0873873031965646
+   },
+   {
+    "goal": [
+     -0.25,
+     -1.35
+    ],
+    "linear_velocity": 3.48831991246181e-102,
+    "robot_id": "robot_3",
+    "stamp": 30.0,
+    "status": "STOPPED",
+    "task": "pickup",
+    "theta": -2.459283883887403,
+    "x": 1.0656129252892415,
+    "y": -0.9130566734255723
+   },
+   {
+    "goal": [
+     2.3,
+     0.0
+    ],
+    "linear_velocity": 1.97635831152786e-102,
+    "robot_id": "robot_4",
+    "stamp": 30.0,
+    "status": "STOPPED",
+    "task": "pickup",
+    "theta": 0.09966707753026989,
+    "x": 0.8193669936784351,
+    "y": -1.1658360865935113
+   },
+   {
+    "goal": [
+     2.3,
+     0.0
+    ],
+    "linear_velocity": 1.0589799030821612e-39,
+    "robot_id": "robot_5",
+    "stamp": 30.0,
+    "status": "STOPPED",
+    "task": "pickup",
+    "theta": -0.22131103570811397,
+    "x": 2.231467557251908,
+    "y": 0.04249309100667953
+   }
+  ]
+ },
+ "decision": {
+  "blocker_kind": "robot",
+  "congestion_detected": true,
+  "crossing_order": [
+   "robot_4",
+   "robot_3"
+  ],
+  "involved_robots": [
+   "robot_3",
+   "robot_4"
+  ],
+  "justification": "Robot 3 can yield or back up to allow Robot 4 to pass through or clear the deadlock.",
+  "proposed_plan": [
+   {
+    "action": "yield",
+    "robot_id": "robot_3"
+   },
+   {
+    "action": "cross",
+    "robot_id": "robot_4"
+   },
+   {
+    "action": "continue",
+    "robot_id": "robot_1"
+   },
+   {
+    "action": "continue",
+    "robot_id": "robot_5"
+   },
+   {
+    "action": "continue",
+    "robot_id": "robot_2"
+   }
+  ],
+  "reasoning": "robot_3 and robot_4 are in a head-on deadlock, being within 0.35m of each other, facing each other, and both currently STOPPED. We need robot_3 to yield/reverse or robot_4 to yield/reverse to clear the impasse.",
+  "root_cause": "robot_3 and robot_4 are stopped head-on at a very close distance, blocking each other's paths.",
+  "strategy": "yield",
+  "type": "deadlock",
+  "yield_robot": "robot_3"
+ },
+ "raw_text": "{\"blocker_kind\": \"robot\", \"congestion_detected\": true, \"crossing_order\": [\"robot_4\", \"robot_3\"], \"involved_robots\": [\"robot_3\", \"robot_4\"], \"justification\": \"Robot 3 can yield or back up to allow Robot 4 to pass through or clear the deadlock.\", \"proposed_plan\": [{\"action\": \"yield\", \"robot_id\": \"robot_3\"}, {\"action\": \"cross\", \"robot_id\": \"robot_4\"}, {\"action\": \"continue\", \"robot_id\": \"robot_1\"}, {\"action\": \"continue\", \"robot_id\": \"robot_5\"}, {\"action\": \"continue\", \"robot_id\": \"robot_2\"}], \"reasoning\": \"robot_3 and robot_4 are in a head-on deadlock, being within 0.35m of each other, facing each other, and both currently STOPPED. We need robot_3 to yield/reverse or robot_4 to yield/reverse to clear the impasse.\", \"root_cause\": \"robot_3 and robot_4 are stopped head-on at a very close distance, blocking each other's paths.\", \"strategy\": \"yield\", \"type\": \"deadlock\", \"yield_robot\": \"robot_3\"}",
+ "yield_refusal_reason": "yield refused: ambiguous lane: robot_3 heads 39 deg off both axes (beyond the 30 deg snap), and robot_4's x lane crosses the pair's y bearing; no retreat room was measured",
+ "dispatched_command": null,
+ "plan": null,
+ "plan_state": null,
+ "stage2": null,
+ "failure_context": null,
+ "last_failed_context": null
+}

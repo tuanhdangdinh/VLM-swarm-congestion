@@ -1,0 +1,1 @@
+{"seed": 90, "echo_names": ["robot_3", "robot_4"], "encounters": [{"t": 10.0, "pair": ["robot_3", "robot_4"]}], "escort": {"outcome": "executable_yield", "yielder": "robot_4", "refusal": null}}

@@ -48,3 +48,6 @@ docs/note/
 ._*
 **/._*
 data/demo/
+
+# v4 VLM bench items, runs and response cache (local; reports go to docs/reports)
+data/bench/
