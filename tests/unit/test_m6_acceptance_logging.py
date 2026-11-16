@@ -347,7 +347,7 @@ def _write_rows(tmp_path, scenario, poses_by_tick):
     path = tmp_path / "ground_truth.jsonl"
     tracker = RobotPoseTracker()
     with path.open("w", encoding="utf-8") as handle:
-        logger = AcceptanceLogger(handle, scenario, log_hz=10.0)
+        logger = AcceptanceLogger(handle, scenario, log_hz=10.0, contact_logging=True)
         for sim_time, positions in poses_by_tick:
             logger.maybe_write(sim_time, tracker.update_from_positions(sim_time, positions))
     return [json.loads(line) for line in path.read_text().splitlines()]
@@ -400,7 +400,7 @@ def test_acceptance_record_keeps_min_pairwise_distance_centre_to_centre():
         "robot_2": RobotRuntimeState(robot_id="robot_2", x=0.0, y=0.3, theta=0.0, speed_mps=0.0),
     }
 
-    record = build_acceptance_record(1.0, _head_on_scenario(), states)
+    record = build_acceptance_record(1.0, _head_on_scenario(), states, contact_logging=True)
 
     assert record["min_pairwise_distance_m"] == 0.3
     assert record["min_robot_robot_gap_m"] == round(0.3 - 2 * 0.089, 4)
@@ -423,3 +423,52 @@ def test_offline_recompute_reproduces_logged_contacts_from_rounded_row(tmp_path)
     assert frame.static_contacts == row["robot_static_contacts"]
     assert frame.min_static_gap_m == row["min_static_gap_m"]
     assert frame.min_robot_robot_gap_m == row["min_robot_robot_gap_m"]
+
+
+PIN_ROW_KEYS = {
+    "sim_time_sec",
+    "robots",
+    "conflict_active",
+    "conflict_type",
+    "involved_robots",
+    "min_pairwise_distance_m",
+    "robot_static_contacts",
+    "robot_robot_contacts",
+}
+
+
+def _overlapping_island_states() -> dict[str, RobotRuntimeState]:
+    return {
+        "robot_1": RobotRuntimeState(robot_id="robot_1", x=0.837, y=0.572, theta=math.pi, speed_mps=0.0),
+        "robot_2": RobotRuntimeState(robot_id="robot_2", x=0.875, y=0.572, theta=0.0, speed_mps=0.0),
+    }
+
+
+def test_contacts_disabled_matches_pin_schema_when_key_off():
+    row = build_acceptance_record(0.0, _island_scenario(), _overlapping_island_states())
+
+    assert row["robot_static_contacts"] == []
+    assert row["robot_robot_contacts"] == []
+    assert set(row) == PIN_ROW_KEYS
+
+
+def test_contacts_computed_when_key_on():
+    row = build_acceptance_record(
+        0.0, _island_scenario(), _overlapping_island_states(), contact_logging=True
+    )
+
+    assert row["contact_model"] == "urdf_footprint_v1"
+    assert row["robot_static_contacts"] != []
+
+
+def test_acceptance_logger_skips_static_boxes_when_key_off(tmp_path, monkeypatch):
+    def _fail(_scenario):
+        raise AssertionError("scene_static_boxes called with contact logging off")
+
+    monkeypatch.setattr(acceptance_logging, "scene_static_boxes", _fail)
+    with (tmp_path / "gt.jsonl").open("w", encoding="utf-8") as handle:
+        logger = AcceptanceLogger(handle, _island_scenario(), log_hz=10.0)
+        logger.maybe_write(0.0, _overlapping_island_states())
+    row = json.loads((tmp_path / "gt.jsonl").read_text().splitlines()[0])
+
+    assert set(row) == PIN_ROW_KEYS

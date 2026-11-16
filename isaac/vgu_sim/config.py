@@ -1290,6 +1290,49 @@ class WarehouseConfig(BaseModel):
     wall_height_m: float = 1.2
 
 
+class GtContactLoggingConfig(BaseModel):
+    """Sim-side switch for footprint contact fields in ground-truth rows.
+
+    Off by default so rows keep the `68e67b5` schema (empty contact lists, no
+    gap minima, no `contact_model`) that every evaluated run was logged with.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    enabled: bool = False
+
+
+class _GtConfigFile(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    gt_contact_logging: GtContactLoggingConfig = GtContactLoggingConfig()
+
+
+def load_gt_contact_logging_config(path: Path | None) -> GtContactLoggingConfig:
+    """Load the `gt_contact_logging` section from an opt-in GT config file.
+
+    Args:
+        path: YAML file with a top-level `gt_contact_logging:` mapping (for
+            example `config/gt/contact_logging_on.fragment.yaml`), or None.
+
+    Returns:
+        The parsed section; the default-off config when `path` is None or the
+        file has no such section.
+
+    Raises:
+        FileNotFoundError: If `path` is given but does not exist.
+        ValueError: If the file is not a YAML mapping or has unknown keys.
+    """
+    if path is None:
+        return GtContactLoggingConfig()
+    import yaml
+
+    raw = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+    if raw is None:
+        raw = {}
+    if not isinstance(raw, dict):
+        raise ValueError(f"GT config {path} is not a YAML mapping")
+    return _GtConfigFile.model_validate(raw).gt_contact_logging
+
+
 class ResolvedRunConfig(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
     scenario_path: Path
@@ -1299,6 +1342,7 @@ class ResolvedRunConfig(BaseModel):
     output_dir: Path
     topic_timeout_sec: float
     ros_domain_id: int | None
+    gt_contact_logging: GtContactLoggingConfig = GtContactLoggingConfig()
 
 
 class RunResult(BaseModel):

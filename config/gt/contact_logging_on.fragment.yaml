@@ -1,0 +1,12 @@
+# Opt-in GT config FRAGMENT (2026-11-16): turns on footprint contact fields in
+# the simulator's ground-truth rows. Pass it to the Isaac runner with
+# `--gt-config config/gt/contact_logging_on.fragment.yaml` (or the
+# VGU_ISAAC_GT_CONFIG env var). Absent = off = the 68e67b5 row schema
+# (empty contact lists, no min_*_gap_m, no contact_model), which every
+# evaluated run was logged with.
+#
+# For future kits only. The 2026-11-15 demo-campaign kits (sft, m5v) stay
+# frozen: they ship their own always-on acceptance_logging.py
+# (md5 1d8b3b9d02bcda38e581459c7ad0e06f) in their runtime deltas.
+gt_contact_logging:
+  enabled: true

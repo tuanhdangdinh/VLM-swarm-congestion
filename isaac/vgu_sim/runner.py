@@ -192,7 +192,12 @@ def run_repetition(
         loop_start_time = float(sim_ctx.current_time)
         sim_time = 0.0
         with open(gt_path, "w", encoding="utf-8") as gt_file:
-            logger = AcceptanceLogger(gt_file, config.scenario, log_hz=10.0)
+            logger = AcceptanceLogger(
+                gt_file,
+                config.scenario,
+                log_hz=10.0,
+                contact_logging=config.gt_contact_logging.enabled,
+            )
             while sim_time < duration and app.is_running():
                 if stop_requested(stop_flag):
                     abort_fields = abort_manifest_fields(stop_flag, "sim_loop", sim_time)

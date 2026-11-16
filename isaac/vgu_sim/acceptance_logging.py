@@ -68,28 +68,33 @@ def build_acceptance_record(
     scenario: ScenarioConfig,
     states: dict[str, RobotRuntimeState],
     static_boxes: Sequence[StaticBox] | None = None,
+    contact_logging: bool = False,
 ) -> dict[str, object]:
     """Build one ground-truth row.
 
-    The contact fields come from `contact_geometry.compute_contact_frame`,
-    evaluated on the rounded pose the row itself records, so an offline
-    recompute from the row reproduces them exactly.
+    With `contact_logging` off the row has the `68e67b5` shape: contact lists
+    are empty and no gap or model fields are written. With it on, the contact
+    fields come from `contact_geometry.compute_contact_frame`, evaluated on the
+    rounded pose the row itself records, so an offline recompute from the row
+    reproduces them exactly.
 
     Args:
         sim_time_sec: Sim time of the row, seconds.
         scenario: Scenario being run.
         states: Robot id to sampled runtime state.
         static_boxes: The scene's collidable boxes; computed from `scenario`
-            when None.
+            when None. Unused when `contact_logging` is off.
+        contact_logging: Whether to compute the contact fields
+            (`gt_contact_logging.enabled`).
 
     Returns:
         The JSON-ready row. `robot_static_contacts` lists
         `{"robot_id", "obstacle_id", "gap_m"}` and `robot_robot_contacts`
         lists `{"robot_ids", "gap_m"}` for pairs whose footprint gap is at
-        most `CONTACT_GAP_THRESHOLD_M`; `min_static_gap_m` and
-        `min_robot_robot_gap_m` give the unthresholded minima; and
-        `contact_model` marks the row as computed, unlike the stub rows
-        written before it existed.
+        most `CONTACT_GAP_THRESHOLD_M`; with `contact_logging` on,
+        `min_static_gap_m` and `min_robot_robot_gap_m` give the unthresholded
+        minima and `contact_model` marks the row as computed, unlike the stub
+        rows written with it off.
     """
     goals = _goal_lookup(scenario)
     robots: dict[str, dict[str, float | None]] = {}
@@ -116,14 +121,8 @@ def build_acceptance_record(
         conflict_active = _head_on_active(scenario, states)
 
     min_distance = _min_pairwise_distance(states)
-    boxes = scene_static_boxes(scenario) if static_boxes is None else static_boxes
-    contacts = compute_contact_frame(
-        {rid: (r["x"], r["y"], r["theta"]) for rid, r in robots.items()},
-        boxes,
-        sim_time_sec,
-    )
     conflict = scenario.expected_conflict
-    return {
+    row: dict[str, object] = {
         "sim_time_sec": _round4(sim_time_sec),
         "robots": robots,
         "conflict_active": conflict_active,
@@ -132,28 +131,55 @@ def build_acceptance_record(
         "min_pairwise_distance_m": (
             _round4(min_distance) if min_distance is not None else None
         ),
-        "robot_static_contacts": contacts.static_contacts,
-        "robot_robot_contacts": contacts.robot_contacts,
-        "min_static_gap_m": contacts.min_static_gap_m,
-        "min_robot_robot_gap_m": contacts.min_robot_robot_gap_m,
-        "contact_model": CONTACT_MODEL_ID,
+        "robot_static_contacts": [],
+        "robot_robot_contacts": [],
     }
+    if not contact_logging:
+        return row
+    boxes = scene_static_boxes(scenario) if static_boxes is None else static_boxes
+    contacts = compute_contact_frame(
+        {rid: (r["x"], r["y"], r["theta"]) for rid, r in robots.items()},
+        boxes,
+        sim_time_sec,
+    )
+    row.update(
+        {
+            "robot_static_contacts": contacts.static_contacts,
+            "robot_robot_contacts": contacts.robot_contacts,
+            "min_static_gap_m": contacts.min_static_gap_m,
+            "min_robot_robot_gap_m": contacts.min_robot_robot_gap_m,
+            "contact_model": CONTACT_MODEL_ID,
+        }
+    )
+    return row
 
 
 class AcceptanceLogger:
-    def __init__(self, file: TextIO, scenario: ScenarioConfig, log_hz: float = 10.0) -> None:
+    def __init__(
+        self,
+        file: TextIO,
+        scenario: ScenarioConfig,
+        log_hz: float = 10.0,
+        contact_logging: bool = False,
+    ) -> None:
         self._file = file
         self._scenario = scenario
         self._period_sec = 1.0 / log_hz
         self._next_log_sec = 0.0
-        # Built once so a scene-geometry error surfaces before the sim loop.
-        self._static_boxes = scene_static_boxes(scenario)
+        self._contact_logging = contact_logging
+        # Built once so a scene-geometry error surfaces before the sim loop;
+        # skipped when off so a key-off run behaves as the pin did.
+        self._static_boxes = scene_static_boxes(scenario) if contact_logging else None
 
     def maybe_write(self, sim_time_sec: float, states: dict[str, RobotRuntimeState]) -> None:
         if sim_time_sec + 1e-9 < self._next_log_sec:
             return
         record = build_acceptance_record(
-            sim_time_sec, self._scenario, states, self._static_boxes
+            sim_time_sec,
+            self._scenario,
+            states,
+            self._static_boxes,
+            contact_logging=self._contact_logging,
         )
         self._file.write(json.dumps(record, sort_keys=True) + "\n")
         self._next_log_sec += self._period_sec

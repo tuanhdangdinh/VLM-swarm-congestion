@@ -85,6 +85,7 @@ def _assert_conflict_formed(gt_path: Path, min_duration_sec: float) -> None:
     pytest.fail(f"Conflict never active for {min_duration_sec}s in {gt_path}")
 
 
+# Trivial unless gt_contact_logging.enabled is on: off rows keep the [] stub.
 def _assert_no_static_contacts(gt_path: Path) -> None:
     for line in gt_path.read_text().splitlines():
         if not line.strip():

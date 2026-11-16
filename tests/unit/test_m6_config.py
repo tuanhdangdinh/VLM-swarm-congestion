@@ -558,3 +558,45 @@ def test_coverage_families_accept_a_multi_robot_ordering_oracle(family):
     data["expected_conflict"] = {**data["expected_conflict"],
                                  "involved_robots": ["robot_1", "robot_2", "robot_3"]}
     assert ScenarioConfig.model_validate(data).family == family
+
+
+def test_gt_contact_logging_off_when_no_gt_config_given():
+    from isaac.vgu_sim.config import load_gt_contact_logging_config
+
+    assert load_gt_contact_logging_config(None).enabled is False
+
+
+def test_gt_contact_logging_on_when_fragment_given():
+    from pathlib import Path
+
+    from isaac.vgu_sim.config import load_gt_contact_logging_config
+
+    fragment = Path(__file__).resolve().parents[2] / "config/gt/contact_logging_on.fragment.yaml"
+
+    assert load_gt_contact_logging_config(fragment).enabled is True
+
+
+def test_gt_contact_logging_rejects_unknown_key(tmp_path):
+    from isaac.vgu_sim.config import load_gt_contact_logging_config
+
+    path = tmp_path / "gt.yaml"
+    path.write_text("gt_contact_logging:\n  enabld: true\n", encoding="utf-8")
+
+    with pytest.raises(ValidationError):
+        load_gt_contact_logging_config(path)
+
+
+def test_resolved_run_config_defaults_gt_contact_logging_off(tmp_path):
+    from isaac.vgu_sim.config import ResolvedRunConfig
+
+    config = ResolvedRunConfig(
+        scenario_path=tmp_path / "s.usd",
+        scenario=ScenarioConfig.model_validate(VALID_HEAD_ON),
+        headless=True,
+        repetitions=1,
+        output_dir=tmp_path,
+        topic_timeout_sec=1.0,
+        ros_domain_id=None,
+    )
+
+    assert config.gt_contact_logging.enabled is False
