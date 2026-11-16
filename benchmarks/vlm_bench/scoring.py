@@ -163,6 +163,151 @@ def score_item(
     )
 
 
+_NEGATIVE: dict[str, Any] = {
+    "congestion_detected": False,
+    "type": "none",
+    "involved_robots": [],
+    "root_cause": "none_feasible in every group",
+    "strategy": "none",
+    "justification": "none_feasible in every group",
+}
+
+
+def _primary(
+    item: BenchItem, chosen: Sequence[tuple[str, dict[str, Any]]], matched: int | None
+) -> tuple[str, dict[str, Any]] | None:
+    yields = [(label, d) for label, d in chosen if d.get("strategy") == "yield"]
+    if not yields:
+        return None
+    if item.mc is not None and item.mc.pair:
+        pair = set(item.mc.pair)
+        for label, d in yields:
+            if pair <= set(d.get("involved_robots") or ()):
+                return label, d
+    if matched is not None:
+        robots = set(next(c.involved for c in item.gt.episode_conflicts if c.index == matched))
+        best = max(yields, key=lambda e: len(robots & set(e[1].get("involved_robots") or ())))
+        # A yield in a group that shares no robot with the matched conflict
+        # resolves something else; scoring it against that conflict's
+        # references would credit or blame the wrong decision.
+        return best if robots & set(best[1].get("involved_robots") or ()) else None
+    return yields[0]
+
+
+def score_group_decisions(
+    item: BenchItem,
+    decisions: dict[str, dict[str, Any] | None],
+    source: str,
+    ground_fn: GroundFn,
+    oracle_fn: OracleFn | None = None,
+    option_scores: dict[str, ItemScore] | None = None,
+) -> ItemScore:
+    """Score a per-group answer (one decision or None per observed group) as one item row.
+
+    Each chosen decision is grounded on its own (`score_item`), never as a
+    merged decision. The row then combines them:
+
+    - involved = the union of the chosen decisions' robots, in group order;
+      coverage, per-cluster recall and the A33(6) matched conflict and F1
+      are computed on that union, with the existing functions;
+    - grounding is feasible when every chosen decision is; the first refusal
+      reason, class and error are kept and the action kinds concatenated;
+    - strategy is the chosen strategies joined with `+` in group order;
+    - the yielder (and its M3-oracle, shadow and MC agreement) comes from
+      one chosen yield: the one containing the MC first-conflict pair, else
+      the one sharing most robots with the matched conflict (none when no
+      chosen yield shares a robot with it), else, with no matched conflict,
+      the first;
+    - every group `none_feasible` scores as a negative answer.
+
+    Args:
+        item: The bench item.
+        decisions: Group label -> decision dict, or None for `none_feasible`.
+        source: The row's source label.
+        ground_fn: Offline grounder (`grounder_offline.ground_decision`).
+        oracle_fn: Geometry oracle; None skips it.
+        option_scores: Optional precomputed `score_item` rows per label (an
+            oracle search reuses them); missing labels are scored here.
+
+    Returns:
+        The combined item score; `decision` holds the union and the
+        per-group decisions under `group_decisions`.
+    """
+    chosen = [(label, d) for label, d in decisions.items() if d is not None]
+    if not chosen:
+        base = score_item(item, dict(_NEGATIVE), source, ground_fn, oracle_fn, with_cost=False)
+        return base.model_copy(
+            update={"decision": {**_NEGATIVE, "group_decisions": dict(decisions)}}
+        )
+    scores = dict(option_scores or {})
+    for label, decision in chosen:
+        if label not in scores:
+            scores[label] = score_item(
+                item, decision, source, ground_fn, oracle_fn, with_cost=False
+            )
+    involved: list[str] = []
+    for _, decision in chosen:
+        involved += [r for r in decision.get("involved_robots") or () if r not in involved]
+    strategy = "+".join(d.get("strategy") or "?" for _, d in chosen)
+    union = {
+        "congestion_detected": True,
+        "type": chosen[0][1].get("type"),
+        "involved_robots": involved,
+        "strategy": strategy,
+    }
+    matched = matched_conflict(item, union)
+    clusters = item.gt.clusters
+    by_index = {c.index: c for c in item.gt.episode_conflicts}
+    f1_matched = f1(involved, by_index[matched].involved) if matched is not None else None
+    primary = _primary(item, chosen, matched)
+    primary_score = scores[primary[0]] if primary is not None else None
+    yielder = primary[1].get("yield_robot") if primary is not None else None
+    union["yield_robot"] = yielder
+    union["group_decisions"] = dict(decisions)
+    outcomes = [scores[label].grounding for label, _ in chosen]
+    first_bad = next((o for o in outcomes if o is not None and not o.feasible), None)
+    grounding = GroundingOutcome(
+        feasible=all(o is not None and o.feasible for o in outcomes),
+        refusal_reason=None if first_bad is None else first_bad.refusal_reason,
+        refusal_class=None if first_bad is None else first_bad.refusal_class,
+        error=None if first_bad is None else first_bad.error,
+        grounded_yielder=(
+            None if primary_score is None or primary_score.grounding is None
+            else primary_score.grounding.grounded_yielder
+        ),
+        action_kinds=tuple(k for o in outcomes if o is not None for k in o.action_kinds),
+    )
+    oracle_set = None if primary_score is None else primary_score.oracle_yielders
+    cls_yielder = classical_yielder(item) if source != "classical" else None
+    mc = mc_yielder(item, matched)
+    return ItemScore(
+        item_id=item.item_id,
+        batch=item.batch,
+        episode=item.episode,
+        source=source,
+        decision=union,
+        valid=True,
+        positive=True,
+        strategy=strategy,
+        involved=tuple(involved),
+        grounding=grounding,
+        n_clusters=len(clusters),
+        covered=coverage(involved, clusters),
+        cluster_recalls=cluster_recalls(involved, clusters),
+        matched_conflict=matched,
+        f1_matched=f1_matched,
+        f1_unconditional=(f1_matched or 0.0) if clusters else None,
+        yielder=yielder,
+        oracle_yielders=oracle_set,
+        oracle_agree=yielder_agrees(yielder, oracle_set) if yielder else None,
+        classical_yielder=cls_yielder,
+        classical_agree=yielder_agrees(yielder, cls_yielder) if yielder else None,
+        mc_yielder=mc,
+        mc_agree=yielder_agrees(yielder, mc) if yielder else None,
+        no_gt_conflict=not clusters,
+    )
+
+
 class Rate(BaseModel):
     """A pooled proportion with its counts."""
 

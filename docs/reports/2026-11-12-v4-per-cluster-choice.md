@@ -1,0 +1,720 @@
+# v4 Grounding-First Per-Cluster Choice: Design, Ceiling and Naive Chooser
+
+**Prepared:** 2026-11-12
+
+**Revision history:**
+
+- Initial draft: `grounding_first_per_cluster` variant, zero-cost ceiling, fixed first-option-per-group chooser, joint-feasibility and single-dispatch finding, replay commands not run.
+- Rev 2 (2026-11-12): the two real-model replays (R7a ER-2, R7b Sonnet 5.5) were run by the owner side and scored here; added the Real-Model Replay Results section, evidence under Owner Rulings and Rev 2 limits. The Rev 1 sections are kept unchanged.
+- Rev 3 (2026-11-12): framing correction (the "naive" first-option chooser is the v2 generator's default-ordered first option, not a blind baseline; superseded wording marked in place), text-only and joint-check limits stated beside the R7 headline, and a conditional within-slot choice analysis.
+
+---
+
+## Scope
+
+This report covers v4 lever 3, a per-cluster choice for the grounding-first
+`replay` variant of the offline bench (`docs/specs/v4_vlm_bench.md`, Rev 2).
+It follows the v2 report (`docs/reports/2026-10-24-v4-gf-cluster-candidates.md`,
+Rev 2), whose finding motivated it: with one option list and one choice, the
+models covered 6-9 of 61 two-cluster positives and 1-2 of the 44 whose clusters
+fall in different observed groups, and ER-2 answered "none" on 21-22 of 137.
+
+- **Hypothesis.** Forcing one decision per observed group, with the group
+  labels as the answer's required keys, removes that under-selection.
+- **Zero API calls (Rev 1 sections).** No key was loaded and no network
+  backend ran for the design, ceiling and naive-chooser sections. **Rev 2:**
+  R7a and R7b did call the Gemini and Anthropic APIs; this author scored their
+  output files only and made no call. The
+  chooser runs use the zero-network `FixedGroupChoiceBackend`, with caches in a
+  scratch directory, never under `data/bench/cache`.
+- **Exploratory v4 only.** Nothing here pools with or replaces any prereg-v3
+  confirmatory measure (A32-A36).
+- **Items.** The same 187 items as every v4 report: `items_live31.jsonl`,
+  md5 f1dc2ccb (137 recorded positives).
+- **Code.** `benchmarks/vlm_bench/variants/per_cluster.py` (variant, contract,
+  joint check), `variants/per_cluster_report.py` (GT-scored report) and
+  `scoring.score_group_decisions`, commit d4ae78d; tests
+  `tests/unit/test_vlm_bench_per_cluster.py`, commit 510faca; yielder and
+  oracle tie-order fix with its tests, commit 89df9fc. Existing variants and
+  generators are unchanged and stay the default.
+
+---
+
+## Design
+
+### Slots
+
+The variant reuses the v2 observed grouping and the v2 option list. It never
+reads `item.gt`; a test replaces `gt` with an object that raises on any
+attribute access and gets identical slots and joint checks.
+
+- **One slot per observed group.** A slot holds exactly the options v2 lists in
+  that group's section, in v2 order: group yields, group reverse, in-group
+  pairs, reroutes, partial pairs (one robot in the group, one in no group), then
+  waits. Each option was probed with the real offline M3 and kept only when it
+  executes as asked (v2 rule, unchanged).
+- **Span pairs are not offered.** Choosing one option in each group is this
+  variant's way of naming both groups.
+- **Robots in no group get no slot** (v2's default `--gf-offgroup drop`). They
+  still appear in partial-pair options.
+- **No-group fallback (deviation, kept from v2).** On a scene with no observed
+  group, v2 keeps the outside section whatever the flag says. Here that section
+  becomes the single slot `outside`, so the model still has options. This
+  applies to 4/187 items, 2 of them recorded positives.
+- **Per-group `none_feasible`.** Every slot accepts `none_feasible`. All slots
+  `none_feasible` is a negative answer.
+
+### Option Ids
+
+- **Default `numbered`.** v2's global 1-based numbers, so the option text and
+  numbers are those of an R5/R6 prompt; only the "none" line and the answer
+  instruction change. This keeps one change against R5a/R6a.
+- **Flag `--option-ids opaque`.** A per-item token: a letter plus 3 base32
+  characters of sha256(`item_id:executed_key_v2`), longer only on a collision
+  (none on these items). It follows the option, not its position, under
+  `--shuffle-options`. The resource scan suggests opaque ids against position
+  priors; that claim is unverified secondary material, and opaque ids are a
+  second change relative to R5/R6, so the choice is listed under Owner Rulings.
+
+### Prompt and Answer Contract
+
+- **Prompt.** The live prompt verbatim, then the v2-style header, a header per
+  group ("Group A: robot_1, robot_3, robot_4 (options 1-6)"), its options, a
+  `none_feasible` line per group, and the instruction. The instruction names the
+  required keys and adds one machine-readable line,
+  `Answer keys and allowed ids: {"A": ["1", ..., "none_feasible"], ...}`.
+- **Contract.** The reply's JSON object must carry `choices`, whose keys are
+  exactly the slot labels. It is validated against a per-item model from
+  `pydantic.create_model`: frozen, `extra="forbid"`, one required
+  `Literal[ids..., "none_feasible"]` field per slot. A missing group, an extra
+  key, or an id from another group fails. Integer ids are read as strings for
+  numbered ids; nothing else is coerced.
+- **Re-ask.** A failure is re-asked with the production `build_reask_prompt`,
+  up to the backend's `max_attempts`, then `decision=None`,
+  `parse_status="failed"`. Backend errors back off as in the v1/v2 variant.
+- **Backend-agnostic.** Prompt building, parsing and validation live in the
+  variant; no backend code changed.
+
+### Schema Delivery per Backend
+
+Neither backend can take a per-item schema through the existing interface, so
+the sanctioned fallback is used for both: prompt-stated keys plus strict
+validation.
+
+| Backend | How a response schema reaches the provider today | Per-item required keys possible without live changes |
+|---|---|---|
+| any (`VLMBackend.analyze(payload, config)`) | `PromptPayload` has no schema field (`reasoning/vlm/models.py`) | no |
+| `gemini` (`GeminiBackend`) | `force_schema` loads one static schema (`reasoning/schemas` `vlm_decision`) at construction and sends it as `response_format`; `force_schema: false` in `config/models.yaml` | no: static per instance, and off on the pinned arm |
+| `anthropic` (`AnthropicBackend`) | no schema or structured-output field is sent; text only | no |
+
+Sending a per-item schema would need a schema field on `PromptPayload` (a
+shared live contract) and adapter changes, which the brief excludes. The
+R1-R6 runs also used prompt-stated formats only, so this keeps the delivery
+like-for-like.
+
+### Scoring a Multi-Group Answer
+
+The bench scores one decision per item. `scoring.score_group_decisions` keeps
+rows comparable with R1/R2/R4a/R4b/R5/R6 on the 137 basis:
+
+- Each chosen decision is grounded alone with `score_item`. No merged decision
+  is ever grounded, because M3 would ground a different command or refuse it.
+- **Involved** = the union of the chosen options' robots, in slot order.
+  Coverage, per-cluster recall, the A33(6) matched conflict and matched F1 are
+  computed on that union with the existing functions and denominators.
+- **M3 feasibility** = every chosen option feasible; the first refusal is kept.
+- **Strategy** = the chosen strategies joined with `+` in slot order.
+- **Yielder** (and its M3-oracle, live-shadow and MC agreement): the chosen
+  yield containing the MC first-conflict pair, else the one sharing most robots
+  with the matched conflict. When no chosen yield shares a robot with the
+  matched conflict, the row has no yielder: that yield resolves another
+  cluster, and a single-decision run would name none there either. With no
+  matched conflict, the first chosen yield. With one chosen option this equals
+  `score_item` (tested). The no-overlap case occurs on 7 naive-chooser rows and
+  5 oracle-`coverage` rows of the 137; none of them has an MC reference, so the
+  MC column is unaffected.
+- **Extras** (GT side, report module only): `none_feasible` per slot; spurious
+  commands, a chosen option naming no robot of any active GT cluster; and
+  per-cluster best-option F1, the mean over active clusters of the best F1 of
+  any one chosen option.
+- **Union F1 drops mechanically.** On a split item the union names two
+  clusters, but matched F1 compares it with one matched conflict.
+  `match_analysis` (A33(6)) picks, among the conflicts whose window contains
+  the item time, the one sharing most robots with the union, then one already
+  started (latest onset), else the earliest upcoming. The per-cluster
+  best-option F1 is reported beside it for that reason.
+- **Analysis gotcha.** `analysis_20261023/analyze.py`'s strict check re-grounds
+  `ItemScore.decision`; for per-cluster rows that dict is the union record, not
+  a decision. Use `data/bench/v4/analysis_20261112_pc/analyze_pc.py`
+  (untracked), which re-grounds each `group_decisions` entry.
+
+### Existing Behaviour Unchanged
+
+- `candidates` v1 output md5 ee3943f0 and v2 default md5 a84e4444, both
+  regenerated in this tree and equal to the published values.
+- The whole bench suite passes (144 tests; 108 before, 36 new). One existing
+  assertion changed: the registry list test now includes the new variant name.
+- `replay` rejects `--option-ids opaque` on other variants and section flags
+  other than `drop` on this one.
+
+---
+
+## Ceiling on the 137 Recorded Positives (Zero Cost)
+
+The command was `python -m benchmarks.vlm_bench candidates --generator
+per-cluster` at git 89df9fc. Output:
+`data/bench/v4/candidates_gf_pc.{jsonl,md}` in the worktree
+`vgu-vlm-swarm-v6c` (jsonl md5 f333fb8e, untracked). The oracle scores every
+combination of one option or `none_feasible` per slot. Ties keep the earlier
+combination: `none_feasible` comes first in each slot, so a tie keeps fewer
+commands, and single choices run in v2 option order, as v2's oracle does.
+
+### Slots and Options
+
+| Recorded positives (137) | Value |
+|---|---|
+| Slots per item | 1 slot: 92; 2 slots: 45; no item has 3 |
+| Of these, `outside` fallback | 2 |
+| Options per slot | mean 11.8 (median 11, range 1-29) |
+| Options per item | mean 15.7 (median 15, range 7-29), equal to v2 default |
+| 2-slot items by stratum | split 38, touch 7 |
+| 1-slot items by stratum | one cluster 76, touch 10, split 6 |
+
+The 6 one-slot split items have one cluster in the group and the other among
+robots in no group; partial-pair options reach it.
+
+### Oracle Ceilings Next to v1 and v2
+
+Rule `coverage` = coverage, then matched F1, then mean recall; `f1` = matched
+F1, then coverage; `match` = Jaccard of the chosen robots with the union of the
+active clusters, then coverage, then matched F1 (the v2 report's rules).
+`single` restricts rule `coverage` to at most one non-none slot, which is v2's
+single choice over the same options. M3 feasibility is 1.000 in every row, by
+construction.
+
+| Set (137 recorded positives) | Rule | Coverage | Mean cluster recall | Involved F1 matched | Per-cluster best-option F1 | Yielder vs MC |
+|---|---|---|---|---|---|---|
+| v1 | coverage | 1.000 | 0.548 | 0.672 | n/a | 0.778 (14/18) |
+| v2 default (drop span) | coverage | 0.766 | 0.704 | 0.899 | n/a | 0.900 (18/20) |
+| v2, keep span | coverage | 1.000 | 0.688 | 0.779 | n/a | 0.875 (14/16) |
+| per-cluster, `single` (self-check) | coverage | 0.766 | 0.704 | 0.899 | 0.762 | 0.900 (18/20) |
+| per-cluster | coverage | **1.000** | **0.891** | 0.856 | 0.889 | 0.947 (18/19) |
+| per-cluster | match | 0.978 | 0.922 | 0.858 | 0.901 | 0.833 (20/24) |
+| per-cluster | f1 | 0.620 | 0.683 | **0.966** | 0.759 | 0.957 (22/23) |
+
+- **Self-check.** `single` reproduces the v2-default coverage-rule ceiling
+  exactly: coverage, recall, matched F1 and MC 18/20. A first version broke
+  ties in a different order and gave MC 14/16 with the other three equal;
+  enumerating single choices in v2 option order restored 18/20 (commit
+  89df9fc), which confirms the tie order was the only difference.
+- `none_feasible` slots chosen by the oracle: 4/182 (coverage), 0/182 (match),
+  44/182 (f1). Spurious commands: 0 in every oracle row.
+
+**Coverage by active GT cluster count** (rule `coverage` unless named):
+
+| Set | 1 cluster (76) | 2 clusters (61) | 2 clusters, one group touches both (17) | 2 clusters, split across groups (44) |
+|---|---|---|---|---|
+| v1 | 76 | 61 | 17 | 44 |
+| v2 default | 76 | 29 | 17 | 12 |
+| v2, keep span | 76 | 61 | 17 | 44 |
+| per-cluster | 76 | **61** | 17 | **44** |
+| per-cluster, rule `match` | 76 | 58 | 17 | 41 |
+| per-cluster, rule `f1` | 76 | 9 | 9 | 0 |
+| per-cluster, `single` | 76 | 29 | 17 | 12 |
+
+### Is the Hypothesis Killed?
+
+No. On the 44 split items the per-group ceiling is 44/44 against v2's 12/44,
+and every split item is reachable (no active cluster lies wholly outside the
+listed options). The test is weak, though: per-group choice is a superset of
+v2-default single choice over the same options, so its oracle cannot be below
+v2 by construction. It reaches the keep-span coverage ceiling (1.0) while
+keeping a higher recall (0.891 vs 0.688) and matched F1 (0.856 vs 0.779). It
+cannot reach v2-default's matched F1 under rule `coverage` (0.856 vs 0.899),
+because the union is compared with one matched conflict. The per-cluster
+best-option F1 (0.889) shows the options themselves still fit their clusters.
+
+---
+
+## Naive Chooser (Zero-Network, First Option in Every Group)
+
+*Rev 3: "naive" is superseded wording throughout this report. The chooser
+takes the v2 generator's default-ordered first option in each slot, a
+geometric heuristic, not a blind baseline; see Rev 3 Correction.*
+
+The command was `replay --prompt-variant grounding_first_per_cluster
+--fixed-group-choice first --backend gemini` with a scratch `--cache-dir`, at
+git 89df9fc. Every base prompt reproduced its stored hash (0 skipped), with
+165 cache misses and 22 hits, as in R5/R6. The opaque-id run
+(`--option-ids opaque --backend anthropic`) chose the same options on 187/187
+items and scored identically; it had 187 misses and 0 hits, because opaque ids
+are item-specific. The replay rows equal the report module's "first" rows on
+all 187 items. Files: `data/bench/v4/run_pc_fixed_first{,_opaque}.*`
+(untracked). The jsonl md5 varies between runs only in `latency_ms`.
+
+| 137 recorded positives | Recorded ER-2 | v1 option 1 | v2 option 1 | R5a ER-2 GF v2 | R6a Sonnet GF v2 | Per-cluster first in every group |
+|---|---|---|---|---|---|---|
+| valid / positive | 137 / 137 | 137 / 137 | 137 / 137 | 137 / 116 | 137 / 137 | 137 / 137 |
+| M3 feasibility | 0.496 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 (137/137; 182/182 options strict) |
+| cluster coverage | 0.686 (94) | 0.526 (72) | 0.672 (92) | 0.496 (68) | 0.620 (85) | **0.949 (130)** |
+| mean per-cluster recall | 0.710 | 0.423 | 0.618 | 0.500 | 0.621 | **0.827** |
+| involved F1, matched (n) | 0.911 (136) | 0.733 (124) | 0.802 (136) | 0.850 (116) | 0.861 (137) | 0.771 (136) |
+| involved F1, unconditional | 0.904 | 0.663 | 0.796 | 0.720 | 0.861 | 0.765 |
+| per-cluster best-option F1 | n/a | n/a | n/a | n/a | n/a | 0.791 |
+| yielder vs MC first conflict | 0.467 (7/15) | 0.759 (22/29) | 0.793 (23/29) | 0.875 (21/24) | 0.875 (21/24) | 0.828 (24/29) |
+| coverage: 1 / 2 / touch / split | n/a | n/a | n/a | 60 / 8 / 6 / 2 | 76 / 9 / 7 / 2 | 75 / 55 / 16 / 39 |
+| `none_feasible` slots / spurious commands | n/a | n/a | n/a | n/a | n/a | 0/182 / 1 |
+
+The R5a and R6a columns were recomputed with this tree's analysis script and
+equal the v2 report's Rev 2 table.
+
+- **Coverage becomes cheap.** With `min_overlap = 1`, any answer in every slot
+  names every group, and the observed groups agree well with the GT clusters
+  (partly by definition, as the v2 report notes). A chooser with no
+  intelligence covers 130/137 and 39/44 split items. *(Rev 3: superseded
+  wording; it is the default-ordered first option, not a chooser without
+  intelligence.)* Under this variant
+  coverage measures little; recall, per-cluster best-option F1, the
+  `none_feasible` rate and spurious commands are the informative metrics.
+- **Uncovered by the naive chooser:** 7 items. Six have a single slot (5 split,
+  1 touch) whose first option does not name both clusters; one is a one-cluster
+  item on the `outside` fallback slot.
+- **Matched F1 falls** (0.802 for v2 option 1, 0.771 here) for the union
+  reason above. The naive chooser's per-cluster best-option F1 (0.791) is below
+  the oracle's 0.889.
+- **Over all 187 items** the naive chooser covers 177/185 (v2 option 1: 99/185),
+  with recall 0.866. The two items with no active GT cluster are both answered
+  positive, as v2 option 1 does.
+
+---
+
+## Joint Feasibility and Single Dispatch
+
+Each option is probed feasible on its own. Two commands issued together may
+conflict, and the live pipeline would not issue them together.
+
+### What the Live Pipeline Does (Read, Not Modified)
+
+Verified in the code:
+
+- **One decision per analysis.** `CongestionDecision` carries one strategy, one
+  involved set and one yield robot (`reasoning/vlm/models.py`).
+  `ground_reasoner_result` turns one `ReasonerResult` into one command dict
+  (`reasoning/rag/command_grounder.py`).
+- **One command per outcome.** `PipelineOutcome.grounded_command` is a single
+  dict (`swarm_orchestrator/models.py`). `OrchestratorStateMachine` is a
+  "single in-flight reasoning cycle": only `MONITORING` starts an analysis, and
+  `on_outcome` returns one `DISPATCH` directive. `_dispatch` publishes the one
+  command from `registry_dispatch(outcome)`, fanned out per action under one
+  `command_id` (`orchestrator_node.py`, `reasoning_pipeline.fan_out_command`).
+- **One event per scene.** `CongestionDetector.update` returns one
+  `CongestionEvent` whose `involved_robots` is every stalled robot in the
+  scene, not one event per cluster (`congestion_detector.py`). A two-cluster
+  scene is therefore one analysis.
+- **Busy gate.** `on_event` suppresses an event when any involved robot is in
+  an unresolved dispatched command or in cooldown (`state_machine.py`).
+- **Plan channel represents, but does not dispatch, a scene-wide plan.** With
+  `plan_channel_enabled` (true in all 187 item overlays; a live plan block on
+  137), `InProcessPipeline` runs `verify_and_repair_plan`, which returns a
+  complete scene-wide leg list (one `{robot_id, action}` per robot; actions
+  yield, reverse, cross, wait, reroute, continue), and `PlanTracker` tracks it.
+  The command dispatched is still the decision's one `grounded` command,
+  tagged with the `plan_id`; `dispatch_matches_plan` records whether it matches
+  the plan. No code path dispatches the other legs.
+- **Precedent for several commands from one decision.** `junction_clear`
+  dispatches later phases from M5 without a new M2 call
+  (`_dispatch_junction_phase`, `JunctionPhaseQueue`, behind the same flag). It
+  is specific to `junction_clear`.
+
+Inferred, not verified:
+
+- Whether `verify_and_repair_plan` would keep a plan with yields in two groups:
+  it audits the plan against the decision's own fields, which name one
+  strategy; this was not tested.
+
+- A per-group answer would need either a live change to dispatch several
+  commands from one outcome, or sequential cycles. With sequential cycles, once
+  group A's command is out, the next event names A's robots whenever they are
+  still stalled, and is suppressed until that command resolves. So group B
+  would likely wait for A's command, and group B's chosen option would be
+  discarded and re-asked on a later scene. Whether A's robots stay in the
+  stalled set while they execute was not checked.
+
+### What Offline M3 Checks and What It Does Not
+
+M3 grounds each command alone. It never sees another chosen command. Its A26
+retreat shield holds bystanders whose route crosses a yield's retreat, but it
+reads their task intents, not another command's motion. `joint_check`
+(`variants/per_cluster.py`) adds the following on the scene and the grounded
+commands, never GT, and filters nothing:
+
+| Tier | Check | Basis |
+|---|---|---|
+| Exact | the same robot addressed by two chosen commands, a hold in one and a move in the other included | grounded actions |
+| Exact | two yield retreat points closer than `safety_radius_m` (0.45 m) | grounded `retreat_x_m`, `retreat_y_m` |
+| Heuristic | a motion segment of one command within 0.45 m of the other command's segments or addressed robots | yield backup and pull-off (`retreat_corridor`), passer escort lines (escort heading and distance), reverse backups along the heading, reroute polylines |
+| Not checked | timing and order; passers' Nav2 paths after the escort; swept footprints (centrelines only); M4 safety-monitor interaction; whether M5 would dispatch both | |
+
+Results on the 137 recorded positives:
+
+| Chooser | Items with ≥ 2 commands | Shared robot | Retreat clash | Path proximity (heuristic) | Any |
+|---|---|---|---|---|---|
+| Oracle, rule `coverage` | 41 | 2 | 2 | 6 | 7 |
+| First in every group | 45 | 5 | 2 | 10 | 11 |
+
+The exact conflicts are of three kinds:
+
+- **Same retreat cell.** E26 `3b37822b` and `3627ad58`: the two groups'
+  yields park 0.16 m and 0.41 m apart, inside the 0.45 m safety radius.
+- **Shield hold vs move.** E18 `e0783ffa`, and E26 `3627ad58`: group B's yield
+  holds a robot of group A (the A26 shield) while group A's yield passes it.
+- **Shared partial-pair robot.** E17 `51f90185`, `a0f42386`, `4710c25c` under
+  the naive chooser: robot_1 is in no group and appears in a partial pair of
+  each group.
+
+So 7 of 41 oracle multi-command answers, and 11 of 45 naive ones, would put
+two commands in conflict or near-conflict if issued together. The exact checks
+cover 3 and 6 of them. Nothing here shows the other combinations would execute
+jointly; they are only not flagged.
+
+---
+
+## Prompt Size, Cost Estimate and Replay Commands (Not Run)
+
+**Prompt size.** Mean composed length, system plus user, over the 187 rebuilt
+prompts: v2 default 10,133 characters; per-cluster numbered 10,548 (×1.041);
+per-cluster opaque 10,620 (×1.048).
+
+**Cost estimate.** Formula only, in the earlier reports' method. It scales the
+Rev 2 actuals by the prompt-length ratio, and by billed calls for opaque ids
+(187 instead of 165, since opaque prompts never repeat). Output tokens may grow
+a little with the `choices` object; re-asks on invalid choices would add calls.
+These are not invoices.
+
+| Run | Basis | Billed calls | Est $ |
+|---|---|---|---|
+| R7a ER-2, per-cluster, numbered | R5a $1.272 × 1.041 | 165 | ~1.32 |
+| R7b Sonnet 5.5, per-cluster, numbered | R6a $2.546 × 1.041 | 165 | ~2.65 |
+| ER-2, opaque ids (optional) | R5a × 1.048 × 187/165 | 187 | ~1.51 |
+| Sonnet 5.5, opaque ids (optional) | R6a × 1.048 × 187/165 | 187 | ~3.02 |
+| R7a + R7b | | 330 | **~3.97** |
+
+**Commands.** Run from the repo root with the repo venv and the pyproject
+`PYTHONPATH`. They need the owner's API keys in the environment. They were not
+run.
+
+```bash
+python -m benchmarks.vlm_bench replay --backend gemini \
+  --prompt-variant grounding_first_per_cluster --items data/bench/v4/items_live31.jsonl \
+  --out data/bench/v4/run_r7a_er2_pc.jsonl --summary data/bench/v4/run_r7a_er2_pc.md \
+  --cache-dir data/bench/cache/r7a
+python -m benchmarks.vlm_bench replay --backend anthropic \
+  --prompt-variant grounding_first_per_cluster --items data/bench/v4/items_live31.jsonl \
+  --out data/bench/v4/run_r7b_sonnet55_pc.jsonl --summary data/bench/v4/run_r7b_sonnet55_pc.md \
+  --cache-dir data/bench/cache/r7b
+python data/bench/v4/analysis_20261112_pc/analyze_pc.py run_r7a_er2_pc run_r7b_sonnet55_pc
+```
+
+Add `--option-ids opaque` (with a new `--out` and `--cache-dir`) for the
+opaque-id arm. The run `.md` summaries compute coverage over each run's own
+positives; read the 137-item rows from the analysis script.
+
+---
+
+## Real-Model Replay Results (Rev 2, 2026-11-12)
+
+Two runs at git a54df59 on `items_live31.jsonl` (md5 f1dc2ccb), with the
+replay commands above (numbered ids, unshuffled). Files:
+`data/bench/v4/run_{r7a_er2_pc,r7b_sonnet55_pc}.{jsonl,md,config.json}` and
+caches `data/bench/cache/r7{a,b}` in the worktree `vgu-vlm-swarm-v6c`
+(untracked). Scoring script:
+`data/bench/v4/analysis_20261112_pc/analyze_r7.py` (untracked; reads `item.gt`,
+analysis only).
+
+**Integrity check before scoring.** The disk filled around the time the runs
+finished, so the files were checked first. Both run files hold 187 rows with
+187 distinct item ids. Both configs parse, with 187 `per_item` entries,
+0 prompt-hash skips and 22 cache hits each. The caches hold 166 (R7a) and 165
+(R7b) response files, all valid JSON. R7a's extra file is one re-ask (E23
+`a81e5925`, answered validly on attempt 2). No row records a parse failure or
+an API error.
+
+### Headline Table (137 Recorded Positives)
+
+The bench's own `summarize`, restricted to the 137 recorded positives, as in
+the v2 report's Rev 2 tables. R5a, R6a and the naive chooser were recomputed by
+the same script and equal the published figures.
+
+| Metric | R5a ER-2 GF v2 | R7a ER-2 per-cluster | R6a Sonnet GF v2 | R7b Sonnet per-cluster | First in every group | Oracle `coverage` |
+|---|---|---|---|---|---|---|
+| valid / positive | 137 / 116 | 137 / 129 | 137 / 137 | 137 / 137 | 137 / 137 | 137 / 137 |
+| M3 feasibility (every chosen option) | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 |
+| cluster coverage | 0.496 (68) | 0.832 (114) | 0.620 (85) | 0.934 (128) | 0.949 (130) | 1.000 (137) |
+| mean per-cluster recall | 0.500 | 0.746 | 0.621 | 0.815 | 0.827 | 0.891 |
+| involved F1, matched (n) | 0.850 (116) | 0.799 (129) | 0.861 (137) | 0.791 (137) | 0.771 (136) | 0.856 (137) |
+| involved F1, unconditional | 0.720 | 0.752 | 0.861 | 0.791 | 0.765 | 0.856 |
+| per-cluster best-option F1 | n/a | 0.761 | n/a | 0.819 | 0.791 | 0.889 |
+| yielder vs MC first conflict | 21/24 | 23/26 | 21/24 | 21/25 | 24/29 | 18/19 |
+| coverage 1 cl (76) / 2 cl (61) | 60 / 8 | 69 / 45 | 76 / 9 | 76 / 52 | 75 / 55 | 76 / 61 |
+| touch (17) / split (44) | 6 / 2 | 12 / 33 | 7 / 2 | 14 / 38 | 16 / 39 | 17 / 44 |
+
+- Strict feasibility (each chosen option re-grounds to what it asked): 168/168
+  options (R7a) and 181/181 (R7b).
+- Over all 187 items: coverage R7a 0.859 (159/185), R7b 0.941 (174/185);
+  matched F1 0.769 and 0.783. Both models answered every slot `none_feasible`
+  on the 2 items with no active GT cluster (FP 0/2); the naive chooser is
+  positive on both.
+- Token cost from the caches, in the v2 report's method: R7a $1.323 (696,579
+  in / 55,423 out + 69,889 thought, 166 calls), R7b $2.632 (888,220 in /
+  85,572 out, 165 calls), together about $3.96 against the forecast ~$3.97.
+  Estimates, not invoices.
+
+### Within-Slot Choice Quality
+
+All 182 slots of the 137 positives touch at least one active GT cluster, so on
+these items `none_feasible` is never the GT-preferred answer for a slot. "Slot
+F1" is the F1 of the chosen option's robots against the union of the active
+clusters the slot's group touches (0 for `none_feasible`). "Oracle-best" is the
+option in the slot with the highest slot F1.
+
+| Chooser | `none_feasible` / slots | Spurious | Mean slot F1 | Slots covering their clusters | Chosen = slot's first option | Chosen = oracle-best | Exact joint conflict / multi-command items | Any joint flag |
+|---|---|---|---|---|---|---|---|---|
+| R7a ER-2 | 14 / 182 | 0 | 0.790 | 160 / 182 | 95 / 168 | 116 / 168 | 2 / 39 | 5 |
+| R7b Sonnet | 1 / 182 | 0 | 0.846 | 176 / 182 | 105 / 181 | 124 / 181 | 2 / 44 | 7 |
+| First in every group | 0 / 182 | 0 | 0.827 | 180 / 182 | 182 / 182 | 126 / 182 | 6 / 45 | 11 |
+| Oracle `coverage` | 4 / 182 | 0 | 0.886 | 178 / 182 | 117 / 178 | 161 / 178 | 3 / 41 | 7 |
+
+Paired, slot by slot (182 slots), against the naive chooser:
+
+| Pair | Model slot F1 higher | Lower | Equal |
+|---|---|---|---|
+| R7a vs first | 24 | 42 | 116 |
+| R7b vs first | 23 | 24 | 135 |
+
+Against the oracle-`coverage` choice, R7a is lower on 60 slots and higher on
+15; R7b lower on 50 and higher on 14 (the oracle optimises item coverage, not
+slot F1, so it can be beaten on a slot).
+
+### Against v2 and Re-Ask Noise
+
+| Pair (137 positives) | Covered only by the first | Covered only by the second |
+|---|---|---|
+| R5a (v2) vs R7a | 1 | 47 |
+| R6a (v2) vs R7b | 0 | 43 |
+| R7a vs R7b | 3 | 17 |
+| first vs R7a | 18 | 2 |
+| first vs R7b | 3 | 1 |
+
+- **Noise guide.** No same-prompt repeat was run for R7. The v2 report's guide
+  (separate caches, identical prompts, 92 items) found the decision changed on
+  15% (ER-2) and 21% (Sonnet) of items, and the covered flag on 10 (ER-2) and
+  3 (Sonnet) of 92.
+- **One-slot items (92), where the prompt differs from v2 only in the "none"
+  line and the answer instruction:** R7a chose the same v2 option as R5a on
+  74/92; ER-2's "none" fell from 16 to 7 of them. R7b chose the same option as
+  R6a on 66/92 (no "none" in either).
+- **Two-slot items (45):** R7a answered both slots on 39, one on 5, none on 1;
+  R7b both on 44, one on 1.
+
+### Interpretation (Conservative)
+
+1. The format removes the under-selection. Coverage rises from 0.496 to 0.832
+   (ER-2) and from 0.620 to 0.934 (Sonnet); split two-cluster items go from 2
+   to 33 and from 2 to 38 of 44. The paired flips (47 vs 1, 43 vs 0) are far
+   above the re-ask guide (up to 10 of 92 covered flags), so this is not noise.
+   Recall rises from 0.50 to 0.75 and from 0.62 to 0.82.
+2. *(Rev 3: restated in Rev 3 Correction; "naive" is superseded wording.)*
+   The gain is the format's, not the models' choosing. The naive
+   first-option-in-every-group chooser does as well or better: coverage 0.949,
+   recall 0.827, slot F1 0.827. Sonnet is level with it (slot F1 0.846 vs
+   0.827; 23 slots better, 24 worse, within re-ask noise), with a small edge on
+   per-cluster best-option F1 (0.819 vs 0.791) and matched F1 (0.791 vs
+   0.771). ER-2 is below it (42 slots worse, 24 better), mostly from 14
+   `none_feasible` slots, every one on a slot that touches a GT cluster.
+3. Neither model approaches the oracle within a slot: the oracle-best option is
+   chosen on 69% (ER-2) and 69% (Sonnet) of answered slots, the same as the
+   naive first option (126/182, 69%); mean slot F1 0.79 and 0.85 against
+   0.886. Both models pick the slot's first option on 57-58% of answered slots.
+   The runs were not shuffled, so position and quality are not separated.
+4. Matched F1 falls (ER-2 0.850 to 0.799, Sonnet 0.861 to 0.791) because the
+   union of two groups is compared with one matched conflict (Design). The
+   per-cluster best-option F1 is the fairer view, and there Sonnet (0.819) sits
+   between the naive chooser and the oracle (0.889).
+5. ER-2 still says "none" more than Sonnet: 8 of 137 items fully negative and
+   14 of 182 slots, against 0 and 1. Down from 21 items under v2.
+6. Joint conflicts remain: exact conflicts on 2 of 39 (ER-2) and 2 of 44
+   (Sonnet) multi-command answers, fewer than the naive chooser's 6 of 45; any
+   flag on 5 and 7. None of these would execute live as one decision (Joint
+   Feasibility section).
+7. MC yielder agreement stays in the GF range (23/26, 21/25), with
+   denominators of 25-29 where one item moves the rate by about 0.04.
+
+---
+
+## Rev 3: Correction and Conditional Choice Analysis (2026-11-12)
+
+### Correction: What the First Option Is
+
+The Rev 1 and Rev 2 text calls the first-option-in-every-group chooser
+"naive" and, once, a chooser "with no intelligence". That is wrong. Each
+slot's first option is the first entry in the v2 generator's listing order
+(`gf_cluster.generate_cluster_candidates`): group yields sorted by the
+yielder's distance to its nearest passer, then the group reverse, in-group
+pairs by separation, reroutes, partial pairs, and the group wait last. Every
+listed option is M3-executable, but the ordering itself is the bench
+generator's geometric heuristic; M3 only probes each option. On the 182 slots
+of the 137 positives the first option is:
+
+| First option of the slot | Slots |
+|---|---|
+| group yield (nearest yielder-passer distance) | 83 |
+| group reverse | 33 |
+| group `temporary_wait` (nothing else listed for the group) | 18 |
+| in-group pair reverse | 12 |
+| in-group pair yield | 7 |
+| partial pair (one robot in no group): reverse 16, yield 13 | 29 |
+
+So read every "naive chooser" above as **the default-ordered first option**.
+The R7 headline becomes:
+
+- **On involvement F1 (slot F1 and per-cluster best-option F1), the models
+  match, and do not beat, the generator's default ordering.** This is not "the
+  models add nothing over chance": the default ordering is itself a strong
+  geometric heuristic.
+- **Text only.** All replays (R1-R7) sent the neutral grey image, so this is
+  shown only without vision. An image arm could change it.
+- **Joint conflicts are a lower bound.** The joint counts above include only
+  exact clashes (a robot addressed by two commands, retreat points within
+  0.45 m) and a straight-line, timing-free proximity heuristic. Timing, order,
+  Nav2 paths after the escort and swept footprints are not checked, so "2 of
+  39" and "2 of 44" do not show that the other multi-command answers are
+  jointly safe.
+
+### Conditional Choice Analysis
+
+Script: `data/bench/v4/analysis_20261112_pc/cond.py` (untracked; written on the
+coordinator side and re-run here with identical output). Its definitions match
+`analyze_r7.py`: a slot's target is the union of the active GT clusters that
+share a robot with the slot's group; an option's score is its involvement F1
+against that target; "best" is the maximum over the slot's options, ties
+counting as best. All 182 slots touch a target.
+
+| Slot condition | Model | Picks first | Picks another best | Picks a worse option | `none_feasible` |
+|---|---|---|---|---|---|
+| First option is best (126) | R7a ER-2 | 83 | 12 | 25 | 6 |
+| First option is best (126) | R7b Sonnet | 85 | 19 | 22 | 0 |
+| First option is not best (56) | R7a ER-2 | 12 (stays on first) | 21 (picks the best) | 15 | 8 |
+| First option is not best (56) | R7b Sonnet | 20 (stays on first) | 20 (picks the best) | 15 | 1 |
+
+Strategies over answered slots: ER-2 chose yield 84, `temporary_wait` 47,
+reverse 37; Sonnet yield 92, `temporary_wait` 52, reverse 37. The slots'
+first options are yield 103, reverse 61, `temporary_wait` 18. The models
+choose `temporary_wait` far more often than it is listed first (47-52 vs 18);
+this report does not interpret that further.
+
+**Conservative reading.**
+
+- The models are not simply taking the first-listed option: where the first
+  option is not best, they move to a best option on 20-21 of 56 slots.
+- They also leave a best first option for a worse one on 22-25 of 126 slots.
+  The two roughly cancel, which is why slot F1 lands at the default ordering's
+  level.
+- Headroom is small. The oracle's mean slot F1 (0.886) is only 0.06 above the
+  default ordering (0.827). Same-prompt re-asks in R5/R6 changed the decision on
+  14 and 19 of 92 items. One run per configuration cannot resolve within-slot
+  choice quality at that scale.
+- Involvement F1 is not an outcome measure. It scores which robots are named,
+  not whether the commands would resolve the conflict.
+
+---
+
+## Owner Rulings Needed
+
+- **Run R7a/R7b?** About $4 for both numbered-id runs.
+  - *Rev 2:* run; about $3.96 estimated from the caches.
+- **Option ids.** Numbered (one change vs R5/R6, default) or opaque (also
+  against position priors, about 13% more billed calls)? Or both, as a
+  separate arm?
+  - *Rev 2 evidence:* both models chose the slot's first option on 57-58% of
+    answered slots in unshuffled numbered runs. A shuffled or opaque arm is the
+    only way to separate position from quality; it would bill 187 calls per
+    run.
+  - *Rev 3 evidence:* the conditional analysis shows the models do leave the
+    first option (to a best one on 20-21 of 56 slots, to a worse one on 22-25
+    of 126). R2 vs R3 found no first-slot bias under shuffling, so a shuffled
+    per-cluster arm is unlikely to change the conclusion. That null was shown
+    for ER-2 on v1 lists only; Sonnet was never shuffled. Repeats (variance),
+    an outcome-based metric, or an image arm are the more informative next
+    measurements. Evidence only, not a decision.
+- **Primary metric under this variant.** Coverage is near-saturated by a naive
+  chooser (0.949). Should recall and per-cluster best-option F1 be primary for
+  R7, with coverage reported only for comparability?
+  - *Rev 2 evidence:* by coverage, recall and slot F1 neither model beats the
+    naive chooser; only per-cluster best-option F1 and matched F1 show a small
+    Sonnet edge. A per-slot quality metric (slot F1, or oracle-best rate) is
+    what separates choosers here.
+  - *Rev 3 evidence:* involvement F1 (slot or per-cluster) is not an outcome
+    measure, and its headroom to the oracle (0.827 to 0.886) is within the
+    scale of re-ask noise; an outcome-based metric would be needed to rank
+    choosers.
+- **Joint conflicts.** Keep unfiltered (current), reject choices with an exact
+  conflict at validation and re-ask, or remove partial-pair options from the
+  slots? Any filter makes the answer contract depend on other slots.
+  - *Rev 2 evidence:* exact conflicts on 2 answers per model (any flag 5 and
+    7), against 6 for the naive chooser.
+- **Live path.** A per-group answer is not executable in live M5 as one
+  decision. Is the lever bench-only (a diagnostic of under-selection), or should
+  a design note scope it live? The plan channel already carries a scene-wide
+  leg list but dispatches only the decision's command; `junction_clear`'s phase
+  queue is the only path that dispatches several commands from one decision.
+  No live code was changed.
+- **No-group fallback.** The `outside` slot repeats v2's deviation on 4 items
+  (2 positives). Accept?
+
+---
+
+## Approximations and Limits
+
+- **Exploratory v4 only.** Pilot and tranche-1 scenes, never pooled with or
+  substituted for prereg-v3 confirmatory measures (A32-A36).
+- **Tuned on the same items.** The grouping's seed and MOVING-attach rules
+  were chosen after a GT-agreement sweep on these 187 items, so the slots, the
+  ceiling and the naive chooser are not held-out.
+- **No model was asked.** The ceiling uses GT to choose and bounds the slots,
+  not a model. The naive chooser shows what the format alone yields.
+  *(Rev 3: superseded; it shows what the format plus the generator's default
+  ordering yields.)*
+- **The kill test is weak by construction.** Per-group choice contains v2's
+  single choice, so its oracle cannot fall below v2.
+- **Coverage is cheap here.** `min_overlap = 1` coverage rewards answering
+  every group, and groups agree with GT clusters partly by definition.
+- **Union F1.** Matched F1 compares the union with one matched conflict and
+  penalises naming two clusters; per-cluster best-option F1 is the
+  complementary view.
+- **Joint check is partial.** Exact checks cover shared robots and retreat
+  points only; path proximity is a timing-free centreline heuristic.
+- **Yielder rule.** One yielder per row, chosen by the MC pair, then overlap.
+  Other chosen yields are not scored against any reference.
+- **Text-only.** Replays will use the neutral grey image, as R1-R6.
+- **Output files.** `data/bench/` is gitignored. This report's files live in
+  the worktree `vgu-vlm-swarm-v6c` (`data/bench/v4/candidates_gf_pc.*`,
+  `run_pc_fixed_first*.*`, `analysis_20261112_pc/analyze_pc.py`), with copies
+  of the items and R1-R6 run files taken from `vgu-vlm-swarm-v6a`.
+
+### Rev 2 Limits
+
+- **One run per model.** No same-prompt repeat of R7 exists; the noise guide
+  is the v2 report's (R5a/R5b, R6a/R6b), on a different prompt.
+- **Unshuffled, numbered ids.** Position effects are not separated from choice
+  quality; the first-option share (57-58%) is a position-or-quality mix.
+- **Slot F1 is a bench construct.** It scores a slot against the GT clusters
+  its observed group touches; groups and clusters agree partly by definition.
+- **Text-only, untuned on held-out data, exploratory v4 only,** as in Rev 1.
+
+### Rev 3 Limits
+
+- **The comparison chooser is a heuristic.** The default-ordered first option
+  embeds the v2 generator's geometric ordering; "match the default ordering"
+  is the finding, not "no better than chance".
+- **The conditional table uses GT** and one run per model; its cells of 12-25
+  slots are within the re-ask noise scale.
