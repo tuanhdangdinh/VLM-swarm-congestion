@@ -34,6 +34,71 @@
   `reasoner_config_effective` (`5386bd3`), closing that A6 note; the
   `feat/failure-context-closed-loop` branch is confirmed fully contained
   in HEAD.
+- Rev 27 (2026-10-07): **POST-TAG PROTOCOL NOTE — the v1 driver
+  timing amendment (Option B + abort stop-flag).** Following the
+  shutdown-timing probe
+  (`docs/reports/2026-10-07-shutdown-timing-probe.md`; ruling in the
+  v2 design spec's probe block), `prereg-v1-hotfix` gains two
+  harness-only commits, `c1bf820` (runner stop flag) and `fca3870`
+  (fc_launch Option B + abort flag): the M5 recording tail now ends
+  ~10 s after the Isaac process exits with `REC_SEC` kept as the cap
+  (measured −244 s/episode, −22.6%, on the 2-robot smoke), and
+  aborted runs exit the sim loop via a stop-flag file so GT is
+  closed and the manifest written (`completed=false, aborted=true` +
+  reason/phase keys appearing ONLY on aborted manifests; normal
+  manifests keep their exact 13-key shape). Scope audit: the diff
+  touches only `scripts/vm/`, the Isaac runner, and `tests/unit/`;
+  nothing under `reasoning/` or `config/`; decision semantics,
+  prompts, GT content and episode horizons unchanged (the REC_SEC
+  cap path is untouched — an Isaac outliving the cap still runs its
+  full 300 sim-s horizon, so no GT truncation is introduced).
+  Validation: composite-build VM smoke PASSED (cycle 838 s vs
+  1082 s baseline; GT 3001 lines, valid last line; manifest
+  completed=true, key set unchanged; 2/2 arrivals) and a deliberate
+  abort PASSED (Isaac gone 3 s after signal vs minutes before; GT
+  closed valid at 370 lines; aborted manifest written); the hotfix
+  tree's own runner/helper files are byte-identical to the smoked
+  ones and its fc_launch differs only in pre-existing free-flow
+  lines. Known limits recorded: an abort is visible ONLY in the
+  manifest (Kit's fast shutdown precludes a FAIL exit line);
+  4-robot cells still outlive fc_launch, so the pgrep relaunch gate
+  remains mandatory. Suite: failing set identical (66 ids), +23
+  tests.
+- Rev 26 (2026-10-07): **POST-TAG PROTOCOL NOTE — the v1 transport
+  hotfix.** The 2026-10-07 provider-conformance review
+  (`docs/reports/2026-10-07-conformance-review.md`, rulings in the v2
+  design spec's "Conformance-review RULINGS (2026-10-07)" block) found
+  two transport-layer defects that predate the tag and would corrupt
+  confirmatory collection operationally without touching any registered
+  decision quantity: F01 (several adapter exception paths escape
+  `Reasoner.run`/stage 2, so an attempt can die unrecorded) and F02 (no
+  backoff on 429/5xx — 46 tag-era gpt-4o decisions burned all 4 attempts
+  on rate-limit storms with zero wait). RULING: v1 confirmatory
+  collection runs from branch **`prereg-v1-hotfix`** = tag `569d95c` +
+  exactly two commits, `efe085d` (F01) and `a475fe0` (F02), re-applied
+  by hand to the tag-era reasoner (a literal cherry-pick from the v2
+  lineage does not apply). Scope audit: 12 files, all under
+  `reasoning/vlm/` transport/retry code plus tests; `git diff` of the
+  frozen surfaces (`prompt_builder.py`, prompt templates, `config/`,
+  oracle blocks) is empty; parser and stage-2 decision semantics
+  untouched (the stage-2 change swaps exception taxonomy and inserts
+  waits only). Retry policy now in force for v1 collection: 429/5xx
+  retried with exponential backoff + jitter (base 2 s, cap 30 s),
+  `Retry-After` honoured clamped at 60 s, 90 s wait cap per call,
+  other 4xx final after one attempt, timeouts retry with no wait.
+  Suite: zero delta vs a clean export of the tag (63 failed both
+  sides); at the tag 6 of the review's 8 socket-probe cases escaped
+  the reasoner, on the hotfix 0 of 8. Known accepted skews: (a)
+  without F03, a Gemini refusal/block surfacing as a 4xx would stop
+  ER-2 after 1 attempt instead of 2 — moot in practice, ER-2 has
+  never refused (0/62 and all subsequent live runs); (b) quota-
+  exhaustion 429s are retried like rate-limit 429s (waits are bounded,
+  so worst case is seconds of delay, and per-attempt records carry the
+  provider error code for audit); (c) stage-2 worst-case wall clock
+  rises from 16 s to 76 s if a 60 s `Retry-After` lands between its
+  two attempts — accepted, the policy is uniform by ruling. Episodes
+  collected from the hotfix are confirmatory; the tag itself remains
+  the registered freeze point and nothing frozen by Rev 25 moved.
 - Rev 25 (2026-09-30): **the `prereg-v1` tag.** (a) Two live-VLM demo
   episodes recorded 2026-09-30, footage in
   `data/logs/vm_runs/live_demo/` (gitignored): ER-2 run `20260930_152222`

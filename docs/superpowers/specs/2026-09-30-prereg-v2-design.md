@@ -169,8 +169,17 @@ differentiate):
 
 1. **VLM coordinator on an overhead warehouse camera with a semantic
    strategy taxonomy** — vs Garg et al. (arXiv:2404.06413 / PMLR 2026:
-   simulation, synthetic top-views, leader+waypoints, no taxonomy) and
-   Oxford CCTV (arXiv:2606.06762: real cameras, deliberately non-VLM).
+   simulation, synthetic top-views, leader+waypoints, no taxonomy),
+   Oxford CCTV (arXiv:2606.06762: real cameras, deliberately non-VLM),
+   and — CARVE-OUT added 2026-10-04 from the user's paper folder
+   (`research_notes/VLM planner coordinator recent work/
+   user_paper_folder_review.md`) — SwarmVLM (arXiv:2508.07814:
+   ceiling-camera VLM+RAG in a warehouse, but the VLM only
+   feature-extracts obstacles for a six-row impedance-parameter
+   lookup — no congestion classification, no strategy selection, no
+   plans, no robot–robot conflict, n=2 leader–follower; cite its
+   ImpedanceGPT/HetSwarm lineage as the orthogonal
+   "VLM-tunes-control-parameters" family).
    WORDING CONSTRAINT: our frames are Isaac-rendered through the real
    M1 pipeline on a hardware-validated scenario family — phrase as
    such; "real physical camera" is claimable only if the optional
@@ -233,18 +242,876 @@ per-backend probe set, run once per model before v2 collection and
 frozen with the battery — locate-robot-by-id, left-vs-right of
 aisle, robot count, nearest-first ordering — on project frames.
 Rationale: Garg et al. pre-test model capabilities before trusting
-them, and published benchmarks put left/right discrimination near
-chance (LRR-Bench); probe results make plan-metric failures
-attributable to measured primitive deficits rather than speculation.
+them; probe results make plan-metric failures attributable to
+measured primitive deficits rather than speculation.
+CITATION CORRECTION (2026-10-04, from the baseline run's primary-text
+check): the earlier "left/right near chance (LRR-Bench)" wording
+OVERSTATED the paper — LRR-Bench's basic Position task has GPT-4o at
+78–80% (humans 95); the near-chance/near-zero results are its
+composite-position and 3D movement/rotation tasks; the previously
+quoted 55.33% figure is unsourced in the paper and is withdrawn.
+BASELINE RESULTS (2026-10-04, freeze-citable:
+`docs/reports/2026-10-04-capability-probe-results.md`; manifest
+`9659782d…`, prompt `b1af71e8…`): ER-2 60/60; gpt-4o 58/60 (both
+misses near-centreline left_right), 0/60 refusals both backends,
+no robot-id or first-slot prior visible in nearest_first (0/8 wrong
+robot_1 picks). INTERPRETATION BOUND: the battery is at ceiling on
+clean, filtered frames — it certifies primitives ≥~80% there and
+cannot rank backends; it says nothing about crowded congestion-onset
+frames. Visual primitives are therefore NOT the measured bottleneck;
+plan-level failures must be attributed upstream of perception.
+
+**Battery v2 — predictive/temporal probes (registered 2026-10-04,
+from the user-folder review; SocialNav-SUB arXiv:2509.08757 is the
+benchmark kin to cite):** the static battery is at ceiling and static
+primitives are not the bottleneck, so a SECOND frozen manifest
+(`manifest_v2`, separate from v1 for comparability) adds GT-derivable
+DYNAMIC items on project frames: motion-direction ("which robot is
+moving toward X"), conflict prediction ("will A and B come within
+0.5 m in the next 10 s"), and temporal order ("which robot reached
+the standoff first") — every answer machine-derived from ground
+truth, seeded multiple-choice lettering, same auditor discipline.
+These measure the motion-integration and conflict-prediction
+reasoning that congestion detection and planning actually require —
+the headroom above the v1 ceiling. Fresh mock VM runs may harvest
+mid-motion frames+GT where logged frames lack dynamic moments; a
+trails-on frame subset is harvested in the same runs so the battery
+can compare the same question on trails-on vs trails-off frames.
+
+**Trails = amortized temporal context (reframed 2026-10-04):** the
+motion-trail overlay is the inference-time analog of ContextVLA's
+amortized multi-frame context (arXiv:2510.04246; convergent evidence
+CronusVLA 2506.19816, NaVid 2402.15852): history compressed into one
+image at zero extra tokens. The frame A/B becomes a three-way —
+single frame vs trails (amortized history) vs 2–3 keyframes (raw
+history) — directly testing whether amortization captures what raw
+frames provide.
+
+**Battery v2 RESULTS + RULINGS (2026-10-05,
+`docs/reports/2026-10-04-battery-v2-results.md`; manifest_v2
+`faf1953b…`, 139 items, ~$0.70):**
+- THE CEILING BROKE WHERE REGISTERED: `conflict_prediction`
+  separates the backends — ER-2 16/20 vs gpt-4o 9/20 (at chance);
+  gpt-4o also returned refusals on dynamic frames (6/139 + 24
+  temporal abstentions; v1 static was 0/60) and shows a systematic
+  temporal INVERSION (picks the later robot 13/15 when it answers).
+  ER-2 is measurably stronger on dynamic scene reasoning.
+- QUARANTINE: `temporal_order` scores are NOT capability scores —
+  triply confounded (robot-id prior 15/19, lagging status colour
+  23/30, wide event spacing) and missing the M1-agreement filter;
+  correctly not rebuilt post-hoc. `motion_direction` is confounded
+  by M1's own heading arrow (statically readable; ER-2 35/35
+  ceiling).
+- REGISTERED v2.1 FIXES (build when probes next run): manifest
+  rebuild for temporal_order with the M1-agreement filter, id-prior
+  counterbalancing, and tighter event spacing; an arrow-suppressed
+  M1 overlay flag so motion_direction tests motion integration
+  rather than arrow reading.
+- TRAILS NULL (weak evidence): no gain in 40 matched pairs per
+  backend (McNemar p=1.0 / 0.69) — but the frozen probe prompt
+  carries no trail-convention sentence, arrows already encode
+  motion, and n is 11–15 per type. The deployed-prompt three-way
+  A/B (single vs trails vs keyframes) STAYS registered; the
+  probe-level null does not test it. The keyframes arm needs a
+  multi-image probe path (not yet built).
+- RATIFIED: the three builder rules fixed pre-call (exact-geometry
+  edge gate; yes-exclusion window asymmetry; reachability filter
+  for "no" items) — all documented with candidate-level counts.
+
+**Layer-2-off pilot (registered 2026-10-06, PILOT — excluded from
+confirmatory counts):** small-sample no-intervention arm — the
+decision layer answers no-congestion throughout (mock, zero
+dispatches verified), Nav2 + M4 safety only — on head-on s42, B1
+s42, B3 s42, IB10 s42. Measures outcome_class, arrivals, and
+delay_vs_free_flow against the same cells' intervened episodes: the
+on-our-geometry quantification of "the reactive layer alone does not
+resolve congestion" (Marcolino-2017 / Garg low-level-only
+precedents). If results match expectation (latch/clog), the full
+no-intervention ARM is registered into collection; if any cell
+self-resolves, that is a design finding for the oracle (the cell may
+not need Layer 2) and goes to the owner before collection.
+
+**Conformance-review RULINGS (2026-10-07,
+`docs/reports/2026-10-07-conformance-review.md`; 0 CRITICAL, 5
+HIGH, keys/payloads/supply-chain clean):**
+FIX NOW (one agent, pre-collection): F01 (apply the ready
+transport-escape diff — no attempt may die unrecorded); F02 —
+RULED uniform retry policy: 429/5xx retry with exponential backoff
+honoring Retry-After, other 4xx non-retryable, attempt budgets
+unchanged; F03 — map every provider's DOCUMENTED refusal channel
+(Gemini block codes, Zhipu 1301, OpenAI message.refusal,
+content_filter/sensitive finish reasons) to the refusal class,
+regex demoted to fallback — cross-arm refusal rates are a
+confirmatory metric and must compare like for like; F04 — capture
+DeepSeek `system_fingerprint`; F05 — RULED: flash gets the GLM
+treatment (max_output_tokens 16,384 + read status:incomplete; the
+2,048 cap with ~1,960 thought tokens was one bad frame from the
+DeepSeek trap); F06/F07/F08(+extended wire pin)/F09/F11/F14-stage
+alignment/F15 redaction/F16 additive usage/F18 request ids/F27
+factory-raise (turns the red test green)/F21 one-liner/F22
+comments — all mechanical, all in the same pass. F10 — RULED:
+`store:false` on flash and every v2 Gemini-adapter use; ER-2's
+frozen pin keeps its wire shape, deviation recorded with a privacy
+note. F13 — RULED: local arms go to FULL parity (4 attempts + grey
+fallback; uniformity beats micro-optimization, grey is harmless
+locally). F12 — SPEC AMENDMENT: gpt-5.1 was deprecated 2026-10-01
+(shutdown 2027-04-01) — recorded on the Group-D caveat; its
+collection must complete well before the cutoff. F04-GLM/ER-2 —
+SPEC AMENDMENT: the Group-D served-model mitigation is RESTATED as
+fingerprint-where-available + dated collection windows (the
+served-model string is uninformative on undated pins). F17/F19/
+F23/F24/F25 ACCEPTED as reported; F20 (adapter dedup refactor)
+DEFERRED to v3 with the note that it is the root of F01/F07/F11.
+V1-COLLECTION BRIDGE RULED: v1 collection runs from the tag PLUS a
+cherry-picked TRANSPORT HOTFIX (F01+F02 only — decision-semantics
+neutral; F03 not needed for the v1 pair: ER-2 never refuses and
+the regex IS tuned to gpt-4o) on a `prereg-v1-hotfix` branch,
+documented as a protocol note in the amendments doc — the 429-burn
+evidence makes running collection without backoff indefensible.
+
+**Conformance fix program COMPLETE (2026-10-07,
+`docs/reports/2026-10-07-conformance-fixes.md`):** every FIX NOW
+ruling implemented and merged to `feat/prereg-v2-composite`
+(fast-forward, commits `c1e3c43` F01, `e713c14` F02, `d8570b2`
+F03–F27, `0444621` docs). Verification: v2 failing set moved
+66 → 65 ids, the only change being the F27 test turning green;
+147 new conformance/retry/no-escape tests pass; a nine-arm
+request-body pin confirms NO wire byte moved except the two ruled
+flash fields (`max_output_tokens: 16384`, `store: false`) — ER-2's
+frozen body pinned byte-for-byte. Against the pre-fix code, 70/86
+conformance tests and 7/19 no-escape tests fail (the tests bite).
+The v1 transport hotfix is on `prereg-v1-hotfix` (tag + `efe085d`
++ `a475fe0`; zero suite delta vs the tag; protocol note written as
+amendments Rev 26). CARRIED CAVEATS, accepted: (a) stage-2
+worst-case wall clock 16 s → 76 s if a 60 s Retry-After lands
+between its attempts (stage 1: 480 → 570 s) — uniform policy by
+ruling, no stage-2 clamp; M5's worker has no outer bound, watch
+collection latencies; (b) quota-exhaustion 429s retry like
+rate-limit 429s — bounded waits, provider error code in the new
+per-attempt diagnostics record enables a later carve-out;
+(c) `error_type` strings unchanged ("ConnectionError" preserved
+for `scripts/probe_presentation_order.py`'s classifier) — richer
+status/code/wait data lives in the per-attempt records;
+(d) `scripts/probe_refusals.py` counts refusals by text regex and
+will UNDERCOUNT provider-flagged textless refusals on post-fix
+artifacts — do not use it on new data without patching.
+GROUP-D CAVEAT AMENDED per the F12/F04 rulings (supersedes the
+served-model wording in the roster-closure block below):
+(i) `gpt-5.1` was deprecated 2026-10-01 with API shutdown
+2027-04-01 — its confirmatory collection must complete well before
+the cutoff, and the deprecation date is part of its arm record;
+(ii) the served-model mitigation is RESTATED as
+fingerprint-where-available (DeepSeek `system_fingerprint` now
+captured; others lack an equivalent) PLUS dated collection windows
+recorded per arm — the served-model string alone is uninformative
+on undated pins, so analyses condition on fingerprint + window,
+not on the echoed model name.
+
+**Nine-arm v1-scenario tier RULED (2026-10-07, USER DECISION "9
+models on v1 too"):** the full roster also runs the v1 scenario
+battery. Tier structure, binding: (1) the REGISTERED v1
+confirmatory collection is UNCHANGED — gpt-4o + ER-2 only, from
+`prereg-v1-hotfix`, frozen prompts/configs, episode counts per the
+v1 design; this is the only tier that may be reported as
+pre-registered, because the other seven arms postdate the tag.
+(2) A **v1-scenario EXPLORATORY tier** is added: the remaining
+arms (and the v1 pair's v2-condition replicates, if sampled) run
+the SAME v1 scenario families from the `feat/prereg-v2-composite`
+code (the seven adapters do not exist at the tag; back-porting
+them would create an unaudited third lineage), with the v2
+apparatus flags at defaults and provenance fields distinguishing
+the tier in every artifact. Reports must label the two tiers and
+never pool them into one confirmatory claim. (3) Scale
+consequence, recorded: v1 design volume is ~470–590 episodes for
+TWO arms (~235–295/arm); seven more arms at parity adds roughly
+1,600–2,000 episodes ≈ 330–410 VM-hours (~$300–370 VM at $0.9/h,
+plus API spend, GLM/DeepSeek cheap, Sonnet/5.6-sol dominant) and
+two-plus weeks of wall time at one sim seat — the owner may set a
+reduced per-arm episode budget for the exploratory tier before
+collection starts (a smaller N is legitimate there; it is not a
+registered power target). Collection still starts only on the
+owner's word.
+
+**Group-C swap EXECUTED: gpt-5.1 → gpt-5.6-sol (2026-10-07, USER
+DECISION "try 5.6 sol";
+`docs/reports/2026-10-07-gpt56-sol-swap.md`, merged
+`5c45667..941c1c3`):** wired on the hardened openai adapter,
+request body = the gpt-5.1 pin with only the model id changed;
+`reasoning_effort: none` (0 reasoning tokens on all 83 validation
+calls — NO dose exception needed); ten-arm body pin green with the
+nine prior arms byte-identical; suite failing set unchanged.
+Offline validation: probes 60/60 (ties ER-2 for best),
+conflict_prediction 13/20 with a FALSE-ALARM profile (yes on
+17/20, one under the registered degenerate threshold of 18;
+GT-no 3/10 — same direction as gpt-5.1, stronger; recorded, not
+disqualifying), stage-1 smokes 3/3 valid first-attempt with both
+standoff plans `vlm_verbatim` 0-edit, 0 refusals anywhere; $0.59.
+RULINGS: (1) WHY NOT `gpt-6-sol` (OpenAI's named gpt-5.1
+successor): owner chose 5.6-sol with both candidates presented —
+the single-generation step keeps the C pair interpretable and the
+flagship's cost profile is unneeded; recorded as a choice, not an
+oversight. (2) gpt-5.6-sol has NO dated snapshot and a null
+system_fingerprint → it is a ROLLING PIN: it takes gpt-5.1's
+Group-D slot (gpt-5.1 leaves D entirely, retired; its pilot data
+stays citable) and carries the Group-D caveat — dated collection
+window is the only drift control, so its collection windows must
+be recorded tightly. Group C is now dated-pin (gpt-4o) × rolling
+pin; condition on window in any C analysis. (3) CONFOUND
+RECORDED: gpt-4o tokenizes images as tiles, 5.6-sol as 32-px
+patches at full frame resolution (~1,440 image tokens/probe, ~6×
+gpt-5.1's prompt cost) — the C "generation" contrast includes
+the vision front-end, not just the reasoning stack; any C claim
+must say "model generation incl. its vision pipeline". (4)
+Pricing is promotional through at least 2026-11-21 ($4/$20 per
+MTok; GPT-5.5 list was $5/$30) — budget projections use list
+risk. (5) GPT-5.6 safety classifiers may pause generation
+seconds mid-stream (provider-documented; not observed in 83
+calls) — a stage-2 timeout from this classifies as the measured
+latency tax, same as flash. (6) Adapter now records
+`cache_write_tokens` (additive; all zero here) — cost scripts
+reading only prompt/completion tokens underprice cache writes.
+(7) VALIDATION STATUS: offline-equivalent COMPLETE; the two live
+VM head-on episodes (seeds 42/43) of the model-wiring standard
+are PENDING — the arm is not recorded as meeting the full
+standard until they pass; dispatched 2026-10-07. → CLOSED
+2026-10-07: both live episodes PASSED (s42/s43, tree `941c1c3`,
+report Rev 2 "Live VM Episodes" section, composite `e879b21`):
+resolved 2/2 both, correct yielder robot_2 both, `vlm_verbatim`
+0-edit plans with dispatch matching, 0 refusals in 10 calls, all
+attempt_records `answered`, stage 2 within bound (2.2/3.3 s),
+delay sums 147.1/146.5 s inside the resolved-arm band, min GT
+separation 0.253/0.258 m, ~$0.16. Group-C note: gpt-4o needed the
+swap repair in both its pilot episodes; 5.6-sol needed none.
+Caveats recorded in the report: both seeds drew id_desc (no
+order-robustness claim at n=2); contact check is robot-to-robot
+separation only; episodes ran on the conformance-fixed tree
+(prompt bytes identical, no retry fired). **The arm MEETS THE
+FULL model-wiring standard; the ten-arm roster is
+collection-ready.**
+
+**Shutdown-timing probe RESULTS + RULINGS (2026-10-07, fork
+probe, mock-only, $0 API,
+`docs/reports/2026-10-07-shutdown-timing-probe.md`):** (1)
+`fast_shutdown` is ALREADY Isaac 6.0.1's default — the planned
+patch is a no-op, not applied; shutdown+cleanup is ~14 s and the
+231–356 s Kit tail on normal runs is gone as a concern. (2) The
+real waste: `fc_launch`'s fixed `REC_SEC=1000` tail keeps
+recording ~238 s after Isaac exits. **Option B ADOPTED (RULED
+fix-now, harness-only, no outcome effect):** end the M5 tail when
+the Isaac PID exits, `REC_SEC` kept as the cap; saves ~241 s/ep
+on 2-robot (~22%), ~350 s on 3-robot, 0 on 4-robot (Isaac-bound).
+Lands on the composite AND re-applied to `prereg-v1-hotfix`'s
+driver as a Rev-27 protocol amendment (driver-only, decision
+semantics untouched); requires the DRY_RUN golden update and ONE
+mock VM smoke verifying tail-exit + artifact completeness (GT
+line count, manifest completed, junction_phases/dispatched_*
+keys) before any collection run uses it. (3) **Teardown stop-flag
+ADOPTED in the same pass** (report rec 3): aborted runs currently
+leave Isaac alive because pkill's SIGTERM is swallowed by Kit —
+the root mechanism of trap 16; adopt the in-loop stop-flag (file
+checked in the runner's while loop → normal exit, GT closed,
+manifest written, ~1 s close()); SIGINT explicitly REJECTED
+(skips _write_manifest, loses GT tail). The pgrep gate stays
+regardless. (4) **Option C (early-stop at resolution +30 s)
+DEFERRED TO OWNER** with the collection-start decision: it would
+take resolved head-on cycles to ~515 s (52%) but truncates GT on
+resolved episodes and removes the post-resolution re-check
+window (a measured behavior — today's gpt-5.6-sol episodes
+logged 6 post-resolution `none` re-checks); clogged/censored
+episodes run the full window by construction either way. (5)
+PROJECTIONS CORRECTED (supersedes the 12.3 min/ep implicit in
+the exploratory-tier estimate above): measured cycle is 18.0
+min/ep → exploratory tier ~480–600 VM-h as-is, ~375–470 with
+Option B; v1 head-on-scoped 5.9–7.4 days → 4.6–5.7 with B.
+(6) Side findings recorded: fc_launch exits rc=141 every cycle
+(ls|head broken pipe under pipefail, predates probe, cosmetic —
+trap-14 family); SIM_SEC/--duration-sec confirmed dead; shader
+cache healthy (0 compile lines in 31 boots). → OPTION B +
+STOP-FLAG LANDED AND SMOKED 2026-10-07
+(`docs/reports/2026-10-07-harness-optionb.md`; composite
+`7ddebe4..5a3bc0f`, hotfix `c1bf820..72d2a04` = Rev 27): smoke
+cycle 838 s vs 1082 baseline (−22.6%), tail ended 11 s after
+Isaac exit, GT/manifest/dispatched_* keys all intact; deliberate
+abort killed Isaac in 3 s (vs minutes) with GT closed valid and
+an aborted manifest — trap 16's mechanism is fixed at source,
+pgrep gate retained for 4-robot cells. Abort evidence lives ONLY
+in the manifest (no FAIL exit line possible under fast
+shutdown) — scorers and drivers must read `aborted`, not exit
+codes. NOTE: the VM was restored to the OLD driver — deploy the
+collection branch before any run.
+
+**Forcing/hardcode audit RESULT + RULINGS (2026-10-07, fork
+session, three layers M2 / M3+M5 / M4+scorers, read-only on
+`feat/prereg-v2-composite`; full report to be committed as
+`docs/reports/2026-10-07-forcing-audit.md`):** HEADLINE — NO
+unregistered forcing anywhere: all overrides are the registered
+provenance-tagged set, swap gate OFF by default, no
+resample-until-accepted loop, prompts leak no answers, sampling
+pinned per arm. Six findings RULED, items 1–5 FIX NOW
+pre-collection on the composite (none touch the v1 tag lineage):
+(A1) decision artifacts never serialize
+`PipelineOutcome.junction_phases` — phase-1+ cross/release/
+fallback commands and their degradation tags (incl.
+`junction_geometry=shipped_unsolved`) survive only in ROS logs,
+breaking the provenance chain for EXACTLY the composite the
+prereg scores (`reasoning_pipeline.py:853-936` vs
+`models.py:545`) — serialize the full phase record into the
+artifact; HIGHEST priority. (A2) no scorer reads
+`diagnostics.backend_id`, so a mock bundle scores identically to
+live — scorers must surface a backend column AND refuse mock
+backends in confirmatory scoring. (A3) `classify_outcome` can
+award `resolved` with zero dispatched decisions — require ≥1
+dispatch for `resolved` and co-report `n_dispatches` always.
+(A4) `_as_yield_decision` clears a model-provided yield-axis
+`crossing_order` then tags `order=implicit` ("none given" when
+one WAS given, `command_grounder.py:2916-2925`) — introduce a
+distinct tag (e.g. `order=discarded_yield_axis`) so repaired-
+order metrics don't miscount. (A5) two untagged post-provenance
+mutations: the reverse tracked-band clamp
+(`command_grounder.py:226-262`) and the second
+`filter_command_robot_ids` in `_dispatch` AFTER the artifact
+write (`orchestrator_node.py:1046-1049`) — dispatched can differ
+from recorded in T3a-intruder scenes; tag the clamp and move (or
+mirror) the second filter before/into the artifact so recorded ==
+dispatched. (A6) `plan_tracker._cancel_order` includes ACTIVE
+legs while the registered wording says pending-only
+(`plan_tracker.py:219-230`) — field currently inert; RULED an
+append-only WORDING CORRECTION: supersession cancel covers
+pending AND active legs of the superseded plan; the original
+"pending-only" text is marked superseded, no code change.
+ANALYSIS RULES FROZEN into the measurement plan: (R1) headline
+accuracy must be splittable by `refusal_attempts` /
+`image_fallback_used` — the grey-image subpopulation is reported
+alongside, never silently pooled; (R2) any credit to `repaired`
+plans must condition on logged edit count/ops — a bound-4
+rewrite can land leg-identical to `m3_default` yet score
+`repaired` (`command_grounder.py:3309-3342`); plan-provenance
+analyses report the edit-distance distribution, not the label
+alone.
+
+**Audit fixes A1–A5 IMPLEMENTED (2026-10-07, branch
+`feat/v2-audit-fixes` `cf410be..19a3657`,
+`docs/reports/2026-10-07-audit-fixes.md`; merge to composite
+pending the VM-validation agent's handback — same worktree):**
+failing-test set identical before/after (65 ids), 33 new tests.
+REGISTRATIONS and judgment calls adopted: (1) **`self_resolved`
+joins the outcome_class enum** (append-only registration:
+`resolved | intermittent | clogged | self_resolved`, where
+`self_resolved` = all robots arrived with ZERO dispatched
+decisions and `resolved` now REQUIRES ≥1 dispatch;
+`n_dispatches` becomes a top-level column on every flow row).
+Chosen over None/dropping so the Layer-2-off arm — where zero
+dispatches is the expected case — keeps its denominator. (2)
+A5b recorded-vs-dispatched is closed by RECORDING the
+registry-filtered command in the artifact
+(`dispatched_command`, `dispatched_robot_ids`,
+`dispatch_dropped_robot_ids`, `dispatch_filter_error`) computed
+once BEFORE the write and then dispatched as-recorded — the
+filter was NOT moved (moving it would change
+`dispatch_matches_plan`, `yield_*` and state-machine inputs);
+keys are unconditional on grounded artifacts and mean "what M5
+sends if it dispatches". (3) A1 serializes the full
+`JunctionClearPhasePlan` (per-phase commands + degradations +
+held robots + fallback) into `junction_phases`; per-phase
+RUNTIME status/timestamps remain log-only (phases advance after
+the write; the scorer already parses M5 logs for ordinals) —
+accepted. (4) New tags: `reverse=clamped_tracked_band:<robot>:
+<from>-><to>` (only when the clamp bites; unclamped output
+byte-identical) and `order=discarded_yield_axis` (replacing the
+mislabeling `order=implicit` on discarded model orders; the
+audit's claim that `implicit` fired on the IB10 cross phase was
+WRONG — that discard was fully untagged, worse than reported).
+(5) A2 ships as `scripts/artifact_backend.py`: every
+decision-reading scorer subcommand emits `backend_id` and exits
+2 on mock bundles unless `--allow-mock`; mock-by-design
+harnesses (strategy_regret score/plan, t2b_forced_order,
+free_flow_table) and rescore_arrivals are exempt. ANCHOR
+CORRECTIONS recorded: A4's real site spans
+`_as_yield_decision` 2893–2930 and the `no_candidates` path
+also dropped ALL of the yield's tags; A5a's mutation site is
+the `_ground_legacy` call site (the 226–262 range is the
+definition) and derived mode dropped tags too (fixed, including
+a degradations-REPLACING wrapper bug). RESIDUAL GAPS RULED:
+(i) runtime phase status log-only — ACCEPTED (above); (ii) M5
+publish-time parameter enrichment (reroute `goal` from registry,
+reverse `plan_continue_partners`) — ACCEPTED as deterministic
+config-derived plumbing, recorded here as the known bounded
+exception to recorded==dispatched; (iii) the junction_clear
+`no_candidates` fallback REPLACES the plain yield's own
+degradations (losing `retreat=default:*`, `yield=infeasible:*`,
+`order=junction_same_axis`) — NOT accepted: ruled follow-up
+**A7, FIX NOW** (merge degradations, never replace) since
+fallback provenance is scored by the fallback_exhausted
+analysis.
+
+**Hypothesis arms RESULTS + RULINGS (2026-10-07,
+`docs/reports/2026-10-07-hypothesis-arms.md`; nine-arm table is
+the freeze's model annex; reading rule committed pre-call at
+59cc784):**
+- **H1 NOT SUPPORTED**: gemini-3.8-flash scored 20/20 on
+  conflict_prediction (perfect on both GT classes, no answer
+  bias) — ER-2's lead does not survive its own lab's generalist
+  (caveat: newer base generation than the ER-2 preview).
+- **H2 NOT REPLICATED**: Molmo2-ER 9/20, DEGENERATE (yes on
+  19/20; 0/10 on no-conflict) — bias, not dynamics reasoning
+  (caveats: 4.85B, local bf16).
+- **Joint**: no battery-level evidence that embodied tuning helps;
+  the two best dynamics scores are generalists (flash 20, DeepSeek
+  19). Bonus lineage finding: plan emission splits by BACKBONE —
+  Qwen-backbone arms (Molmo2, Qwen3-VL) never emit plans; Google
+  arms emit verbatim plans.
+- glm-5.3-flash validated: probes 58/60, conflict 15/20 (gpt-5.1's
+  exact profile), verbatim + swap-repaired head-ons, ~$0.04.
+RULINGS on the STOPs:
+(1) GLM's forced thinking is ADMITTED with a recorded per-arm
+exception to the frozen dose rule: the rule's INTENT (latency
+bound + cap safety) is verified — minimum effort, 103–146 thinking
+tokens, max_tokens 16,384 cap-proofed — the disable itself is
+impossible (HTTP 400, provider-documented). Group-D caveat stands.
+(2) flash's stage-2 timeout (only arm over the 8 s bound; ~1,960
+thought tokens at its floor): ACCEPT the m3-default letter — no
+per-arm timeout fork, no global apparatus change post-validation;
+recorded as a measured property (thinking models pay a latency
+tax in fast loops — itself a finding).
+(3) Molmo2-ER multi_image stays OFF (failed gates as registered);
+zoom-tile conditions exclude that arm unless the gate re-passes
+under v3.4.
+
+**Roster closure + confirmatory-tier ruling (2026-10-07, USER
+DECISION "add all"):** the roster GROUPS are formalized — A the
+v1-frozen pair (ER-2, gpt-4o; prereg-bound); B the specialization
+2×2 (ER-2 / gemini-3.8-flash × Molmo2-ER / Qwen3-VL, with the
+Molmo-backbone-is-Qwen quasi-family control noted); C the
+generation pair (gpt-4o → gpt-5.1); D the churn-risk pilots
+(undated/rolling pins: gpt-5.1, deepseek-flash, and glm-5.3-flash
+below). PER THE USER: ALL validated arms join v2's confirmatory
+collection tier — the coordinator's two-arm narrowing is
+OVERRIDDEN. Consequences recorded, not relitigated: per-arm
+collection cost/wall-time multiplies by the arm count, and
+Group-D arms carry a ROLLING-PIN CAVEAT in every confirmatory
+report (served model recorded per call; the pin may drift
+mid-study and analyses must condition on the served-model string).
+GLM CONSIDERED (user): GLM-5.3 flagship is TEXT-ONLY; the vision
+arm is **glm-5.3-flash** (natively multimodal, 320B-A18B,
+$0.15/$0.50 per MTok — cheapest hosted vision arm; live since
+2026-09). RULED: wire it exploratory-tier as the SEVENTH lab via
+the OpenAI-compatible path; thinking DISABLED per the frozen dose
+rule (native deep-thinking + the DeepSeek output-cap trap applies);
+BLOCKED on the user adding ZHIPUAI_API_KEY to both .env files;
+validation to the full standard when the key lands. Roster then
+CLOSES at nine models / seven labs — further additions require a
+new hypothesis, not availability.
+
+**Reasoning-dose pilot RESULT — settings FROZEN (2026-10-07,
+`docs/reports/2026-10-07-reasoning-dose-pilot.md`; rule committed
+pre-call at 28d453c, applied mechanically):** NO arm adopts a
+higher dose. Frozen for collection: gpt-5.1 `reasoning_effort:
+none`; Sonnet `thinking: between_tools`; ER-2 `thinking_level:
+low`; DeepSeek thinking `disabled`. Evidence: gpt-5.1 net 0
+(p=1.0); Sonnet net 0 (its "small budget" question is UNANSWERABLE
+— the API rejects budget_tokens, and adaptive-low chose not to
+think on 20/20 calls); ER-2 medium +1, short of margin, p90
+latency already brushing the 15 s bound; **DeepSeek
+thinking-enabled CRATERS: 19→6 (p=0.0002)** — ~2k thinking tokens
+blow the 2048 output cap, 12/20 answers came back empty (TRAP
+recorded: any future DeepSeek thinking use needs max_tokens well
+above 2048; the 6 completed calls were all correct).
+RULING on the Sonnet residual: NO higher-dose extension run —
+from its 17/20 baseline the registered +3 margin requires 20/20,
+i.e. the adoption criterion SATURATES; a medium-effort run could
+never change the frozen setting under the standing rule, so it
+would be curiosity spend, not a decision input. Margin saturation
+noted as a general property: arms at ≥17/20 cannot adopt by this
+rule.
+
+**v3.4 re-pin LANDED + rulings (2026-10-06,
+`docs/reports/2026-10-06-v34-repin.md`):** ACCEPTANCE PASSED —
+Sonnet 3/3 unrefused on the exact stimuli it refused 3/3 under
+v3.3; 15/15 five-arm replay decisions valid; v3.4 baseline digest
+`6d08540f…` (full lineage in the builder); format audit found ZERO
+payload deviations from provider docs — conventions now pinned to
+the wire via `payload_format` in effective-config. gpt-5.1
+dynamics COMPLETE: conflict_prediction 15/20, the false-alarm
+shape (GT-no 5/10). RULINGS on the open items:
+(1) ER-2 KEEPS its frozen 2-attempt/no-fallback pin — a principled
+parity exception: its config is v1-frozen and refusal mitigation
+is demonstrably moot for it (0 refusals in every recorded call);
+revisit only if ER-2 ever refuses;
+(2) gpt-5.1's Responses-API migration DEFERRED (comparability cost
+on a pilot arm; decide at the v2 freeze if promoted);
+(3) the agent's payload_format versioning reading is RATIFIED
+(version bumps only when packing changes — v1 everywhere, since
+nothing changed);
+(4) Sonnet's collection-scale refusal rate under v3.4 is a WATCH
+ITEM measured by its first scored runs (Anthropic also names the
+JSON `reasoning` field as a trigger; 0/3 here, n small); the v3.3
+91/96 refusal result stays a retained finding.
+WIRE-NEXT (user 2026-10-06): Molmo2-ER (4B open embodied
+specialist, Apache 2.0, vLLM — the cross-lab specialist-replication
+arm, fits beside Isaac) and gemini-3.8-flash (same-lab generalist —
+the lab-controlled specialization contrast for ER-2's dynamics
+lead). Qwen-32B/3.8-27B offline battery pass stays optional.
+
+**Reasoning-dose pilot (registered 2026-10-06, PILOT — runs AFTER
+the v3.4/format-audit re-pin lands so doses are measured on the
+final prompt and payloads):** provider-side reasoning modes are a
+distinct mechanism from the prohibited in-prompt CoT and target the
+measured deficit (temporal/predictive integration), so they get a
+measured answer, not a default flip. Per arm with a knob — gpt-5.1
+effort none↔low; Sonnet thinking off↔small budget; ER-2 thinking
+low↔one step up (NOTE: ER-2 already runs `low` — the roster has
+never been uniformly "off"); DeepSeek disabled↔enabled; Qwen n/a —
+run the 20 conflict_prediction items per dose (+ optionally one
+head-on at a winning dose). DECISION RULE FIXED PRE-CALL: adopt a
+dose only if conflict_prediction improves by a registered margin
+AND stage-1 latency stays under a registered bound (latency couples
+into time-to-resolution on the slow loop; Garg's GPT-5-low≈medium
+at 4× less time is the prior against higher doses). Per-arm
+settings then freeze with the data attached; artifacts already
+record thinking/effort in effective-config.
+
+**Prompt-style invariance ruling (2026-10-06, USER DIRECTION
+"ensure using right prompt style for each model"):** the split is
+SEMANTIC INVARIANCE / TRANSPORT CONFORMANCE. Semantic content —
+scene text, grammar, glosses, state and plan blocks — is ONE
+template (v3.4) for every arm, never forked per model (ruling 3
+stands; forks would destroy cross-backend comparability).
+Transport/format conventions are PER-ADAPTER, following each
+provider's documented prompting guidance at the payload level:
+image-vs-text ordering, system-vs-user placement, JSON-guidance
+flags, sampling omissions, thinking/reasoning_effort switches, and
+documented anti-patterns (the `<think>` leak was the one semantic
+violation; v3.4 removed it). Every arm's format conventions are
+recorded in the artifact's effective-config block, and a per-arm
+format table lives in the re-pin report. Audited against provider
+docs fetched at implementation time, not memory.
+
+**Roster-validation RESULTS + RULINGS (2026-10-06,
+`docs/reports/2026-10-06-roster-validation.md`; six-backend table
+is the model-selection annex for the v2 freeze):**
+HEADLINES — Sonnet 5.5 refuses 91/96 stage-1 attempts, trigger
+ISOLATED to the prompt's Cosmos-style `<think>` block (3/3 refused
+with it, 3/3 valid without; probes without the block: 0/119;
+grey image does NOT help — the opposite of gpt-4o's frame-triggered
+refusals); DeepSeek-flash posts **19/20 on conflict_prediction** —
+the best any backend has scored on the only discriminating probe
+type — at ~$0.02/round, though its head-on trigger reproduced the
+id_asc robot_1/first-slot prior (swap gate repaired); Qwen's 15/20
+conflict score comes from under-calling ("yes" 5/20) — the
+dangerous-miss profile for a coordinator; Sonnet's s43 trigger was
+answered on the GREY image with a verbatim correct plan (a decision
+made without the scene — recorded as such).
+RULINGS:
+(1) **Prompt v3.4 — the `<think>` block is REMOVED globally.**
+Rationale: it is redundant with v3's bounded reasoning-first field;
+it contradicts the registered spatial-CoT prohibition (free-text
+CoT degrades spatial accuracy — round-2 evidence) and survived into
+v3 as v1-lineage legacy; its original audience (Cosmos Reason2) is
+v3-deferred; and it bricks an entire model family whose provider
+documents the pattern as a refusal trigger. One re-pin, before the
+freeze, with a cross-arm sanity replay (3 decisions each on ER-2 +
+one other arm) required before v3.4 becomes the collection prompt.
+Sonnet's measured-refusal data is RETAINED as a finding
+(model-family prompt-format sensitivity) regardless of the re-pin.
+(2) DeepSeek gains refusal-mitigation PARITY (4 attempts + grey
+fallback) — ruling 1's comparability principle applies to every
+hosted arm.
+(3) Refused attempts must record token usage where the API returns
+it (Sonnet's ~$0.76 estimated cost is the evidence gap).
+(4) The agent's key copy to the VM (/ws/.env, mode 600, values
+never printed) is RATIFIED — the keys were supplied for exactly
+that use.
+(5) OpenAI credits EXHAUSTED mid-run (gpt-5.1 dynamics stopped at
+28/59; the frozen gpt-4o pin is blocked too) — OWNER ACTION: top
+up before collection; ~$0.05 completes gpt-5.1's dynamics.
+
+**Model-wiring RESULTS + RULINGS (2026-10-06,
+`docs/reports/2026-10-06-model-wiring.md`):** Qwen3-VL-8B VALIDATED
+to the full standard (probes 57/60 — CI-overlapping the frontier
+baselines; co-resides with Isaac at 10.1/24.6 GB peak; multi-image
+passes; $0 API) and gpt-5.1 to the pilot standard (probes 54/60
+with a robot_count weakness + an all-"A" miss pattern; head-on:
+VLM_VERBATIM yield plan, resolved, best-yet delay 143.8 s; ZERO
+refusals — the 4o refusal profile did NOT carry over on static
+frames, dynamics untested). Sonnet 5.5 and DeepSeek are WIRED +
+unit-tested, live-blocked on missing keys (user supplies
+ANTHROPIC_API_KEY / DEEPSEEK_API_KEY). RULINGS:
+(1) the Sonnet arm's attempt/fallback config is set to PARITY with
+the other hosted arms (4 attempts + grey-image fallback) —
+comparability over conservatism;
+(2) DeepSeek RE-PINNED to the live successor (`deepseek-flash`,
+V4.1-Flash — the requested -exp ID is retired and served by
+V4.1; image budget is now ≤1024 tokens/image, so the 384-token
+compression question is OBSOLETE — update the exploratory-arm
+notes; verify the serving name against the live listing at run);
+(3) Qwen's plan-emission rate of 0/17 is a MEASURED MODEL PROPERTY,
+not a defect: NO per-model prompt forks (the scenario-agnostic
+single prompt is the design); the arm legitimately exercises the
+m3_default path, and emission rate is exactly what metric (i-a)
+measures;
+(4) comparison caveat recorded: pilot rows ran v3.2, new rows
+v3.3 — gpt-5.1's verbatim cannot be credited model-only; v3.3 is
+the single prompt for everything from here. OPTIONAL follow-up
+noted, not ordered: battery v2 (dynamics) on qwen + gpt-5.1
+(~$0.35) — conflict_prediction is the type that separates
+backends, and neither new arm has been tested on it.
+
+**Battery manifest audit CAVEAT + second trails null (2026-10-06,
+fork-session pilot; report `docs/reports/2026-10-06-trail-on-pilot.md`,
+adopted file-only — the fork's branch carries the whole v2 lineage
+from an old base and is NOT merged into this docs branch):**
+(1) APPEND-ONLY CAVEAT on the battery manifests' audit claim: for
+the 8 decision frames with full-rate M1 history, the M1 state that
+DREW the annotated frame lies 0.20 s before to 0.23 s after the
+decision record's scene stamp (M5 pairs frame and scene within a
+skew bound) — so manifest_v1/v2's "exact M1 state" pairing and the
+0.1 s GT gate were applied at the wrong stamp for those items. The
+manifest audit claim must carry this caveat in any confirmatory
+citation; fold the stamp fix into the registered battery-v2.1
+rebuild. (2) TRAILS: second probe-level null (trails-on vs off on
+the 59 frozen v2 items, every backend × type |net| ≤ 1, rule fixed
+pre-call) — the fork rules NO v3 trail arm at the current 3 s
+window; the deployed-prompt three-way frame A/B stays registered
+but is DOWNGRADED to run only if collection's own data motivates
+it (two nulls now stand against it, both probe-level).
+
+**Model-wiring ruling (2026-10-06, from the landscape round —
+`research_notes/VLM model landscape 2026/`):** WIRE NOW
+`claude-sonnet-5-5` (existing Anthropic adapter; MUST omit
+temperature — 400s on current gen, recorded `unsupported_sampling`
+per the ER-2 precedent — and classify HTTP-200
+`stop_reason:"refusal"` as a refusal outcome) and **Qwen3-VL-8B**
+Q4_K_M via the existing llama_server adapter (official GGUF +
+mmproj; smoke gates: multi-image under llama-server, and L4 VRAM
+co-residency with Isaac verified by nvidia-smi headroom before any
+joint run). PILOT ARM: `gpt-5.1-2025-11-13` with
+`reasoning_effort:"none"` (legal temp-0, no reasoning billing) —
+does the 4o refusal/chance profile persist? DEFERRED to v3: Cosmos
+Reason2 (8B exceeds the L4; hosted trial-only; vendor-only
+evidence). LIFECYCLE FACTS recorded: the `gpt-4o-2024-08-06` pin is
+NOT deprecated (safe for v1 collection; the 4o line is winding
+down — do not assume into 2027); `gemini-robotics-er-2-preview`
+price DOUBLES after 2026-12-31 and preview deprecations get 2-week
+notice — both argue for prompt collection. Validation standard for
+every new backend: preflight, probe battery v1 (60 items), and two
+head-on episodes (seeds 42/43) scored with the standard plan
+metrics — directly comparable to the existing baselines.
+
+**Layer-2-off pilot RESULT + ARM REGISTERED (2026-10-06,
+`docs/reports/2026-10-06-layer2off-pilot.md`):** expectation HELD —
+4/4 cells clogged, 0/13 robots arrived, robots latch 0.27–0.39 m
+apart within a second of conflict onset and never separate; 230
+analyses fired, zero dispatches (silencing proven). Delay contrast
+(censored lower bounds): head-on ≥531 vs 150 s intervened; B3 ≥799
+vs 238; IB10 ≥1026 vs 457–503. No self-resolving cell → no oracle
+finding. REGISTERED into collection: the NO-INTERVENTION ARM, 35
+episodes paired on (scenario, seed) keys against the intervened
+arms — 10 each head-on/B3/IB10, 5 for B1 (both arms clog there
+until the stage-2 defect is fixed; B1 stays decision-scored);
+one layer-2-off episode per key pairs against both backend arms;
+McNemar ≈ 0.002/cell at 10/10. Registered caveats: the proximate
+cause (M4's 0.45 m stop) is the natural reading but untested (no
+run disabled M4); the B3 intervened reference is a scripted
+oracle, not a live model. ~13 VM-h, $0.
+
+**Verbatim pilot (registered 2026-10-06, PILOT — excluded from every
+confirmatory count, per the standing pilot rule):** a plan-complexity
+ladder probing when live plans execute verbatim, on the v2 branch
+(NOT the parked v3 fix — pilots must match collection behavior):
+ER-2 3× two-robot head-on (2-leg plan shape), 2× B1 bottleneck
+(3-robot), 2× IB10 (4-robot junction_clear, replicating the
+calibration's repaired-3-edits), 1× single-robot reroute replicate;
+gpt-4o 2× head-on + 1× IB10 (first live plans under the stated
+grammar for that backend; refusals are data). Measured per episode:
+emission, consistency, provenance, edit distance + which legs,
+oracle-order agreement PRE-repair, recede-set choice stability
+(mirror axis again?), outcome class. Purpose: preview the plan
+metrics' live distributions and decide whether the grammar or
+invitation needs a final pre-freeze adjustment.
+
+**Verbatim-pilot RESULTS + RULINGS (2026-10-06,
+`docs/reports/2026-10-06-verbatim-pilot.md`, 11 episodes, ~$0.33):**
+HEADLINES — grammar works: trigger-plan emission AND consistency
+11/11 (pre-grammar: 0/3); provenance (triggers) 3 verbatim / 7
+repaired / 1 m3_default with NO monotonic complexity trend; ER-2's
+repairs are mostly FORMAT (reorders — it lists legs by role
+salience, not execution order; 2 plans were reorder-only from
+verbatim) and all 3 of its composites needed the same cross→yield
+substitution (the gloss never names the yielder); gpt-4o needed 0
+reorders but NEVER chose junction_clear (0/13) and clogged IB10
+with 11 trivially-verbatim reverse/wait plans — the
+verbatim-inflation artifact of unconstrained strategies; ER-2's
+recede set is UNSTABLE across episodes (E-W / N-S / all-four);
+refusals: ER-2 0/32, gpt-4o 1 recovered /21. RULINGS:
+(A) grammar v3.3 re-pin adds ONE line stating the list-order
+convention ("the list order is the execution order — the robot
+that acts first comes first"), plus a metrics-only
+`repaired_order_only` sub-class;
+(B) same re-pin extends the junction_clear gloss in-register
+("…some robots first back out, one inside robot yields, then an
+ordered crossing") — telling the contract, not the answer; the
+substitution path stays for models that still omit it;
+(C) provenance stays pure; add derived `verbatim_dispatch_matched`
+and the registered analysis "provenance conditioned on
+strategy-vs-oracle correctness" — the deliberate no-rule for
+`reverse` etc. stands, with the inflation artifact documented;
+(D) order-agreement scoring excludes robots that can only receive
+`continue` (held robots) — definition fix, scorer-side;
+(E) IB10 collection uses `prompt_robot_order: random` like every
+other cell (the id_asc binding was a calibration artifact; the
+recede-set/first-slot confound dies with it);
+(G) junction_clear outside IB10 grounds the shipped row and is
+TAGGED (the loudness guard worked as designed at B1); whether B1
+gets derived junction fields is a v2-freeze decision — until then
+the tag is the registered behavior. (F) B1's stage-2 rank-0 2×
+defect recurred — already covered by the Rev 20/22 registered
+exclusion; both B1 pilot episodes decision-scored only.
+RULINGS A–D LANDED (2026-10-06, prompt v3.3, digests recorded in
+the builder's version history and
+`docs/reports/2026-10-06-verbatim-pilot.md`; +104 chars per pin,
+v3.3 baseline `769802f0…`): list-order line + extended
+junction_clear gloss; `repaired_order_only`,
+`verbatim_dispatch_matched`, `strategy_correct` + the
+provenance-by-strategy-correctness tabulation; held robots
+excluded from order agreement. Re-derivation over all 28 pilot
+plans confirms the intended effects (episodes 2/7 order-only; 6's
+agreement no longer false-by-construction; gpt-4o's 11 verbatim
+IB10 plans all conditioned out as strategy_incorrect).
+RULING (follow-up to C): `accepted_strategies` is registered for
+every cell by MECHANICAL DERIVATION from its existing oracle block
+(the strategy the oracle's own rationale/fields name — e.g.
+head-on family and B1 ⇒ {yield} from `correct_yielder`), never
+fresh judgment; the derivation lands with pins at the next scorer
+touch and MUST be in place before the v2 freeze so no cell sits in
+`strategy_unscored` by omission.
+congestion metric (the Arul & Manocha Voronoi-style scalar,
+arXiv:2202.11334) into the stage-1 prompt — it IS the congestion
+answer and would contaminate RQ1 classification. Permitted only
+inside M3/diagnostics, where detection is not being measured.
 
 **Scope bound:** v2 scenes stay at ≤ 5 active robots, justified by the
 documented degradation of centralized model planning beyond ~6 agents
 (survey arXiv:2502.03814) — a cited boundary, not an apology.
 
+**Foundations round adopted (2026-10-05, `reports/Swarm congestion
+foundations.md`):**
+- METRIC CITATIONS adopted for the oracle cost tables and scorers:
+  time-to-resolution ↔ cluster-dissolution time / jam duration
+  (Aguilar Science 2018; arXiv:2403.08683); the censored
+  never-resolves outcome ↔ Zuriguel's clogged-state divergence
+  criterion (Sci Rep 2014) — retroactively the principled frame for
+  T2b's censored margin and `fallback_exhausted`; asymptotic
+  throughput (dos Passos, arXiv:2201.09335) where a cell measures
+  flow; delay-vs-free-flow via one single-robot free-flow run per
+  cell (cheap, registered as a per-cell baseline run at collection).
+  METHOD RULED (2026-10-05): free-flow baselines are SOLO-IN-SPACE —
+  each robot traverses the course ALONE (per-robot scenario
+  variants, own USD builds; blocker cells get blocker-free variants;
+  B2-visual r1 covers r2, the load prop is collision-free) — because
+  solo-in-time fails in 5/6 v2 cells (swap-scene goals lie past
+  other robots' spawns → 0.00 m clearance to the 0.45 m latch;
+  per-order table in `docs/reports/2026-10-05-flow-metrics.md`), and
+  because free flow in the flow literature means an unobstructed
+  course: a parked robot is an obstacle. ONE method for the whole
+  table (no B1 solo-in-time mixing). Scorer fields + outcome classes
+  (resolved/intermittent/clogged) BUILT 2026-10-05, additive-only;
+  pinned calibration passed (step-6 ep2 clogged, step-7b 4/4
+  resolved, demo ep2 resolved). TABLE FROZEN (2026-10-05):
+  `config/free_flow/free_flow_v1.json` — 22 solo-in-space runs, 8
+  cells, 28 entries (priority family covered by measured identity,
+  md5-verified maps + collision-free prop); all delays in the
+  historical re-score positive, passer < held robots in every IB10
+  episode, B1's unobstructed pair within 0.5 s of solo times
+  (`docs/reports/2026-10-05-free-flow-table.md`). RULINGS:
+  `convoy_counterflow` is COVERED by `convoy_counterflow_slip`'s
+  entries (byte-identical geometry, pinned at step 9) — add the
+  aliased rows via the generator at the next table touch, never by
+  hand (the committed-equals-generated test governs);
+  `blocked_path_*` baselines deferred (decision-scored cells, ~25
+  min whenever wanted); the stale `--duration-sec` claim in
+  t2b_flow_ordering.yaml's header is noted for the next permitted
+  touch of that frozen file (the flag is parsed but unused — the
+  variant yaml's duration_sec is what stops Isaac).
+- TAXONOMY FOOTING: deadlock ↔ circular wait (AGV resource theory) /
+  force-equilibrium (Grover, arXiv:1911.09146) / clogged absorbing
+  state; bottleneck ↔ intermittent clogging at a constriction;
+  `anomaly` has NO flow-physics counterpart — conceded in print. The
+  resource-vs-dynamical unification is claimable synthesis.
+- SCALE-BRIDGING CHAIN registered as the answer to the small-N
+  objection (five verified links, macro transitions → few-body
+  arches → tractable N=2–3 → micro-policy sets macro flow → conflict
+  conventions eliminate the jammed branch): 2–5-robot structured
+  cells are congestion's unit of formation.
+- ANCHOR for the architecture premise: Marcolino et al. 2017 —
+  reactive avoidance reaches a non-arriving equilibrium — the swarm
+  field's own concession that a higher-level mechanism is needed.
+- ABSENCE SENTENCE adopted verbatim (no semantic/VLM reasoning in
+  the congestion canon; SwarmVLM/ImpedanceGPT carve-out). Strategy
+  pedigree: SQF ≈ convoy, TRVF ≈ reroute.
+- Pre-camera-ready debts tracked in the report's closing (venue/page
+  verifications; ANTS sweep; arXiv:2506.12710 skim).
+
+**`crowding` DROPPED from measured scope (USER DECISION 2026-10-05):**
+the type stays in the M2 enum and schema (removing it would churn the
+v1-frozen prompt lineage and break classification comparability with
+v1 collection), but it is formally OUT of every coverage and accuracy
+claim: no battery cell instantiates it, no GT labels it, and a live
+`crowding` answer scores as a misclassification against the cell's
+registered type. The type-coverage statement for the thesis is:
+three measured congestion types + the none control, each with built
+and smoked cells — deadlock (head-on family, T2b, B2/B2-visual pairs,
+B3 + first-to-slip, T3b), bottleneck (B1, IB10 — the thinnest at two
+cells, both v2-scored), anomaly (T3a blocked_path pair, T3c
+dynamic_anomaly_v2; loop scenes exist but are do-not-collect) — plus
+T0 normal_flow for none. The former token-scale crowding candidate
+remains unregistered (rev 9.5 "Not registered here"), now with this
+explicit drop on record.
+
 **Optional physical-camera episode (owner decision):** a single
 hardware episode (any n, demo-grade) with a physical overhead camera
 would upgrade claim 1's wording to "real physical camera." Not
 required by the design; recorded so the option is a conscious call.
+
+**Round-3 scan deltas (2026-10-04, `reports/VLM planner coordinator
+recent work.md`):** claim 2 WORDING TIGHTENED — GAVEL's eval (read)
+quantifies repair-vs-replan only as an ablation (76.2% repair-only vs
+91.8% full, 1.00 vs 1.5 LLM attempts), no per-leg or per-failure
+tabulation; the claim emphasizes per-leg THREE-way provenance
+(incl. defaulted) logged as an experimental quantity + multi-robot +
+embodied Nav2 — four axes GAVEL lacks. New concurrent work to cite:
+arXiv:2609.27816 (VLM-LLM + reachability gate; ego-camera,
+audit-and-REJECT, no congestion, no baseline), DuoMind (2610.02161,
+distributed manipulation), Fresh Memory Stale Plans (2609.03340,
+persistent-plan currency, non-embodied — claim 5's "embodied"
+qualifier holds). MDPI reading gates PARTIALLY CLEARED: both papers
+identified (Pesjak & Žabkar MAKE 8(1):22; Peña Narváez et al.
+Robotics 15(4):80), both single-robot, full text inaccessible on all
+routes — cite as adjacent, never quote internals. EvoPlan GATE
+CLOSED (2026-10-04, full 24-page read,
+`research_notes/VLM planner coordinator recent work/evoplan_read.md`):
+provenance claim UNTOUCHED — EvoPlan's LLM does both proposal and
+repair ("invalid plans are demoted by the cascade, not by an LLM
+critic"; validators gate, never edit), single-robot, text/symbolic
+benchmarks, preprint-only, no code. Its validated-prefix fraction
+(Fig. 2) is the nearest published quantity and must be named:
+tracks validator acceptance per iteration, NOT per-leg origin — a
+leg surviving verbatim and a leg rewritten five times are
+indistinguishable in it. TWO TIGHTENED SENTENCES adopted for the
+thesis text (full wording in the notes file): the
+deterministic-minimal-repair sentence pre-empts EvoPlan's
+regex-rewrite and prefix-truncation mechanisms; the no-per-leg-
+provenance sentence names and distinguishes Fig. 2. Cite EvoPlan as
+the closest propose-verify analogue, contrasted on origin labels /
+repair agent / domain. OPTIONAL residual skim (low risk, same
+family): GenePlan (2603.09481, ICAPS 2026, LLM-mutation
+evolutionary PDDL). Supporting citations
+gained: in-prompt grammar > constrained decoding (2505.14763, 7%→23%
+vs 98%-semantically-wrong), "missing-step" failure taxonomy (EAI,
+NeurIPS 2024) names the no-recede-legs class, Steps-to-Validity
+(2508.01300) as nearest plan-scoring kin; axis-mirror errors and
+mirror-scoring protocols have NO published analog (ours is a stated
+novel choice); metric-grid overlays can HURT some backends — the
+apparatus grid ships as a per-backend A/B, not a default.
 
 **Verification debts** (rev 6 status): CLOSED 2026-10-01 by deep-reads
 (`research_notes/VLM coordination recent advances/verification_debts.md`)
@@ -305,6 +1172,49 @@ self-selection / pairwise tournament (majority voting beats them;
 reported verifier gains were a decoding artifact, arXiv:2506.17417,
 arXiv:2608.01207) — M3 is the verifier; agentic image-tool loops
 (infra cost; pre-rendered manipulations instead).
+
+**Apparatus rulings (2026-10-04, after the wave-1 build + VM smoke;
+report `docs/reports/2026-10-04-visual-apparatus.md`):**
+
+- All five flags BUILT and VM-verified (grid recessive/legible, no
+  marker occlusion — the 1.4% STALE at 0.149 m separation is the
+  known marker-contact mechanism, present in overlays-off
+  comparators; detection precedes annotation). Flag-off prompt,
+  frame, and request bodies pinned byte-identical.
+- VOTE BALLOT RULE (ruling): the majority is taken over DISTINCT
+  rendered orders, one ballot each. A duplicated order's calls are
+  first reconciled: agreement → one ballot; disagreement → no ballot
+  from that order, and the disagreement is recorded as an
+  `intra_order_inconsistency` flag — itself a measured quantity (a
+  live T=0 same-prompt divergence was observed in the smoke,
+  consistent with the registered nondeterminism caveat).
+- TIE RULE (REVISED 2026-10-04, superseding the registry-order
+  preference): ties go to the EARLIEST tied ballot's representative
+  call. Rationale for the revision: the registry order is id_asc —
+  the exact rendering the presentation-order finding tied to the
+  first-slot/robot_1 priors — so preferring it would resolve every
+  two-robot inter-order disagreement toward the biased order,
+  reimporting the prior the vote exists to remove. The earliest
+  ballot's representative is call 0, the episode's randomized draw:
+  unbiased across episodes, deterministic within one. (Abstention
+  interpretation ratified: a refused call is not a disagreement; a
+  no-surviving-ballot vote dispatches nothing,
+  `error_type=permutation_vote_no_ballot`.)
+- CANDIDATE-OPTIONS CONTEXT TABLE: ratified as built — options are
+  derived from M3's own `_plan_problems` audit under one fixed
+  strategy context per action (incl. `reverse` under `junction_clear`
+  when arms are declared); options are advisory, free-plan legality
+  unchanged.
+- `prompt_conditions` on EVERY artifact: ratified (deliberate break
+  from add-when-set; condition visibility wins).
+- ZOOM FRAMING (ruling): the tile frames the detector's INVOLVED
+  set, not only the trigger robot (small follow-up fix).
+- GRID × T0 PROBES (ruling): probe artifacts record the frame
+  condition; grid-on runs' probes are NOT poolable with grid-off
+  probes across cells — a documented comparability bound, since the
+  frozen probe prompt cannot mention the grid.
+- Trail window stays at the registered 3 s (A/B later if trails
+  underperform at low speeds).
 
 **Statistics and reporting (rev 6, from the methodology review)**
 
@@ -402,7 +1312,56 @@ head-ons, junction scenes, convoys, and the loop map — not just IB10.
   `temporary_wait` ⇒ a `wait` leg, `reroute` ⇒ a `reroute` leg,
   `junction_clear` ⇒ at least one `reverse` or `yield`. An
   inconsistent plan is treated as unparseable (reason logged), never
-  silently reinterpreted.
+  silently reinterpreted. DECIDED (2026-10-03, VLM-planning review
+  item 5): `reverse`, `convoy`, `priority_override` and `none` carry
+  NO consistency constraint by design — the spec defines none, and
+  inventing one would be reinterpretation; recorded here so the v2
+  freeze inherits a decision, not an omission.
+- **Grammar-in-prompt rule (2026-10-03 review, fix 1):** prompt v3
+  states the plan grammar — action semantics and the per-strategy
+  refinement rules above — as ONE scenario-agnostic block rendered
+  identically on every v3 decision in every scenario. Rationale: the
+  contract is told, the application of it is measured; grading plans
+  against unstated rules confounds "cannot sequence" with "was never
+  told the grammar" (the live ER-2 plan rejections'
+  construct-validity threat). The block never names a scene, a robot
+  count, or a preferred strategy.
+- **Emission/consistency split (2026-10-03 review, fix 2):** metric
+  (i) splits into (i-a) *emission* — a parseable plan was supplied —
+  and (i-b) *consistency rate given emission*; declining to plan and
+  planning inconsistently are different behaviors, never binned
+  together.
+- **χ-epsilon verbatim rule (2026-10-03 review, fix 3; RULED same
+  day after measurement):** the measurement refuted the
+  snapshot-noise framing — within-run χ spread is ≤ 5 mm, while the
+  nominally symmetric jam forms with between-run margins up to
+  0.142 m; no structural ranking difference (≥ 0.5 per follower) was
+  ever observed. RULING = option (b): ε applies to VERIFICATION
+  ONLY — dispatch stays in χ order (deterministic, frozen 7b
+  machinery untouched) — with `ε = 0.15`, absorbing every observed
+  asymmetry and sitting far below the 0.5 smallest structural
+  margin; ε must be re-measured for any scene family where follower
+  counts differ. The dispatch-match check becomes order-aware with
+  an `order_equivalent` flag so a within-ε divergence between the
+  verified plan and the dispatched order is RECORDED, never hidden —
+  this is what keeps freeze-blocker 1 closed (the recede-SET audit
+  stays strict; within-ε order is a defined equivalence class, not
+  an unaudited hole). Consequence, per the registered 7b bound
+  procedure: with ε, `recede_order_swapped` leaves the defect corpus
+  and bound 4 reaches full coverage of the remaining repairable
+  cases — the repair bound RE-FREEZES AT 4 (procedure followed, not
+  preference).
+- **Mirrored-axis composite caveat (2026-10-03 calibration):** ER-2's
+  first consistent live plan chose the E-W pair to recede — the
+  axis-mirror of the geometry-fixed N-S candidate set. The audit
+  scores this `repaired` BY CONVENTION (the mirrored composite is
+  unmodeled — no derived pockets/clearances on that axis), not by
+  proven infeasibility. Registered as an analysis caveat on IB10
+  plan metrics and a v3 candidate (axis-choice freedom).
+- **Oracle-order agreement stays gated on `consistent`** (review
+  item 3): the registered population is consistent plans;
+  inconsistent plans' orders remain recomputable offline for
+  exploratory analysis, never for confirmatory counts.
 
 ### Verify/repair contract
 
@@ -450,7 +1409,9 @@ prompt (v3 template, hash-frozen at the v2 freeze).
 
 ### Plan-quality metrics (registered, scored on every v2 decision)
 
-- (i) *plan emission rate* — a parseable, consistent plan was supplied;
+- (i-a) *plan emission rate* — a parseable plan was supplied; (i-b)
+  *consistency rate* — given emission, the plan refines the strategy
+  (split per the 2026-10-03 review, fix 2);
 - (ii) *plan agreement rate* — verbatim-executable without repair;
 - (iii) *plan edit distance* — repairs applied, with reasons;
 - (iv) *executed-plan provenance* — `vlm_verbatim` / `repaired` /
@@ -483,8 +1444,12 @@ outperform the classical arm."
 VLM anywhere in v2 is a set-of-mark multiple choice over annotated
 options (as stage-2 already does), never a continuous coordinate —
 MOKA's principle (arXiv:2403.03174) that VLMs are better at
-multiple-choice than at producing continuous locations, backed by
-near-chance left/right discrimination results (LRR-Bench). In
+multiple-choice than at producing continuous locations. (The former
+supporting cite "near-chance left/right (LRR-Bench)" is WITHDRAWN per
+the 2026-10-04 citation correction — LRR-Bench's basic position task
+is 78–80% for GPT-4o; its near-chance results are composite/3D
+tasks. The rule stands on MOKA plus the grounding-vs-regression
+evidence, e.g. the Mark-Grid point-grounding gains.) In
 particular, junction recede pockets are lettered marks, not
 positions.
 
@@ -593,7 +1558,110 @@ re-send.
   update, M3 reroute grounding to a concrete alternate path (waypoint
   via the far aisle, not a goal re-send), scenario YAMLs, oracle cost
   tables from forced-wait and forced-reroute sweeps.
-- **Risk:** Nav2 on a loop map may reroute *on its own* when the global
+- **Phase-1 gate: PASS (2026-10-02,
+  `docs/reports/2026-10-02-loop-preemption-smoke.md`).** Minimal loop
+  built (second aisle at y=1.2, one new east connector, lowered
+  connector-flanking racks for camera visibility); with the
+  sub-lethal blocker, 0/~200 sampled Nav2 global plans entered the
+  second aisle — the detour decision stays with M2/M3. M1 coverage
+  on the loop verified (100% fresh, mm-level bias). PROTOCOL
+  EXCEPTION recorded: `generate_warehouse_map.py`'s erroneous
+  vertical flip (silently mirrored Y-asymmetric map features;
+  invisible on all Y-symmetric v1 scenes) fixed on the v2 branch,
+  proven a byte-identical no-op for every v1 map, regression-pinned.
+  Follow-up check queued for step 9: whether T3b's Y-asymmetric
+  static obstacle being absent from its baked map is by design
+  (sensor-seen prop) — likely yes, verify when touching props.
+- **PHASE-2 OUTCOME — the detour-judgment FAMILY is PROVISIONALLY
+  DEFERRED TO v3 (coordinator ruling 2026-10-03, owner may
+  override;** `docs/reports/2026-10-03-loop-family-and-visual-pass.md`).
+  The phase-1 risk returned at family severity: a gap narrow enough
+  to stall the robot (collision stop box 0.24 m) is already past
+  the planner's flip point (NavFn direct at 0.30 m, loops at
+  0.22 m), so Nav2 self-detours before the decision layer is ever
+  asked (3/3 runs) — and the live planner looped even on a clean
+  costmap, an UNEXPLAINED mechanism that makes any gap-tuning
+  untrustworthy until resolved. Separately, a tracked faulted robot
+  cannot be the transient blocker (the 0.45 m latch outranges the
+  0.38 m collision stop → permanent latch). Detour length is capped
+  by the tracked band, so "lengthen the detour" has no room; shared
+  Nav2 param changes are rejected (blast radius over every
+  validated scene); a sub-lidar stall box would require physical
+  contact (violates the zero-contact invariant); scoring Nav2's own
+  detour abandons the RQ. KEPT IN v2: the loop map + builder, M1
+  coverage, the map-flip fix, `reroute_waypoints` grounding
+  (M4 `follow_waypoints` live path marked UNVALIDATED — watchdog
+  failure on first live use), oracle schema + scorer, and both
+  family yamls with "do not collect" blocks. v3 prerequisites
+  registered: explain the clean-costmap loop; validate
+  follow_waypoints; a stall mechanism that is planner-invisible
+  without contact.
+  UPDATE (2026-10-05,
+  `docs/reports/2026-10-05-follow-waypoints-validation.md`):
+  `follow_waypoints` EXONERATED — the waypoint pipeline works end to
+  end (waypoint 0 reached at 0.054/0.082 m in both validation runs;
+  M4 gained log-only leg-progress lines, plain path pinned
+  byte-identical). The REAL defect: PHANTOM LETHAL CELLS close the
+  0.55 m second aisle in the shared global costmap (up to 16/17
+  aisle columns lethal, nothing physically there) → planner failure
+  → 0.5 m-tolerance fallback into the remnant corner → DWB
+  near-zero-command wedge until the watchdog. Demonstrated
+  contributor: `camera_localizer_node` pairs a 0.3–0.45 s-old M1
+  pose with LATEST odometry, injecting up to 0.6 rad map→odom yaw
+  error during in-place rotations; one closure (≤0.06 rad) is NOT
+  explained — second source open. Leading candidate for the
+  phase-2 "unexplained clean-costmap loop" above. All fix options
+  are SHARED components; NONE APPLIED pending a discriminating
+  static-aisle probe — a shared change would require re-validating
+  v2-era frozen results (IB10 4/4, free_flow_v1); v1 collection is
+  unaffected (runs from the tag). Secondary shared issue noted, not
+  chased: the DWB corner wedge frees only on a new goal.
+  SOURCE ATTRIBUTED + FIX RULED (2026-10-05,
+  `docs/reports/2026-10-05-costmap-source-probe.md` Rev 2): one
+  source — camera-localizer registration error (−ω·L, effective lag
+  0.14–0.35 s; 66% of closure cells) — one amplifier — the costmap
+  NEVER CLEARS (`obstacle_layer.scan.clearing: False`, the unset
+  Jazzy default; raytrace 3.0 < obstacle 3.5) — and a geometry
+  narrowing (17%) that never closes alone. Static robot: 0 columns
+  closed in every phase; fast rotation: 12/17 within seconds;
+  replay reproduces the costmap at recall 0.987–0.998. RULING: the
+  fix is **A′ + H** (stamp-matched, latency-compensated localizer
+  lookup + `clearing: true` with raytrace 3.5 — the only
+  combination zeroing closures in both datasets), to be built and
+  live-validated on a PARKED v3-prep branch, NOT merged into the v2
+  line: no v2 scored cell exercises the defect, v2's frozen results
+  are internally consistent under current behavior, and v1
+  collection runs from the tag regardless. The parked branch ships
+  with its re-validation batch (IB10 composite rerun, free-flow
+  spot checks, loop re-smoke) so v3 inherits a proven fix, not a
+  patch. CROSS-CUTTING CORRECTION to audit: GT `sim_time_sec` runs
+  0.300 s behind ROS stamps — any analysis equating ROS-stamped
+  data with ground_truth.jsonl at equal times is biased (two
+  reports already corrected; audit the rest, incl. how the
+  empirical −0.45 s M1↔GT join offset decomposes).
+  FIX VALIDATED + PARKED (2026-10-06,
+  `docs/reports/2026-10-05-costmap-fix-validation.md`; branch
+  `feat/v3-costmap-fix` @ 0b2e755, local only, NOT merged): A′
+  refined by root cause — M1 LOSES the marker for up to 0.6 s
+  during fast turns and carries the old pose with a FROZEN stamp;
+  the localizer now pairs odometry at the entry's own stamp (M1's
+  true latency is ~0.0075 s median, not 0.04–0.20 — those were
+  carried-forward rows). ALL validations PASS: rotation closures
+  12–13/17 → 0 ×2; DECLARED REROUTE COMPLETES through the second
+  aisle ×2 — the reroute gap is CLOSED on this branch; IB10 4/4 +
+  yielder-last; free-flow spot checks within ±0.8 s; the loop
+  pre-emption conclusion survives. Quantified v3 re-baselines: T3c
+  post-removal stall −18.4 s; IB10 last arrival −55.5 s. GT AUDIT:
+  NO frozen number moves (self_detour margins 6.4–10.7 s; 0/199
+  probe-answer flips), but the GT clock offset is PER-RUN (0.300 s
+  single-robot, 0.500 s four-robot — the −0.45 s join offset is
+  mostly GT clock, not M1 latency): GT must be offset-fitted per
+  run from odometry; 18/41 temporal_order frames fall inside the
+  eligibility floor under shift — folded into the registered
+  battery-v2.1 rebuild.
+- **Risk (retired by the phase-1 gate for its original severity,
+  kept for the record):** Nav2
+  on a loop map may reroute *on its own* when the global
   costmap sees the blocker, pre-empting the decision layer. Design
   control: blocker placed so the global planner's path stays viable
   (narrowed-not-blocked, below costmap lethal threshold) while transit
@@ -613,6 +1681,20 @@ text-only (v1) vs image-only (v2) urgency. No new prompt version —
 the prompt already carries no urgency text in the v2 cell by
 construction.
 
+BUILT 2026-10-02 (`priority_visual_r1/_r2`, flush-mounted load prop
+with pinned marker/lidar clearances; both members' prompts
+byte-identical; no-text pin at grep level). DESIGN NOTE recorded at
+build: with no registry priority at all, `priority_override` cannot
+ground in this cell (0–0 tie → unsupported); the executable oracle
+route is `yield` naming the empty robot — an asymmetry vs v1 B2 that
+is the point of the cell (urgency must come from the image), kept.
+B3 first-to-slip also BUILT (`convoy_counterflow_slip`, slip-onset =
+0.05 m sustained ≥1.0 s after conflict onset, identity + latency
+scored; identity degenerate under correct execution, informative
+under divergence). T3b map-bake question CLOSED: by design
+(timed_obstacles are never baked). VM visual pass is turnkey per the
+step-9 report checklist.
+
 ---
 
 ## (e) B3 first-to-slip
@@ -630,7 +1712,47 @@ machinery with them.
 
 Multi-conflict scenes (two simultaneous congestion events in one
 coordinator plan) carry a recommendation to defer to v3 — see "The VLM
-Coordinator"; the v2 freeze makes the explicit call. The robot-blocker
+Coordinator"; the v2 freeze makes the explicit call.
+
+**v3 DESIGN DOC exists (2026-10-06):**
+`docs/superpowers/specs/2026-10-06-prereg-v3-design.md` (rev 1,
+merged from `feat/v3-design` @ 7c69f56) consolidates every v3
+registration below plus one addition: the detour family's
+stall-vs-plan window must be RE-DERIVED on the fixed stack before
+any new stall mechanism is designed (the 0.22/0.30 m NavFn flip
+points were measured under phantom-mark inflation and may be
+invalid). That doc is the v3 planning surface from here; the blocks
+below remain the decision record.
+CORRECTION (2026-10-06, from the rev-2 advisor review; doc updated
+to rev 2 @ 64fb148): the 0.22/0.30 m NavFn flip points are from a
+STANDALONE BAKED-MAP sweep (no live costmap, no localizer, no mark
+persistence — loop-family report §Mechanism) and are therefore
+FIX-INVARIANT; the sentence above overstated the fix's reach, and
+the detour family does NOT revive for free — NO-GO remains the
+expected branch, pending an offline sweep refinement and one live
+probe of the still-unexplained sim-54.8 live-vs-standalone
+discrepancy (phantom marks were only a candidate there and act in
+the wrong direction for it).
+
+**v3 candidate registered 2026-10-06 — the MAPD mini-cell (Ghofrani
+scenario analog):** a continuous-space analog of the GECCO '25
+MAPD setup (Asadi, Nowé, Ghofrani, 10.1145/3712256.3726339: 15×15
+grid, ~10% obstacles, 5 task nodes, agents each running a SEQUENCE
+of pickup→delivery tasks; congestion emergent from task streams,
+handled there by DNN congestion-prediction-and-avoidance, avg
+throughput doubling reported). Applying our method at THEIR N=5
+sits exactly at our scope bound; their N=10/25 are the scale-probe
+rungs. Build cost: M5 task-sequence queues (multi-goal registry,
+pop-on-arrival), task-node props, an emergent-congestion scenario
+family; our flow metrics already map to their measures (makespan ↔
+time-to-full-resolution, throughput ↔ aperture_throughput,
+completeness ↔ outcome classes, + delay_vs_free_flow which they
+lack). The experiment it enables: prediction-avoidance vs
+detection-resolution on the same task streams — the bridge between
+the flow-shaping tradition and our event-resolution claim, with
+the Layer-2-off arm as the shared control. Natural home: v3,
+possibly fused with the multi-conflict item (emergent task-stream
+congestion produces simultaneous conflicts for free). The robot-blocker
 anomaly, the token-scale crowding scene, and the
 three-active-robot B2 junction variant remain unregistered candidates.
 The last is structurally impossible under v1 primitives (unified scene
@@ -678,6 +1800,116 @@ makes an explicit include/exclude call.
    the registered fallback IF the flag fires in scored runs — an
    owner scenario-redesign call, not applied now.
 7. Intersection oracle + regret extension; freeze IB10 scoring.
+   STEP-6 OUTCOME (2026-10-02,
+   `docs/reports/2026-10-02-ib10-composite-smoke.md`): mocks PASS
+   (full phase sequence, solved-row geometry, correct provenance);
+   repair bound stays 2; live ER-2 episode 1 chose `junction_clear`
+   (inconsistent own plan → clean m3_default fallback); episode 2
+   (fully supervised, 10 live decisions) shows the PRIMARY jam
+   clears but the run does NOT reach 4/4 — the released secondary
+   N-S conflict freezes in the latch and even the fallback reroute
+   fails. FIVE FREEZE BLOCKERS now define step 7's fix scope,
+   before any scoring freeze:
+   (1) audit recede-set membership + recede order (wrong pair
+   currently verifies vlm_verbatim — metric hole);
+   (2) ordered release of held base missions after the composite
+   resolves (the secondary conflict must go through the ordered
+   machinery, not a free-for-all);
+   (3) exempt a `continue` leg against a `reverse` in a different
+   command of the same plan (4th member of the exemption family;
+   M4-adjacent — protocol note required);
+   (4) bound plain `reverse` to the tracked band (|y| overshoot to
+   2.38/2.42 reproduced in BOTH live episodes, same window);
+   (5) define fallback-exhaustion semantics (cross-phase timeout →
+   reroute fails → terminal state must be a scorable outcome, not
+   an undefined freeze).
+   STEP-7a OUTCOME (2026-10-03,
+   `docs/reports/2026-10-02-step7a-blocker-fixes.md`): all five
+   fixes landed and pinned; IB10 mock reached 4/4 — but NOT
+   attributably to the designed ordering, because of a newly found
+   M4-M5 RACE: `/coordination/commands` and `/coordination/status`
+   have no cross-topic ordering, so a successor command processed
+   before its predecessor's terminal status lets that terminal
+   later free the robot permanently. RULINGS for 7b:
+   (i) RACE GUARD — a terminal status frees a robot only when its
+   command_id matches the robot's active command (narrow
+   command_bus_node change, protocol note, v1-path regression
+   pins);
+   (ii) REPAIR BOUND freeze procedure — re-sweep bounds 1–4 with
+   the full corpus (incl. recede_order_swapped); freeze the
+   smallest bound with full repairable coverage; if none ≤ 4,
+   freeze 3 and document the uncovered tail as
+   m3_default-by-design;
+   (iii) ATTRIBUTABLE RELEASE — CrossingChain gate events get
+   sim-stamped logging; the 7b IB10 rerun (final code redeployed)
+   passes only on 4/4 AND decidable ordering attribution;
+   (iv) the 82 s recede-hold STALE streak: identify the parked
+   pair's separation; if < 0.6 m (the known overlapping-marker
+   band), prefer STAGGERED recede-pocket offsets within the
+   tracked band over the spawn re-radius; re-radius stays the
+   registered fallback;
+   (v) clear `_last_trigger_robot_ids` after dispatch (latent
+   staleness window).
+   STEP-7b RULINGS (2026-10-03, after
+   `docs/reports/2026-10-03-step7b-oracle-freeze.md`; rulings
+   (i)–(v) landed, repair bound FROZEN AT 3 with a documented
+   depth-4/5 m3_default tail, race guard lives in
+   `base_mission.py`/`coordination_client_node.py` per the traced
+   mechanism — accepted deviation from the spec's named file):
+   (vi) RELEASE ORDER — the yielder chains BEHIND the second
+   receder via the ordered multi-passer path (crossing_order
+   [lead, second receder] + linked temporary_wait; M3-only): the
+   spec's "yielder re-enters last," now implemented relative to
+   every receder; requires one more VM rerun whose PASS is 4/4 +
+   decidable attribution + yielder-last observed in the gate log;
+   (vii) PHASE ORDINAL stays a process label; episode success
+   stays arrivals-based; the scorer adds a derived `outcome_rank`
+   ordering (ordinal 4, 4/4) strictly above (ordinal 4, partial)
+   so the two can never read as the same score.
+   STEP 7 CLOSED (2026-10-03, report Rev 2): the deciding IB10
+   rerun PASSED ALL CRITERIA — 4/4 position-verified arrivals,
+   every release by clearance, yielder-last decidable in the gate
+   log (robot_3 at sim 153.7, robot_1 at 185.8), zero contacts,
+   max STALE streak 1 row. The formed four-way jam is RESOLVED
+   end-to-end by the composite command. Accepted deviation from
+   ruling (vi)'s text: the second receder keeps a lead-gated
+   passive `yield` (a linked `temporary_wait` would carry no
+   `admitted_partners` exemption and latch the lead mid-pass);
+   order and M3-only scope as ruled. IB10 scoring FROZEN at 11
+   criteria (incl. `outcome_rank`, `yielder_last` no longer
+   contingent) — the v2 freeze references the report's pin table.
+   **APPEND-ONLY CAVEAT (2026-10-08, from the v3 IB10 diagnosis —
+   `docs/reports/2026-10-08-ib10-lead-flip-diagnosis.md` on
+   `feat/v3-integration@19a1859`): the GT `robot_robot_contacts`
+   field UNDER-DETECTS — two v3 runs logged ZERO in that field
+   through a measured 0.084 m-centre contact with a 0.55 m push.
+   Any "zero contacts" criterion satisfied by reading that field —
+   including this step-7b record's — is unsupported AS EVIDENCED;
+   the claim is not asserted false, but for confirmatory use the
+   contact criterion MUST be re-derived distance-based (minimum
+   centre-to-centre separation from GT positions vs the 0.076 m
+   nose-to-nose contact threshold; the 2026-10-07 gpt-5.6-sol live
+   validation already used exactly this method and is unaffected).
+   RULED: all v1/v2 confirmatory scoring computes contacts by
+   distance recompute; the `robot_robot_contacts` field is
+   diagnostic-only until its detector is fixed (v3 scope); the
+   step-7b bundle's archived GT permits retroactive recompute and
+   SHOULD be recomputed before the 4/4 is cited in the thesis.**
+   **APPEND-ONLY CAVEAT EXTENSION (2026-10-09, from v3 A12(iv) on
+   `feat/v3-design@f545dd5`): the ruling above extends to STATIC
+   contacts. S1 pilot ep1 pinned robot_3 at the SW rack corner for
+   277 sim-s (GT pose static within 1.6 cm, cmd_vel pushing) while
+   GT `robot_static_contacts` logged 0 rows. The field is not a
+   detector at all: `isaac/vgu_sim/acceptance_logging.py:99`
+   hard-codes `"robot_static_contacts": []` on every lineage (v1
+   hotfix, v2 composite, v3 integration), so any "no robot-obstacle
+   contact" criterion read from it — including the 2026-09-25
+   overnight-findings PASS rows — is vacuous, not merely
+   unsupported. RULED: v1/v2 confirmatory contact scoring covers
+   robot-robot AND robot-obstacle by distance recompute (GT robot
+   positions vs declared obstacle/rack footprints);
+   `robot_static_contacts` is not citable as evidence until v3
+   implements it.**
 8. Loop map: USD + Nav2 + reroute grounding; the pre-emption control
    smoke before any scenario authoring.
 9. B2-visual pair + B3 first-to-slip scenarios + oracles.
@@ -685,11 +1917,13 @@ makes an explicit include/exclude call.
     freeze it, run once per backend; results recorded in the freeze
     record (rev 5). BUILT 2026-10-02 (manifest_v1, 60 items, prompt
     hash-pinned). Freeze-time follow-ups before the live per-backend
-    runs: (a) wire the runner through `resolve_reasoner_config` so it
-    uses the PINNED model ids, not backend default aliases; (b) owner
-    confirms the left/right operationalization (image-frame side of
-    centre column — coincides with the aisle side in every sourced
-    scene, would not on a vertical in-frame aisle); (c) note
+    runs: (a) DONE 2026-10-04 (runner wired through
+    `resolve_reasoner_config`; baseline runs executed — see the
+    CITATION CORRECTION/BASELINE block above); (b) CONFIRMED
+    2026-10-04: the left/right operationalization stays image-frame
+    side of centre column — it coincides with the aisle side in
+    every sourced scene, and the vertical-in-frame-aisle caveat
+    stands as a documented validity bound on the item type; (c) note
     `locate_robot` covers 4 of 9 grid cells after filters, and
     `nearest_first`'s robot_2-skewed answers must be read against the
     recorded robot-id priors before attributing errors to spatial
