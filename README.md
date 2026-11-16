@@ -1,17 +1,38 @@
 # VGU VLM Swarm
 
-ROS2 + VLM/RAG research scaffold for warehouse swarm coordination.
+Research code for warehouse multi-robot congestion resolution with a vision-language
+model (VLM) in the loop, run in simulation (Isaac Sim + ROS2 Jazzy + Nav2).
 
-The architecture separates fast local robot control from a slower semantic reasoning
-layer:
+The system has two layers:
 
-- `ros2_ws/` contains ROS2 packages for interfaces, perception, orchestration,
-  execution, and simulation.
-- `reasoning/` contains Python-only VLM and RAG logic that can be tested outside ROS2.
-- `benchmarks/` contains baseline planners, metrics, runners, and experiment outputs.
-- `config/` centralizes model, robot, RAG, logging, and DDS configuration.
-- `data/` stores calibration inputs, knowledge-base content, vector stores, and logs.
-- `docs/` contains proposal and module-level design notes.
+- **Fast layer (20–50 Hz):** each robot runs Nav2 locally; M4 dispatches commands and
+  enforces the safety limits.
+- **Coordination layer (0.5–2 Hz):** M1 turns the overhead camera frame into robot
+  states, M2 (VLM) reads the scene and names the congestion and a strategy, M3
+  grounds that decision into concrete per-robot commands, and M5 runs the pipeline.
+
+| Module | What it does | Code |
+|---|---|---|
+| M1 Perception | Overhead camera → ArUco → robot states + annotated frame | `ros2_ws/src/swarm_perception` |
+| M2 VLM reasoning | Prompt building, backend adapters, output parsing | `reasoning/vlm` |
+| M3 Action grounding | Decision → per-robot commands (rules + retrieval) | `reasoning/rag` |
+| M4 Execution & safety | Command dispatch, Nav2 client, safety invariants | `ros2_ws/src/swarm_execution` |
+| M5 Orchestrator | State machine, task registry, M2→M3→M4 trigger | `ros2_ws/src/swarm_orchestrator` |
+| M6 Simulation | Isaac Sim scenes, ground-truth logging, ROS2 launch | `isaac/vgu_sim`, `ros2_ws/src/swarm_simulation` |
+
+## Repository Layout
+
+- `ros2_ws/` — ROS2 packages (interfaces, perception, orchestrator, execution, simulation).
+- `reasoning/` — Python-only M2/M3 code, testable without ROS2.
+- `isaac/` — Isaac Sim runtime: scene builder, scenarios, runner (`isaac/scripts/run_simulation.py`).
+- `config/` — central configuration, including the opt-in overlay fragments in
+  `config/safety/`, `config/grounding/` and `config/gt/`.
+- `benchmarks/` — baselines, metrics, scoring and the offline VLM bench.
+- `scripts/` — shell helpers, VM launchers and offline analysis scripts.
+- `data/experiments/` — frozen experiment inputs and results cited by the reports.
+- `docs/` — specs, plans, reports and the implementation log (see below).
+- `research_notes/` — literature notes collected during the project.
+- `tests/` — `unit/` (offline), `integration/` (ROS2), `simulation/` (scenarios).
 
 ## Quick Start
 
@@ -19,27 +40,62 @@ layer:
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements-dev.txt
-pytest
+make test      # plain pytest
+make lint      # ruff
 ```
 
-## Local VLM Server
+The unit suite has known failures, the same set on `main` as at the evaluated pin (62 failed, plus 3 collection
+errors for tests that need Isaac Sim's `pxr`). Use `pytest --continue-on-collection-errors`
+outside Isaac Sim, and compare failing test IDs, not counts, when checking a change.
 
-To run Cosmos Reason2 locally on Apple Silicon with the llama.cpp foreground
-vision server, use:
+ROS2 workflows run inside a ROS2 Jazzy environment:
 
 ```bash
-make run-llama-server
+make build-ros2
+make run-simulation
 ```
 
-See [docs/guides/run_local_llama_server.md](docs/guides/run_local_llama_server.md)
-for setup, overrides, smoke tests, and troubleshooting.
+Guides in `docs/guides/`: Isaac Sim with M1 (`run_isaac_sim_with_m1.md`), M1
+perception (`run_m1_perception.md`), a local llama.cpp VLM server
+(`run_local_llama_server.md`, `make run-llama-server`), hardware setup, the demo
+panel video, and the naming glossary.
 
-ROS2 workflows are expected to run inside a ROS2 Jazzy environment:
+## Safety and Grounding Mechanisms
 
-```bash
-./scripts/build_ros2.sh
-./scripts/run_simulation.sh
-```
+Every mechanism added after the evaluated pin is **off by default**. Each turns on
+only through its config key or an overlay fragment, so a default run matches the
+evaluated configuration. `ros2_ws/src/swarm_execution/config/safety.yaml` is unchanged
+from the pin.
+
+| Mechanism | Key |
+|---|---|
+| Scoped clearing exemption | `scoped_clearing_exemption` |
+| M4 stall abort | `safety.stall_abort.enabled` |
+| Escort / reverse obstacle guards | `escort_obstacle_guard`, `reverse_obstacle_guard` |
+| Plan/dispatch mismatch record | `plan_dispatch_mismatch_visibility` |
+| Hold queued crossers / counter-flow yielder swap | `grounding_hold_queued_crossers`, `grounding_yield_counterflow_swap` |
+| Plan-grammar prompt rules | `prompt_plan_grammar_rules`, `prompt_plan_grammar_release_rule` |
+| Offer groundable strategies / refusal feedback | `prompt_offer_groundable_strategies`, `refusal_feedback.enabled` |
+| Per-cluster shadow | `per_cluster_shadow.enabled` |
+| Ground-truth contact logging | `gt_contact_logging.enabled` (`run_simulation.py --gt-config`) |
+
+Validation status of each one is recorded in `docs/reports/2026-11-15-session-wrap-up.md`
+and `docs/implementation_notes.md`.
+
+## Where to Read
+
+- `docs/implementation_notes.md` — the living implementation log: dated facts,
+  fixes, gotchas, newest first per module.
+- `docs/reports/` — one report per investigation or experiment;
+  `docs/reports/2026-11-15-session-wrap-up.md` indexes the November results with
+  their evidence grade.
+- `docs/superpowers/specs/` — designs and pre-registrations (`prereg-v1`, v2, v3);
+  `docs/superpowers/plans/` — task-level plans.
+- `docs/modules.md`, `docs/project_proposal.md` — module decomposition and proposal.
+- The thesis report is on the `docs/thesis` branch (not merged into `main`).
+- Run bundles and videos are in GitHub release `evidence-2026-11-16`.
+
+All results are from simulation unless a report says otherwise.
 
 ## History and archived lines
 
