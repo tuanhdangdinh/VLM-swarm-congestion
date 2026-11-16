@@ -400,6 +400,29 @@ dispatch_enabled: true
 task_stream:
   enabled: false
 
+# v4 per-cluster choice, Stage 1 live shadow (exploratory cells only: a second
+# billed M2 call per analysis, never in a pinned v3 cell). Enabled, each
+# triggered analysis is followed, after its ordinary outcome is dispatched, by
+# the grounding_first_per_cluster call on the same request and frame, run on
+# its own worker; the record replaces the `per_cluster_shadow: pending` block
+# of that analysis's decision artifact. It never dispatches and never changes
+# M5 state. Set keep_debug_frames: true with it so the frames survive.
+#   max_attempts / call_timeout_sec: null inherits the ordinary reasoner's.
+#   timeout_sec: wall-clock bound on one whole shadow, from its submit.
+#   max_backlog: shadows still running when a new one is due; past it the new
+#     one is skipped and recorded.
+#   event_trace: <decision_log_dir>/trigger_trace_<session_id>.jsonl, every
+#     congestion event's directive with the in-flight commands.
+per_cluster_shadow:
+  enabled: false
+  max_attempts: null
+  call_timeout_sec: null
+  timeout_sec: 300.0
+  max_backlog: 1
+  include_wait: true
+  option_ids: numbered
+  event_trace: true
+
 # Fixed obstacles rendered into the VLM prompt when prompt_static_obstacles is
 # true. Like scenario_geometry above, these mirror the scenario file by hand
 # (here the head-on asymmetric family blocker) and must be set per scenario —

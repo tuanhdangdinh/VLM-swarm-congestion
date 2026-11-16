@@ -23,6 +23,11 @@ Options are deduplicated on what M3 executes (`executed_key`). `junction_clear`,
 `convoy` and `priority_override` are not offered: junction_clear falls back
 to a yield on every S1b scene (`junction_geometry=shipped_unsolved`), and the
 other two either alias to a yield already listed or degrade to a wait.
+
+The option models (`reasoning.vlm.executable_options`), `executed_key`
+(`reasoning.rag.cluster_options`) and `extract_json_object`
+(`reasoning.vlm.per_cluster_choice`) are shared with the per-group path and
+re-exported here.
 """
 
 from __future__ import annotations
@@ -32,14 +37,20 @@ import itertools
 import json
 import math
 import random
-import re
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict
 
-from benchmarks.vlm_bench.grounder_offline import ground_command, outcome_of
+from benchmarks.vlm_bench.grounder_offline import ground_command
 from benchmarks.vlm_bench.models import BenchItem
 from benchmarks.vlm_bench.variants.base import ReplayContext, VariantAnswer
+from reasoning.rag.cluster_options import executed_key as executed_key
+from reasoning.vlm.executable_options import GENERATOR_VERSION as GENERATOR_VERSION
+from reasoning.vlm.executable_options import CandidateSet as CandidateSet
+from reasoning.vlm.executable_options import ExecutableOption as ExecutableOption
+from reasoning.vlm.executable_options import OptionStrategy as OptionStrategy
+from reasoning.vlm.executable_options import RetreatPark as RetreatPark
+from reasoning.vlm.executable_options import item_shuffle_seed as item_shuffle_seed
 from reasoning.vlm.models import (
     BackendResponse,
     CongestionDecision,
@@ -47,95 +58,12 @@ from reasoning.vlm.models import (
     ReasonerConfig,
     ReasonerRequest,
 )
+from reasoning.vlm.per_cluster_choice import extract_json_object as extract_json_object
 from reasoning.vlm.prompt_builder import build_prompt_payload
 from reasoning.vlm.reasoner import build_reask_prompt, invoke_backend
 from reasoning.vlm.retry_policy import DEFAULT_RETRY_POLICY, classify_failure
 
-GENERATOR_VERSION = "gf-candidates-v1"
-OptionStrategy = Literal["yield", "reverse", "reroute", "temporary_wait"]
-_RESOLVING: frozenset[str] = frozenset({"yield", "reverse", "reroute"})
-_TYPES: frozenset[str] = frozenset({"deadlock", "bottleneck", "crowding", "anomaly"})
 _NONE_WORDS: frozenset[str] = frozenset({"none", "none of the above"})
-
-
-class RetreatPark(BaseModel):
-    """The retreat M3 dispatches for a yield option (default stage-2 letter)."""
-
-    model_config = ConfigDict(frozen=True)
-
-    label: str | None = None
-    x: float | None = None
-    y: float | None = None
-    backup_m: float | None = None
-    lateral_m: float | None = None
-
-
-class ExecutableOption(BaseModel):
-    """One action M3 executes as asked on the item's scene."""
-
-    model_config = ConfigDict(frozen=True)
-
-    strategy: OptionStrategy
-    # The probed `involved_robots`, in probe order; the mapped decision uses it verbatim.
-    robots: tuple[str, ...]
-    yield_robot: str | None = None
-    # What M3 executes (`executed_key`); options are deduplicated on it.
-    key: tuple[str, ...]
-    separation_m: float
-    park: RetreatPark | None = None
-    text: str
-
-    @property
-    def resolving(self) -> bool:
-        """Whether the option moves a robot (not a hold)."""
-        return self.strategy in _RESOLVING
-
-    def decision(self, model_answer: dict[str, Any] | None = None) -> dict[str, Any]:
-        """This option as a decision dict in the existing schema.
-
-        Only `type`, `root_cause` and `justification` come from the model;
-        the involved set, strategy and yielder are the probe's, so the
-        decision grounds exactly as the probe did.
-
-        Args:
-            model_answer: The model's parsed JSON object, or None.
-
-        Returns:
-            A validated `CongestionDecision` dump.
-        """
-        answer = model_answer or {}
-        kind = answer.get("type")
-        kind = kind.lower() if isinstance(kind, str) else None
-        return CongestionDecision(
-            congestion_detected=True,
-            type=kind if kind in _TYPES else "deadlock",
-            involved_robots=list(self.robots),
-            root_cause=_text(answer.get("root_cause"), self.text),
-            strategy=self.strategy,
-            justification=_text(answer.get("justification"), self.text),
-            yield_robot=self.yield_robot,
-        ).model_dump(mode="json")
-
-
-class CandidateSet(BaseModel):
-    """The numbered executable options of one item."""
-
-    model_config = ConfigDict(frozen=True)
-
-    item_id: str
-    generator_version: str = GENERATOR_VERSION
-    include_wait: bool = True
-    options: tuple[ExecutableOption, ...] = ()
-
-    @property
-    def keys(self) -> frozenset[tuple[str, ...]]:
-        """Executed keys of every option."""
-        return frozenset(o.key for o in self.options)
-
-    @property
-    def resolving_keys(self) -> frozenset[tuple[str, ...]]:
-        """Executed keys of the options that move a robot."""
-        return frozenset(o.key for o in self.options if o.resolving)
 
 
 class OptionAnswer(BaseModel):
@@ -164,45 +92,6 @@ def _probe(strategy: str, robots: tuple[str, ...], yielder: str | None = None) -
         "justification": "grounding-first candidate probe",
         "yield_robot": yielder,
     }
-
-
-def executed_key(strategy: str, command: dict[str, Any]) -> tuple[str, ...] | None:
-    """What a grounded command executes, or None when it does not execute as asked.
-
-    Args:
-        strategy: The decision's strategy.
-        command: The grounded command.
-
-    Returns:
-        `("yield", yielder, *crossing_order)`, `("reverse", *movers)`,
-        `("reroute", *robots)` (waypoints on every reroute),
-        `("temporary_wait", *robots)` (a wait the decision asked for), else
-        None: refused, swapped-away, degraded or no-op commands.
-    """
-    if not outcome_of(command).feasible:
-        return None
-    actions = command.get("actions") or []
-    tags = command.get("degradations") or []
-    yields = [a for a in actions if a.get("action") == "yield"]
-    if yields:
-        params = yields[0].get("parameters") or {}
-        order = params.get("crossing_order") or [params.get("passer_robot_id")]
-        return ("yield", yields[0]["robot_id"], *(str(r) for r in order if r))
-    reroutes = [a for a in actions if a.get("action") == "reroute"]
-    if reroutes:
-        if all((a.get("parameters") or {}).get("waypoints") for a in reroutes):
-            return ("reroute", *sorted(a["robot_id"] for a in reroutes))
-        return None
-    reverses = [a for a in actions if a.get("action") == "reverse"]
-    if reverses:
-        if any(t.startswith("reverse=infeasible") for t in tags):
-            return None
-        return ("reverse", *sorted(a["robot_id"] for a in reverses))
-    if strategy == "temporary_wait" and actions and all(
-        a.get("action") == "temporary_wait" for a in actions
-    ):
-        return ("temporary_wait", *sorted(a["robot_id"] for a in actions))
-    return None
 
 
 def _separation(item: BenchItem, robots: tuple[str, ...]) -> float:
@@ -366,19 +255,6 @@ def compose_payload(base: PromptPayload, candidates: CandidateSet) -> PromptPayl
     return base.model_copy(update={"user_prompt": user})
 
 
-def item_shuffle_seed(seed: int, item_id: str) -> int:
-    """The per-item shuffle seed: a process-stable hash of the run seed and the item id.
-
-    Args:
-        seed: The run seed.
-        item_id: The item id.
-
-    Returns:
-        A 64-bit integer seed.
-    """
-    return int(hashlib.sha256(f"{seed}:{item_id}".encode()).hexdigest()[:16], 16)
-
-
 def shuffle_candidates(
     candidates: CandidateSet, seed: int
 ) -> tuple[CandidateSet, tuple[int, ...], int]:
@@ -401,35 +277,6 @@ def shuffle_candidates(
         update={"options": tuple(candidates.options[i] for i in order)}
     )
     return permuted, tuple(i + 1 for i in order), item_seed
-
-
-def extract_json_object(text: str) -> dict[str, Any]:
-    """The one JSON object in a reply (think blocks and fences tolerated).
-
-    Args:
-        text: The raw reply.
-
-    Returns:
-        The object.
-
-    Raises:
-        ValueError: When no JSON object can be read.
-    """
-    body = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
-    body = re.sub(r"^```(?:json)?\s*|\s*```$", "", body, flags=re.DOTALL)
-    try:
-        value = json.loads(body)
-    except json.JSONDecodeError:
-        start, end = body.find("{"), body.rfind("}")
-        if start == -1 or end <= start:
-            raise ValueError("reply contains no JSON object") from None
-        try:
-            value = json.loads(body[start : end + 1])
-        except json.JSONDecodeError as exc:
-            raise ValueError(f"reply is not valid JSON: {exc}") from exc
-    if not isinstance(value, dict):
-        raise ValueError("reply JSON is not an object")
-    return value
 
 
 def _negative(answer: dict[str, Any]) -> dict[str, Any]:

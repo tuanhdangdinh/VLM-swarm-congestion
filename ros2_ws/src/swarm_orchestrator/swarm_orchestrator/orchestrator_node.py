@@ -21,6 +21,8 @@ from std_msgs.msg import String
 from swarm_interfaces.msg import CoordinationCommand, CoordinationStatus
 from swarm_interfaces.srv import TriggerCongestionAnalysis
 
+from reasoning.baselines import ClassicalParams
+from reasoning.rag.cluster_options import GroupingParams
 from reasoning.rag.command_grounder import (
     CommandGroundingError,
     filter_command_robot_ids,
@@ -31,11 +33,13 @@ from reasoning.vlm import (
     RetreatChooser,
     backend_adapter,
     build_backend,
+    build_per_cluster_backend,
     build_retreat_choice_backend,
     describe_effective_sampling,
     load_backend_config,
     resolve_reasoner_config,
 )
+from reasoning.vlm.backend_base import VLMBackend
 from reasoning.vlm.models import (
     CURRENT_PROMPT_VERSION,
     FailureContext,
@@ -75,6 +79,14 @@ from swarm_orchestrator.models import (
     registry_priorities,
     resolve_layer2_gate,
     should_submit_pipeline,
+)
+from swarm_orchestrator.per_cluster_shadow import (
+    PerClusterShadowRecord,
+    attach_shadow_block,
+    compute_per_cluster_shadow,
+    format_per_cluster_log,
+    pending_block,
+    skipped_record,
 )
 from swarm_orchestrator.permutation_votes import permutation_votes_log
 from swarm_orchestrator.plan_dispatch_visibility import (
@@ -149,6 +161,7 @@ from swarm_orchestrator.task_stream import (
     stream_initial_tasks,
     stream_start_record,
 )
+from swarm_orchestrator.trigger_trace import TriggerTrace
 from swarm_orchestrator.zoom_tile import ZoomTileRecord, write_zoom_tile, zoom_tile_path
 
 # (a0) plan channel: M4's CoordinationStatus vocabulary (command_bus_node.py's
@@ -281,6 +294,19 @@ class _PendingProbe:
     prompt_conditions: Any = None
 
 
+@dataclass
+class _PendingPerClusterShadow:
+    """One per-cluster shadow on its own worker; owns its analysis's frame until it ends."""
+
+    request_id: str
+    artifact_path: Path | None
+    submitted_at: float
+    future: Future[PerClusterShadowRecord]
+    # Set once the harvest deadline passed and a timeout record was written;
+    # the late result is then discarded.
+    abandoned: bool = False
+
+
 def _raw_frame_qos() -> QoSProfile:
     """Best-effort, depth-1 QoS for the debug raw-camera subscription.
 
@@ -334,6 +360,7 @@ class OrchestratorNode(Node):
         self,
         config: OrchestratorConfig | None = None,
         pipeline: ReasoningPipeline | None = None,
+        per_cluster_backend: VLMBackend | None = None,
     ) -> None:
         super().__init__("orchestrator_node")
         self.declare_parameter("config_file", "")
@@ -583,6 +610,16 @@ class OrchestratorNode(Node):
         self._probe_order: PresentationOrderPolicy | None = None
         if self._layer2.t0_probe_mode:
             self._init_probe_mode()
+        # v4 Stage 1 per-cluster shadow: nothing below exists unless enabled,
+        # so a shadow-off node never builds a worker, backend or trace.
+        self._pcs_executor: ThreadPoolExecutor | None = None
+        self._pcs_backend: VLMBackend | None = None
+        self._pcs_reasoner_config: ReasonerConfig | None = None
+        self._pcs_grouping: GroupingParams | None = None
+        self._pcs_pending: list[_PendingPerClusterShadow] = []
+        self._trigger_trace: TriggerTrace | None = None
+        if self._layer2.per_cluster_shadow:
+            self._init_per_cluster_shadow(per_cluster_backend)
         self._last_scene_log_at = float("-inf")
         self._frame_rgb = None
         self._frame_stamp: float | None = None
@@ -718,6 +755,59 @@ class OrchestratorNode(Node):
             f"max_probes={self._config.t0_probe_max_probes}"
         )
 
+    def _init_per_cluster_shadow(self, backend: VLMBackend | None) -> None:
+        """Build the shadow's worker, backend, call config and grouping rule; fail fast.
+
+        Args:
+            backend: An injected shadow backend (tests); None builds it from
+                the ordinary reasoner's (`build_per_cluster_backend`).
+
+        Raises:
+            ValueError: If the pipeline cannot hand the shadow its request's
+                M3 inputs and reasoner (an injected pipeline without them).
+        """
+        settings = self._config.per_cluster_shadow
+        pipeline = self._pipeline
+        reasoner = getattr(pipeline, "reasoner", None)
+        if not callable(getattr(pipeline, "per_cluster_probe_inputs", None)) or not hasattr(
+            reasoner, "config"
+        ):
+            raise ValueError(
+                "per_cluster_shadow requires the in-process pipeline (per_cluster_probe_inputs "
+                f"and a Reasoner); {type(pipeline).__name__} has neither"
+            )
+        self._pcs_backend = backend or build_per_cluster_backend(
+            self._config.reasoning_backend_id, reasoner.backend
+        )
+        update: dict[str, Any] = {}
+        if settings.max_attempts is not None:
+            update["max_attempts"] = settings.max_attempts
+        if settings.call_timeout_sec is not None:
+            update["timeout_sec"] = settings.call_timeout_sec
+        self._pcs_reasoner_config = reasoner.config.model_copy(update=update)
+        # The bench's grouping radius: the classical r_conflict_m the episode
+        # recorded (`ClassicalParams` defaults when the section is absent).
+        classical = load_shadow_params(Path(self._config.shadow_classical_params_path)).params
+        self._pcs_grouping = GroupingParams(
+            threshold_m=(classical or ClassicalParams()).r_conflict_m
+        )
+        # Its own worker: the next ordinary analysis never queues behind a shadow.
+        self._pcs_executor = ThreadPoolExecutor(max_workers=1)
+        if settings.event_trace:
+            self._trigger_trace = TriggerTrace(
+                Path(self._config.decision_log_dir) / f"trigger_trace_{self._session_id}.jsonl",
+                self._run_id,
+                self._session_id,
+            )
+        self.get_logger().info(
+            f"per_cluster_shadow enabled (log-only, second M2 call per analysis) "
+            f"backend={type(self._pcs_backend).__name__} "
+            f"max_attempts={self._pcs_reasoner_config.max_attempts} "
+            f"call_timeout_sec={self._pcs_reasoner_config.timeout_sec} "
+            f"timeout_sec={settings.timeout_sec} grouping_threshold_m="
+            f"{self._pcs_grouping.threshold_m} event_trace={settings.event_trace}"
+        )
+
     def _load_config_from_param(self) -> OrchestratorConfig:
         path = self.get_parameter("config_file").get_parameter_value().string_value
         if not path:
@@ -807,6 +897,7 @@ class OrchestratorNode(Node):
         )
         if verdicts:
             self._log_suppression_verdict(verdicts[0], event.involved_robots)
+        self._trace_event(event, directive.kind, directive.request_id, snapshot.stamp, now)
         if directive.kind is DirectiveKind.START_ANALYSIS:
             distances = {rid: round(d, 2) for rid, d in event.distance_to_goal_m.items()}
             # Logged after the submit because the episode's presentation order is
@@ -1030,6 +1121,9 @@ class OrchestratorNode(Node):
             now=now,
             frame_ready=self._frame_is_fresh(snapshot.stamp),
         )
+        self._trace_event(
+            event, directive.kind, directive.request_id, snapshot.stamp, now, source="manual"
+        )
         if directive.kind is DirectiveKind.START_ANALYSIS:
             self._reset_suppression("manual")
             self._submit_pipeline(
@@ -1100,6 +1194,7 @@ class OrchestratorNode(Node):
                 outcome = build_failed_outcome("unknown", f"worker raised: {exc}")
             self._future = None
             self._handle_outcome(outcome, now)
+        self._harvest_per_cluster_shadows(now)
         self._harvest_probe()
         if self._probe_scheduler is not None:
             self._maybe_start_probe(now)
@@ -1364,10 +1459,14 @@ class OrchestratorNode(Node):
                 ),
                 dispatch_withheld=dispatch_withheld,
                 **self._visibility_artifact_fields(visibility),
+                per_cluster_shadow=(
+                    None if self._pcs_executor is None else pending_block(outcome.request_id)
+                ),
                 **self._trigger_artifact_fields(trigger_source, contradiction),
             )
             self.get_logger().info(f"decision artifact written: {artifact_path}")
         except OSError as exc:
+            artifact_path = None
             self.get_logger().error(f"decision artifact write failed: {exc}")
         if outcome.permutation_votes is not None:
             self.get_logger().info(
@@ -1445,7 +1544,223 @@ class OrchestratorNode(Node):
         # `reverse` with no plan) could otherwise read this request's
         # leftover trigger set.
         self._last_trigger_robot_ids = frozenset()
-        self._cleanup_frame(outcome.request_id)
+        # The per-cluster shadow starts only now, after the ordinary outcome
+        # reached the state machine and dispatch, and then owns the frame:
+        # its cleanup waits for the shadow to end.
+        if not self._submit_per_cluster_shadow(outcome, request, artifact_path, now):
+            self._cleanup_frame(outcome.request_id)
+
+    def _submit_per_cluster_shadow(
+        self,
+        outcome: PipelineOutcome,
+        request: ReasonerRequest | None,
+        artifact_path: Path | None,
+        now: float,
+    ) -> bool:
+        """Start the per-cluster shadow of one handled analysis on its own worker.
+
+        Reads only what the ordinary analysis already fixed (its request,
+        hence its frame and snapshot, and the M3 inputs its grounding used);
+        nothing it computes reaches the state machine, the tracker, the
+        cooldowns or dispatch. Never raises.
+
+        Args:
+            outcome: The ordinary outcome, already handled.
+            request: The request that outcome answered (None if the worker
+                raised before one existed).
+            artifact_path: That analysis's decision artifact, if written.
+            now: Monotonic time.
+
+        Returns:
+            True when a shadow was submitted and now owns the frame cleanup.
+        """
+        if self._pcs_executor is None:
+            return False
+        request_id = outcome.request_id
+        try:
+            if request is None or request.request_id != request_id:
+                self._write_shadow_record(
+                    artifact_path, skipped_record(request_id, "no request for this outcome")
+                )
+                return False
+            live = [p for p in self._pcs_pending if not p.future.done()]
+            if len(live) >= self._config.per_cluster_shadow.max_backlog:
+                self._write_shadow_record(
+                    artifact_path,
+                    skipped_record(
+                        request_id,
+                        f"backlog: {len(live)} shadow(s) still running "
+                        f"(max_backlog={self._config.per_cluster_shadow.max_backlog})",
+                    ),
+                )
+                return False
+            pipeline = self._pipeline
+            lookups = pipeline.grounding_lookups(request_id)
+            backend = self._pcs_backend
+            config = self._pcs_reasoner_config
+            grouping = self._pcs_grouping
+            settings = self._config.per_cluster_shadow
+            deadline = now + settings.timeout_sec
+            clock = time.monotonic
+
+            def task() -> PerClusterShadowRecord:
+                inputs, source = pipeline.per_cluster_probe_inputs(
+                    request, config.backend_id, lookups
+                )
+                return compute_per_cluster_shadow(
+                    request,
+                    inputs,
+                    grouping,
+                    backend,
+                    config,
+                    include_wait=settings.include_wait,
+                    option_ids=settings.option_ids,
+                    lookups_source=source,
+                    deadline=deadline,
+                    clock=clock,
+                )
+
+            future = self._pcs_executor.submit(task)
+        except Exception as exc:  # a shadow must never cost the ordinary cycle
+            error = f"{type(exc).__name__}: {exc}"
+            self.get_logger().error(
+                f"per_cluster_shadow request={request_id} submit failed: {error}"
+            )
+            self._write_shadow_record(
+                artifact_path, skipped_record(request_id, f"submit failed: {error}")
+            )
+            return False
+        self._pcs_pending.append(
+            _PendingPerClusterShadow(request_id, artifact_path, now, future)
+        )
+        return True
+
+    def _harvest_per_cluster_shadows(self, now: float) -> None:
+        """Record every finished or overdue shadow once; never raises."""
+        if self._pcs_executor is None:
+            return
+        timeout = self._config.per_cluster_shadow.timeout_sec
+        keep: list[_PendingPerClusterShadow] = []
+        for pending in self._pcs_pending:
+            if pending.future.done():
+                if pending.abandoned:
+                    self.get_logger().info(
+                        f"per_cluster_shadow request={pending.request_id} finished after its "
+                        "timeout was recorded; result discarded"
+                    )
+                    continue
+                try:
+                    record = pending.future.result()
+                except Exception as exc:  # compute never raises; last resort
+                    record = PerClusterShadowRecord(
+                        request_id=pending.request_id,
+                        status="error",
+                        error=f"worker raised: {type(exc).__name__}: {exc}",
+                    )
+                self._finish_shadow(pending, record)
+                continue
+            if not pending.abandoned and now - pending.submitted_at > timeout:
+                pending.abandoned = True
+                self._finish_shadow(
+                    pending,
+                    PerClusterShadowRecord(
+                        request_id=pending.request_id,
+                        status="timeout",
+                        error=f"no result {timeout} s after submit (worker abandoned)",
+                    ),
+                )
+            keep.append(pending)
+        self._pcs_pending = keep
+
+    def close_per_cluster_shadow(self) -> None:
+        """Record every unfinished shadow and close the trace at node shutdown; never raises.
+
+        Finished shadows are harvested; a shadow still running gets an
+        `error` record (its frame is kept for it), so no artifact is left
+        `pending` on a graceful stop. A killed process skips this, and its
+        last artifact may then keep the `pending` block.
+        """
+        if self._pcs_executor is None:
+            return
+        try:
+            self._harvest_per_cluster_shadows(time.monotonic())
+            for pending in self._pcs_pending:
+                if not pending.abandoned:
+                    pending.abandoned = True
+                    self._write_shadow_record(
+                        pending.artifact_path,
+                        PerClusterShadowRecord(
+                            request_id=pending.request_id,
+                            status="error",
+                            error="node stopped before the shadow finished",
+                        ),
+                    )
+            if self._trigger_trace is not None:
+                self._trigger_trace.close()
+            self._pcs_executor.shutdown(wait=False, cancel_futures=True)
+        except Exception as exc:  # shutdown must reach destroy_node
+            self.get_logger().error(f"per_cluster_shadow close failed: {exc}")
+
+    def _finish_shadow(
+        self, pending: _PendingPerClusterShadow, record: PerClusterShadowRecord
+    ) -> None:
+        line = format_per_cluster_log(record)
+        if record.status in ("ok", "parse_failed"):
+            self.get_logger().info(line)
+        else:
+            self.get_logger().warning(line)
+        self._write_shadow_record(pending.artifact_path, record)
+        self._cleanup_frame(pending.request_id)
+
+    def _write_shadow_record(
+        self, artifact_path: Path | None, record: PerClusterShadowRecord
+    ) -> None:
+        if record.status == "skipped":
+            self.get_logger().warning(format_per_cluster_log(record))
+        if artifact_path is None:
+            self.get_logger().error(
+                f"per_cluster_shadow request={record.request_id} not recorded: no artifact"
+            )
+            return
+        try:
+            attach_shadow_block(artifact_path, record.model_dump(mode="json"))
+        except (OSError, ValueError) as exc:
+            self.get_logger().error(
+                f"per_cluster_shadow request={record.request_id} artifact write failed: {exc}"
+            )
+
+    def _trace_event(
+        self,
+        event: CongestionEvent,
+        kind: DirectiveKind,
+        request_id: str | None,
+        sim_t: float | None,
+        now: float,
+        source: str = "stall",
+    ) -> None:
+        """Append one congestion event to the trigger trace (shadow cells only)."""
+        if self._trigger_trace is None:
+            return
+        in_flight = {
+            command_id: list(self._tracker.robots_of(command_id))
+            for command_id in list(self._tracker._records)  # node-local read
+            if not self._tracker.is_resolved(command_id)
+        }
+        analysing = self._pending_request.request_id if self._pending_request is not None else None
+        try:
+            self._trigger_trace.record(
+                directive=kind.value,
+                robots=event.involved_robots,
+                reason=event.reason,
+                request_id=request_id,
+                in_flight=in_flight,
+                analysis_in_flight=analysing if kind is not DirectiveKind.START_ANALYSIS else None,
+                sim_t=sim_t,
+                wall_t=now,
+                source=source,
+            )
+        except OSError as exc:
+            self.get_logger().error(f"trigger trace write failed: {exc}")
 
     def _plan_dispatch_visibility(
         self,
@@ -2190,6 +2505,10 @@ class OrchestratorNode(Node):
                 now=now,
                 frame_ready=self._frame_is_fresh(snapshot.stamp),
             )
+            self._trace_event(
+                event, directive.kind, directive.request_id, snapshot.stamp, now,
+                source="contradiction",
+            )
             if directive.kind is DirectiveKind.START_ANALYSIS:
                 self._reset_suppression("contradiction")
                 used = self._contradictions.charge(armed.episode_index)
@@ -2782,6 +3101,7 @@ def main(args: list[str] | None = None) -> None:
     try:
         rclpy.spin(node)
     finally:
+        node.close_per_cluster_shadow()
         node.destroy_node()
         rclpy.shutdown()
 

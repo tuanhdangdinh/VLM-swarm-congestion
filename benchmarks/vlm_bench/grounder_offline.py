@@ -18,16 +18,10 @@ from swarm_orchestrator.models import OrchestratorConfig, load_config, registry_
 from swarm_orchestrator.reasoning_pipeline import empty_reroute_fallback, summarize_yield_grounding
 
 from benchmarks.vlm_bench.models import BenchItem, GroundingOutcome
-from reasoning.rag.command_grounder import ground_reasoner_result
+from reasoning.rag.cluster_options import ProbeInputs, ground_probe
 from reasoning.rag.maneuver_geometry import GroundingParams
 from reasoning.rag.retreat_shield import RobotTaskIntent
-from reasoning.vlm.models import (
-    CongestionDecision,
-    ReasonerDiagnostics,
-    ReasonerResult,
-    RobotStateInput,
-    SnapshotFrame,
-)
+from reasoning.vlm.models import RobotStateInput, SnapshotFrame
 
 _CLASS_RE = re.compile(r"yield refused:\s*([^:;(]+)")
 
@@ -97,6 +91,47 @@ def item_frame(item: BenchItem) -> SnapshotFrame:
     return SnapshotFrame(stamp=item.stamp, robots=robots)
 
 
+def probe_inputs(item: BenchItem) -> ProbeInputs:
+    """The shared probe inputs of one item: what the live pipeline passed to M3.
+
+    Reads the scene, the overlay, the recorded grounding params, goal
+    references and task intents; never `item.gt`. Task intents are converted
+    only when the params pass them on (dynamic scene arms with the retreat
+    shield), as before the move.
+
+    Args:
+        item: The bench item.
+
+    Returns:
+        The inputs `reasoning.rag.cluster_options.ground_probe` takes.
+    """
+    config = item_config(item)
+    params = (
+        GroundingParams(**item.grounding.params) if item.grounding.params is not None else None
+    )
+    frame = item_frame(item)
+    dynamic = params is not None and params.dynamic_scene_arms
+    return ProbeInputs(
+        request_id=item.request_id,
+        backend_id="bench",
+        snapshot=frame,
+        geometry=config.scenario_geometry,
+        static_obstacles=config.static_obstacles,
+        yield_feasibility_mode=config.grounding_yield_feasibility,
+        params=params,
+        priorities=registry_priorities(config.initial_tasks),
+        goal_references=dict(item.grounding.goal_references) if dynamic else {},
+        task_intents=(
+            {
+                rid: RobotTaskIntent(**intent.model_dump())
+                for rid, intent in item.grounding.task_intents.items()
+            }
+            if dynamic and params.retreat_shield
+            else {}
+        ),
+    )
+
+
 def ground_command(item: BenchItem, decision: dict[str, Any]) -> dict[str, Any]:
     """The grounded M3 command of one positive decision on the item's scene.
 
@@ -105,46 +140,14 @@ def ground_command(item: BenchItem, decision: dict[str, Any]) -> dict[str, Any]:
         decision: A positive decision dict (`CongestionDecision` fields).
 
     Returns:
-        The command `ground_reasoner_result` returns, stage 2 not run.
+        The command `ground_reasoner_result` returns, stage 2 not run
+        (`reasoning.rag.cluster_options.ground_probe` on `probe_inputs(item)`).
 
     Raises:
         Exception: Whatever the grounder raises; callers record it like the
             live `GROUNDING` terminal stage.
     """
-    config = item_config(item)
-    params = (
-        GroundingParams(**item.grounding.params) if item.grounding.params is not None else None
-    )
-    frame = item_frame(item)
-    result = ReasonerResult(
-        request_id=item.request_id,
-        decision=CongestionDecision(**decision),
-        raw_text="{}",
-        diagnostics=ReasonerDiagnostics(
-            request_id=item.request_id, backend_id="bench", attempts=1, parse_status="valid"
-        ),
-    )
-    kwargs: dict[str, Any] = {}
-    priorities = registry_priorities(config.initial_tasks)
-    if priorities:
-        kwargs["priorities"] = priorities
-    if params is not None and params.dynamic_scene_arms:
-        kwargs["goal_references"] = dict(item.grounding.goal_references)
-        if params.retreat_shield:
-            kwargs["task_intents"] = {
-                rid: RobotTaskIntent(**intent.model_dump())
-                for rid, intent in item.grounding.task_intents.items()
-            }
-    return ground_reasoner_result(
-        result,
-        robot_positions={r.robot_id: (r.x, r.y) for r in frame.robots},
-        geometry=config.scenario_geometry,
-        static_obstacles=config.static_obstacles,
-        yield_feasibility_mode=config.grounding_yield_feasibility,
-        snapshot=frame,
-        params=params,
-        **kwargs,
-    )
+    return ground_probe(probe_inputs(item), decision)
 
 
 def outcome_of(command: dict[str, Any]) -> GroundingOutcome:

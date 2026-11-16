@@ -5,6 +5,9 @@
 **Revision history:**
 
 - Initial draft: live behaviour read from code, four options compared, recommendation (one call, per-group grounding, joint gate, serialize on conflict) with a staged rollout, measurement plan and owner rulings.
+- Rev 2 (2026-11-12): Stage 0 status recorded in Scope and Status (landed on `feat/v4-per-cluster-parity`); no other text changed.
+- Rev 3 (2026-11-13): Stage 1 build status recorded in Scope and Status; no other text changed.
+- Rev 4 (2026-11-13): Stage 1 run status added in Scope and Status (pointer to `docs/reports/2026-11-13-v4-stage1-shadow-results.md`); no other text changed.
 
 ---
 
@@ -20,6 +23,32 @@
 - **Code base read.** Branch `feat/v4-per-cluster` at 76c6401. File:line
   references are to that tree. Statements marked *inferred* were not
   verified in code or by a run.
+- **Stage 0 status (2026-11-12): landed** on `feat/v4-per-cluster-parity`
+  (d568726, 17105d0, e1676d4, ce72984; not pushed). The exit criterion holds:
+  `candidates` v2 md5 a84e4444 and per-cluster md5 f333fb8e reproduce, the
+  144 bench tests pass, and the full unit suite's failing-id set is unchanged
+  (57 ids, flag-off goldens among the passing tests). The shared code is in
+  `reasoning/rag/{cluster_options,joint_check,grounding_provenance}.py` and
+  `reasoning/vlm/{executable_options,per_cluster_choice}.py`. The ask/re-ask
+  runner stays in the bench, and probing is passed in as a
+  `ground(decision)` callable. Evidence and deviations:
+  `docs/implementation_notes.md`, 2026-11-12 Stage 0 entry.
+- **Stage 1 status (2026-11-13): built, not run** on the same branch
+  (9d4160c runner move, e22e53c + b15d1d9 shadow, 55c61b8 + f4e88f7 tests; not pushed, no VM
+  time). The shadow is default-off (`per_cluster_shadow:` in
+  `orchestrator.yaml`), runs after dispatch on its own worker, and writes into
+  the decision artifact. Live-vs-bench parity holds on all 187 items. Section
+  7's "unknown" is resolved: the tranche-1 Arm A overlays set
+  `keep_debug_frames: false`. The collector does copy frames. Cell overlay:
+  `config/overlays/v4_s1b_pc_shadow/`. Runbook:
+  `docs/guides/v4_s1b_pc_shadow_runbook.md`. Evidence and deviations:
+  `docs/implementation_notes.md`, 2026-11-13 Stage 1 entry. Stage 2 is not
+  started.
+- **Stage 1 run status (2026-11-13): ran**, 7 S1b episodes (seed positions
+  21-27) at fdf333d. Five exit criteria pass. The Section 2 branch is
+  INSUFFICIENT (4 Branch-1 cases, 1 indeterminate, 0 concurrent starts). The
+  thresholds remain owner proposals. Results:
+  `docs/reports/2026-11-13-v4-stage1-shadow-results.md`.
 
 ---
 

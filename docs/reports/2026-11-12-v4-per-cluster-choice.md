@@ -7,6 +7,7 @@
 - Initial draft: `grounding_first_per_cluster` variant, zero-cost ceiling, fixed first-option-per-group chooser, joint-feasibility and single-dispatch finding, replay commands not run.
 - Rev 2 (2026-11-12): the two real-model replays (R7a ER-2, R7b Sonnet 5.5) were run by the owner side and scored here; added the Real-Model Replay Results section, evidence under Owner Rulings and Rev 2 limits. The Rev 1 sections are kept unchanged.
 - Rev 3 (2026-11-12): framing correction (the "naive" first-option chooser is the v2 generator's default-ordered first option, not a blind baseline; superseded wording marked in place), text-only and joint-check limits stated beside the R7 headline, and a conditional within-slot choice analysis.
+- Rev 4 (2026-11-13): pointer only; earlier content unchanged. The Stage 1 live shadow of this lever ran on S1b (7 episodes, 50 analyses, 12 multi-group, joint flags 0/12, nothing dispatched): `docs/reports/2026-11-13-v4-stage1-shadow-results.md`.
 
 ---
 

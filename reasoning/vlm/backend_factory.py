@@ -21,6 +21,7 @@ from reasoning.vlm.models import (
     ReasonerConfig,
 )
 from reasoning.vlm.openai_backend import OpenAIBackend
+from reasoning.vlm.per_cluster_runner import FixedGroupChoiceBackend
 
 BackendConfig = (
     LlamaServerBackendConfig | OpenAIBackendConfig | AnthropicBackendConfig | GeminiBackendConfig
@@ -279,6 +280,35 @@ def build_retreat_choice_backend(
     if not choice_file:
         return None
     return _load_mock_script(Path(choice_file), "VGU_MOCK_RETREAT_CHOICE_FILE")
+
+
+def build_per_cluster_backend(backend_id: str, stage1_backend: VLMBackend) -> VLMBackend:
+    """Return the backend the per-cluster shadow call goes to.
+
+    As for stage 2: a real backend is stateless per call, so the shadow reuses
+    the stage-1 instance. A scripted mock would hand the shadow the next
+    stage-1 entry and change the ordinary decisions, so a mock shadow gets its
+    own backend: the scripted mock of `VGU_MOCK_PER_CLUSTER_FILE` when set,
+    else the zero-network `FixedGroupChoiceBackend("first")` (the bench's
+    sanity chooser), which needs no script.
+
+    Args:
+        backend_id: The configured stage-1 backend selector.
+        stage1_backend: The stage-1 backend instance.
+
+    Returns:
+        The shadow's backend.
+
+    Raises:
+        FileNotFoundError: If `VGU_MOCK_PER_CLUSTER_FILE` names a missing file.
+        ValueError: If it names an empty JSON array.
+    """
+    if backend_id != "mock":
+        return stage1_backend
+    script = os.environ.get("VGU_MOCK_PER_CLUSTER_FILE", "")
+    if not script:
+        return FixedGroupChoiceBackend("first")
+    return _load_mock_script(Path(script), "VGU_MOCK_PER_CLUSTER_FILE")
 
 
 def build_backend(

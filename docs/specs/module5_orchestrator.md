@@ -343,7 +343,8 @@ When the detector returns `None`, or M2 returns `congestion_detected=false`
   `docs/specs/module3_rag_grounding.md`): the configured mode under that key,
   plus `yield_robot_grounded_from`, `yield_regrounded_reason` and
   `yield_refusal_reason` read back off the grounded command by
-  `summarize_yield_grounding` (`reasoning_pipeline.py`). **Why:** with the gate
+  `summarize_yield_grounding` (`reasoning/rag/grounding_provenance.py`, re-exported
+  by `reasoning_pipeline.py`). **Why:** with the gate
   on, the robot that executes a yield need not be the robot M2 named, and
   `decision.yield_robot` alone would silently misattribute that. The mode is
   recorded even on cycles where the gate did not fire, so an artifact set stays
@@ -504,6 +505,7 @@ redefined.
 | frame_scene_max_skew_sec | float | max frame/scene stamp skew; beyond it the trigger is suppressed (E10) |
 | frame_downscale_width | int \| None | optional pre-dump downscale width; None = full resolution |
 | topics | dict[str, str] | resolved topic names (defaults in §5) |
+| per_cluster_shadow | `PerClusterShadowConfig` | (2026-11-13) v4 Stage 1 live shadow, exploratory cells only; default `enabled: false` (no worker, backend, trace or artifact key). Enabled, each triggered analysis is followed, after its ordinary outcome is dispatched, by the `grounding_first_per_cluster` M2 call on the same request and frame on a separate worker; per-group options are grounded alone and joint-checked, and the record replaces the artifact's `per_cluster_shadow: pending` block. Never dispatches or touches M5 state. Keys: `max_attempts`, `call_timeout_sec` (null inherits the ordinary reasoner's), `timeout_sec` (300.0, whole shadow), `max_backlog` (1), `include_wait` (true), `option_ids` (`numbered`), `event_trace` (true: `<decision_log_dir>/trigger_trace_<session_id>.jsonl`). Forced off by `reasoning_enabled: false`. Code: `per_cluster_shadow.py`, `trigger_trace.py`; design note `docs/superpowers/specs/2026-11-12-per-cluster-live-path-design.md` §5 |
 
 **`TaskAssignment`** (frozen)
 
