@@ -1,0 +1,182 @@
+{
+ "header": "Five robots, seed position 21  ·  take 1 of 1  ·  VLM: Gemini Robotics-ER 2",
+ "camera_label": "Left: real overhead camera of the simulation (topic /perception/annotated_frame). The boxes and robot ids were drawn on it by the perception module (M1) during the run.",
+ "intro_title": "Five robots, seed position 21",
+ "intro_lines": [
+  "Five robots run pickup-and-delivery tasks around two rack islands. When robots are stuck for 12 s, the system asks a vision-language model (VLM) what to do: it sends a text prompt and the current camera image, checks the answer, and executes it.",
+  "Robots: 5  ·  Model: Gemini Robotics-ER 2 (gemini-robotics-er-2-preview)  ·  Take 1 of 1, recorded 2026-11-15. A limitation demonstration on an exploratory seed.",
+  "Left: real overhead camera of the simulation. Right: the run's own logs, replayed in sync with simulation time."
+ ],
+ "watch_for": [
+  "The model's first two decisions and how they are executed (yellow lines, then green 'action=' lines).",
+  "Where robot_3's escort takes it in the second decision.",
+  "What the check does with the later proposals (orange lines)."
+ ],
+ "captions": [
+  {
+   "at": {
+    "start": true
+   },
+   "text": "Five robots drive their pickup and delivery tasks."
+  },
+  {
+   "at": {
+    "match": "starting analysis request=03bba450"
+   },
+   "text": "Trigger: robot_4 has been stuck for 12 s, nose to nose with robot_1. The system sends the model a text prompt and the current camera image; the wait for its answer plays in real time."
+  },
+  {
+   "at": {
+    "match": "^plan: robot_1 yield"
+   },
+   "text": "Model's plan (decision 1): robot_1 yields, robot_4 crosses, the others continue."
+  },
+  {
+   "at": {
+    "match": "^provenance=vlm_verbatim"
+   },
+   "text": "Check: accepted unchanged (provenance=vlm_verbatim)."
+  },
+  {
+   "at": {
+    "match": "dispatch request=03bba450"
+   },
+   "text": "Dispatch: robot_1 is sent 'yield' and robot_4 is escorted past; robot_3 and robot_5 are told to wait (a safety shield the system adds)."
+  },
+  {
+   "at": {
+    "match": "gate_cleared command=03bba450"
+   },
+   "text": "Decision 1 completed: robot_4 passed robot_1. The two then stopped about 0.42 m apart and the safety monitor held them there."
+  },
+  {
+   "at": {
+    "match": "starting analysis request=a15f3fc5"
+   },
+   "text": "Trigger: robot_1, robot_2 and robot_3 have been slow or close for 12 s. The model is asked again."
+  },
+  {
+   "at": {
+    "match": "^plan: robot_2 yield"
+   },
+   "text": "Model's plan (decision 2): robot_2 yields, robot_3 crosses, the others continue."
+  },
+  {
+   "at": {
+    "match": "^provenance=vlm_verbatim",
+    "nth": 2
+   },
+   "text": "Check: accepted unchanged (provenance=vlm_verbatim)."
+  },
+  {
+   "at": {
+    "match": "dispatch request=a15f3fc5"
+   },
+   "text": "Dispatch: robot_2 is sent 'yield'; robot_3 will be escorted past it."
+  },
+  {
+   "at": {
+    "match": "gate_admit command=a15f3fc5"
+   },
+   "text": "robot_2 has pulled aside; robot_3's escort drives it straight west."
+  },
+  {
+   "at": {
+    "sim": 147.0
+   },
+   "text": "Decision 2's escort drove robot_3 straight into a rack island (the escort path has no obstacle check); it stayed against the island until the escort timed out."
+  },
+  {
+   "at": {
+    "match": "robot robot_5 arrived at base goal"
+   },
+   "text": "robot_5 reaches its first task goal."
+  },
+  {
+   "at": {
+    "match": "yield refused request=c2f7094b"
+   },
+   "text": "Check: refused ('no feasible yielder': the robots it could ask to yield have 0.00 m of room to back out, 0.77 m needed). The command is withheld; nothing moves."
+  },
+  {
+   "at": {
+    "match": "yield refused request=f53de038"
+   },
+   "text": "Refused again ('no declared junction'); withheld."
+  },
+  {
+   "at": {
+    "match": "yield refused request=cc6332da"
+   },
+   "text": "Refused ('no shared lane'); withheld."
+  },
+  {
+   "at": {
+    "match": "refusal withheld request=704fab63"
+   },
+   "text": "The sixth refusal. Nothing moves any more, so the system stops asking (no analysis after sim 275.5 s)."
+  }
+ ],
+ "outcome": {
+  "at": {
+   "end": true
+  },
+  "text": "Outcome: Unresolved failure: 1 of 5 robots arrived by the end of the take (sim 600 s)."
+ },
+ "legend": "Legend: yield = back out and pull aside · cross = drive past · continue = keep driving · temporary_wait = hold still · provenance: vlm_verbatim = plan accepted unchanged, repaired = edited by the verifier, m3_default = replaced by the grounding module's default plan · refusal withheld = nothing is sent · dispatch_order_source=chi = the system's own ordering · 'safety stop … min_distance_violation' (dim) = robots closer than 0.45 m are held still by the safety monitor.",
+ "disclosure": "Illustrative demo, not controlled experimental evidence. Seed position 21 (exploratory extension seed).",
+ "outro_title": "Outcome: Unresolved failure  ·  take 1 of 1 (limitation demonstration)",
+ "outro_lines": [
+  "1 of 5 robots arrived (robot_5, at its first task goal).",
+  "The model's: decision 1 (robot_1 yields, robot_4 passes) and decision 2 (robot_2 yields, robot_3 passes), both executed as named.",
+  "The system's: the waits added as a safety shield; the escort paths; the safety monitor holding robots closer than 0.45 m; the six refusals of later proposals (no feasible yielder ×4, no declared junction, no shared lane), all withheld.",
+  "Decision 2's escort drove robot_3 straight into a rack island (the escort path has no obstacle check); it stayed against the island until the escort timed out. So 'unresolved' partly reflects this escort path error, not only the model's decisions or the later refusals.",
+  "Seed position 21 (exploratory extension seed); shows a current limitation."
+ ],
+ "zooms": [
+  {
+   "start": {
+    "match": "starting analysis request=03bba450"
+   },
+   "stop": {
+    "match": "gate_admit command=03bba450"
+   },
+   "crop": [
+    347,
+    664,
+    256,
+    192
+   ]
+  },
+  {
+   "start": {
+    "match": "starting analysis request=a15f3fc5"
+   },
+   "stop": {
+    "match": "gate_admit command=a15f3fc5"
+   },
+   "crop": [
+    788,
+    216,
+    256,
+    192
+   ]
+  },
+  {
+   "start": {
+    "match": "gate_admit command=a15f3fc5"
+   },
+   "stop": {
+    "sim": 185.0
+   },
+   "crop": [
+    700,
+    250,
+    256,
+    192
+   ]
+  }
+ ],
+ "key_request": "03bba450",
+ "outcome_kind": "Unresolved failure"
+}
