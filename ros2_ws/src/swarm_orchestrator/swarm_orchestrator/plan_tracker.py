@@ -51,6 +51,7 @@ from __future__ import annotations
 
 import threading
 from collections.abc import Sequence
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -216,6 +217,45 @@ def _is_hold(active: TrackedPlan, verified_legs: Sequence[ProposedPlanLeg]) -> b
     return filtered == remaining
 
 
+HiddenPlanReason = Literal["completed", "failed", "not_dispatched", "no_resolution_legs"]
+
+
+def hidden_plan_reason(plan: TrackedPlan, *, work_in_flight: bool) -> HiddenPlanReason | None:
+    """Why the prompt's plan-state block should not show `plan`, or None to show it.
+
+    v4 refusal feedback (prompt only). A plan is in progress while M5 still
+    has work for it in flight: a command dispatched under it that has not
+    resolved, or a queued `junction_clear` phase (`work_in_flight`, which
+    the caller derives from its command tracker and phase queues). Leg
+    statuses cannot say this on their own: a leg the grounded command never
+    addressed stays `pending` for good (pos22: a two-robot `reverse` plan
+    whose command moved one robot), and a hold that re-dispatches a plan
+    leaves its legs `done`, because terminal statuses never change. With
+    nothing in flight, the legs that resolve the conflict (every leg but
+    `continue`, which no command needs to finish) say how the plan ended.
+
+    Args:
+        plan: The plan the block would show (`PlanTracker.shown_plan`).
+        work_in_flight: Whether M5 still has a command or phase in flight for it.
+
+    Returns:
+        None while work is in flight. Otherwise `failed` when a resolution leg
+        is `failed`/`exhausted`, `completed` when every resolution leg is
+        `done`, `not_dispatched` when some resolution leg never ran, and
+        `no_resolution_legs` for a plan of `continue` legs only.
+    """
+    if work_in_flight:
+        return None
+    statuses = [leg.status for leg in plan.legs if leg.action != "continue"]
+    if not statuses:
+        return "no_resolution_legs"
+    if any(status in ("failed", "exhausted") for status in statuses):
+        return "failed"
+    if all(status == "done" for status in statuses):
+        return "completed"
+    return "not_dispatched"
+
+
 def _cancel_order(old: TrackedPlan, new: TrackedPlan) -> list[str]:
     new_action_by_robot: dict[str, PlanLegAction] = {leg.robot_id: leg.action for leg in new.legs}
     candidates = {
@@ -248,6 +288,12 @@ class PlanTracker:
         # stability) is meant to count only genuinely different accepted
         # plans, which is exactly the plans that DO get a new `plan_id`.
         self._plan_holds = 0
+        # v4 refusal feedback (`shown_plan`): which plan each accepted plan
+        # superseded (None for the session's first), and the plans M5 never
+        # dispatched. Read only by `shown_plan`/`is_withheld`; no decision
+        # this tracker makes depends on them.
+        self._predecessor: dict[int, int | None] = {}
+        self._withheld: set[int] = set()
         # Not reentrant: no method below calls another public method of this
         # class while holding it (module docstring explains why one is needed
         # at all).
@@ -312,6 +358,7 @@ class PlanTracker:
             )
             self._plans[plan_id] = new_plan
             previous = self._active
+            self._predecessor[plan_id] = None if previous is None else previous.plan_id
             self._active = new_plan
             if previous is None:
                 return PlanAcceptance(plan=new_plan)
@@ -323,6 +370,50 @@ class PlanTracker:
                     cancel_order=tuple(_cancel_order(previous, new_plan)),
                 ),
             )
+
+    def mark_withheld(self, plan_id: int) -> bool:
+        """Record that M5 never dispatched the outcome this plan was accepted for.
+
+        v4 refusal feedback. `accept_plan` runs in the pipeline worker, before
+        M5 decides whether the outcome is dispatched, so a withheld outcome's
+        plan becomes the active plan. The mark changes nothing the tracker
+        decides (`active_plan`, holds, supersession, leg statuses and plan ids
+        are exactly as without it, so dispatch is unaffected); it only steers
+        `shown_plan`, which the prompt's plan-state block reads.
+
+        Args:
+            plan_id: The plan accepted (not held) for the undispatched outcome.
+
+        Returns:
+            True when the plan is known and was not marked before.
+        """
+        with self._lock:
+            if plan_id not in self._plans or plan_id in self._withheld:
+                return False
+            self._withheld.add(plan_id)
+            return True
+
+    def is_withheld(self, plan_id: int) -> bool:
+        """Whether `mark_withheld` marked this plan."""
+        with self._lock:
+            return plan_id in self._withheld
+
+    def shown_plan(self) -> TrackedPlan | None:
+        """The plan the prompt may present as active: the latest one M5 dispatched.
+
+        Walks back from `active_plan` through the plans each superseded,
+        skipping every plan marked withheld, so a withheld plan is never
+        presented as accepted. Equals `active_plan` when nothing is marked.
+
+        Returns:
+            That plan with its current leg statuses, or None when every plan
+            in the chain was withheld (or none was accepted).
+        """
+        with self._lock:
+            plan_id = None if self._active is None else self._active.plan_id
+            while plan_id is not None and plan_id in self._withheld:
+                plan_id = self._predecessor.get(plan_id)
+            return None if plan_id is None else self._plans[plan_id]
 
     def set_leg_status(self, plan_id: int, robot_id: str, status: PlanLegStatus) -> TrackedLeg:
         """Update one leg's execution status, enforcing the state machine.

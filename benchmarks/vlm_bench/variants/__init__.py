@@ -4,7 +4,8 @@
 the M3-executable option list (v4 lever 1; `gf_cluster` is its v2 generator,
 options per observed group, v4 lever 2); `grounding_first_per_cluster` asks
 for one choice per observed group over the v2 options (`per_cluster`, v4
-lever 3).
+lever 3); `refusal_feedback` turns on both v4 refusal-feedback keys
+(offered strategies, withheld-decision feedback).
 """
 
 from benchmarks.vlm_bench.variants.base import PromptVariant, ReplayContext, VariantAnswer
@@ -47,10 +48,19 @@ from benchmarks.vlm_bench.variants.per_cluster import (
     per_cluster_candidates,
     render_per_cluster_section,
 )
+from benchmarks.vlm_bench.variants.refusal_feedback import (
+    REFUSAL_FEEDBACK_VARIANT,
+    RefusalFeedbackVariant,
+)
 
 VARIANTS: dict[str, PromptVariant] = {
     variant.name: variant
-    for variant in (BaselineVariant(), GroundingFirstVariant(), GroundingFirstPerClusterVariant())
+    for variant in (
+        BaselineVariant(),
+        GroundingFirstVariant(),
+        GroundingFirstPerClusterVariant(),
+        RefusalFeedbackVariant(),
+    )
 }
 
 
@@ -100,6 +110,8 @@ __all__ = [
     "PER_CLUSTER_VARIANT",
     "PerClusterCandidateSet",
     "PromptVariant",
+    "REFUSAL_FEEDBACK_VARIANT",
+    "RefusalFeedbackVariant",
     "ReplayContext",
     "VariantAnswer",
     "compose_cluster_payload",

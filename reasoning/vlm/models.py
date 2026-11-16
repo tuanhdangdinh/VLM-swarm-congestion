@@ -1,4 +1,4 @@
-from typing import Any, Literal
+from typing import Any, Literal, get_args
 
 from pydantic import (
     BaseModel,
@@ -204,6 +204,25 @@ class RobotCandidateOptions(BaseModel):
     options: list[CandidateOption]
 
 
+class RefusedProposal(BaseModel):
+    """One earlier decision M5 withheld, as the next v3 prompt states it.
+
+    v4 refusal feedback (M5 `refusal_feedback`): a decision M3 refused or M5
+    withheld never reaches `FailureContext`, which only describes dispatched
+    attempts. `reason` is M5's plain-words reading of the recorded refusal
+    reason (`reasoning_pipeline.refusal_feedback_reason`), never the raw M3
+    string, which can name a strategy. `times` counts identical proposals folded into this one.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    strategy: str = Field(min_length=1)
+    involved_robots: tuple[str, ...] = Field(min_length=1)
+    yield_robot: str | None = None
+    reason: str = Field(min_length=1)
+    times: int = Field(default=1, ge=1)
+
+
 class ReasonerRequest(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -294,6 +313,33 @@ class ReasonerRequest(BaseModel):
                 f"held_robot_ids must be distinct robots of robot_states; got {self.held_robot_ids}"
             )
         return self
+
+    # Strategies the v3 prompt offers besides "none" (v4 refusal-feedback
+    # Change 1, M5 `prompt_offer_groundable_strategies`): M3's
+    # `command_grounder.groundable_strategies` for the scene, so M2 is not
+    # offered a strategy M3 cannot ground as itself. None offers every
+    # strategy and renders byte-identically to every earlier request.
+    offered_strategies: tuple[str, ...] | None = None
+    # Decisions M5 withheld for an overlapping robot set (v4 refusal-feedback
+    # Change 2, M5 `refusal_feedback`), oldest first; rendered by the v3
+    # template only. None renders byte-identically to every earlier request.
+    refused_proposals: list[RefusedProposal] | None = None
+
+    @field_validator("offered_strategies")
+    @classmethod
+    def _validate_offered_strategies(
+        cls, value: tuple[str, ...] | None
+    ) -> tuple[str, ...] | None:
+        if value is None:
+            return value
+        # CongestionDecision is defined below; resolved at validation time.
+        strategy = CongestionDecision.model_fields["strategy"].annotation
+        known = [token for token in get_args(strategy) if token != "none"]
+        if not value or len(set(value)) != len(value) or any(t not in known for t in value):
+            raise ValueError(
+                f"offered_strategies must be distinct, non-empty and from {known}; got {value}"
+            )
+        return value
 
     @model_validator(mode="after")
     def _validate_last_failed_needs_latest(self) -> "ReasonerRequest":

@@ -340,8 +340,11 @@ def plan_quality(
              for leg in block.get("legs") or []]
         )
         if len(plans) > 1:
+            # A plan the prompt left out (v4 refusal feedback) still carries
+            # the failed legs the revision answers.
+            state = a.get("plan_state") or (a.get("plan_state_hidden") or {}).get("plan_state")
             failed = [
-                leg["robot_id"] for leg in (a.get("plan_state") or {}).get("legs") or []
+                leg["robot_id"] for leg in (state or {}).get("legs") or []
                 if leg.get("status") in ("failed", "exhausted")
             ]
             causes.append(classify_revision_cause(failed))

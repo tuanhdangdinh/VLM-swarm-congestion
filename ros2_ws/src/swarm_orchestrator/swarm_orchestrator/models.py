@@ -137,6 +137,34 @@ class ReanalysisSuppressionConfig(BaseModel):
     applies_to: Literal["task_stream_only", "all"] = "task_stream_only"
 
 
+class RefusalFeedbackConfig(BaseModel):
+    """Tell M2 about withheld decisions (`refusal_feedback:`, v4 refusal feedback Change 2).
+
+    Disabled (the default), nothing changes. Enabled, a decision M5 withholds
+    (`dispatch_withheld`: `refusal_no_action`, `empty_reroute`, a churn
+    bound) is remembered (`command_lifecycle.WithheldMemory`) and stated in
+    the next v3 prompt whose robot set overlaps it; and a plan accepted for
+    an outcome M5 did not dispatch is marked (`PlanTracker.mark_withheld`),
+    so the plan-state block shows the latest dispatched plan
+    (`PlanTracker.shown_plan`) instead of presenting it as accepted. That
+    block is left out while nothing of the plan is in progress (no command
+    dispatched under it open, no `junction_clear` phase queued;
+    `plan_tracker.hidden_plan_reason`), and the artifact records why
+    (`plan_state_hidden`). Both are prompt-only: holds, plan ids and dispatch
+    are as with the key off. Requires `plan_channel_enabled` (prompt v3).
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    enabled: bool = False
+    # At most this many withheld proposals per prompt, most recent kept;
+    # identical proposals (strategy, robots, yielder, reason) fold into one.
+    max_entries: int = Field(default=3, ge=1)
+    # Monotonic (wall) seconds a withheld proposal is remembered after its
+    # latest repeat; a dispatch to an overlapping robot set forgets it at once.
+    window_sec: float = Field(default=300.0, gt=0.0)
+
+
 class ChurnBoundConfig(BaseModel):
     """Per-cluster clearing-dispatch bound (`churn_bound:`, prereg-v3 A21(b)).
 
@@ -579,6 +607,14 @@ class OrchestratorConfig(BaseModel):
     # plan verdict and artifact byte-identical; a no-op in derived mode and
     # for junction or dynamic geometry.
     grounding_yield_counterflow_swap: bool = False
+    # v4 refusal feedback, Change 1: the v3 strategy list (and its plan-grammar
+    # rule lines) offers only the strategies M3 can ground as themselves on
+    # this scene (`command_grounder.groundable_strategies`: `junction_clear`
+    # needs derived mode plus declared recede geometry). Default off: every
+    # strategy is offered and the prompt is byte-identical to before.
+    prompt_offer_groundable_strategies: bool = False
+    # v4 refusal feedback, Change 2; default off (see the class).
+    refusal_feedback: RefusalFeedbackConfig = Field(default_factory=RefusalFeedbackConfig)
     # prereg-v3 R3.4 contradiction trigger (closed-loop item); default off.
     contradiction_trigger: ContradictionTriggerConfig = Field(
         default_factory=ContradictionTriggerConfig
@@ -672,9 +708,12 @@ class OrchestratorConfig(BaseModel):
                 "prompt_candidate_options",
                 "prompt_plan_grammar_rules",
                 "prompt_held_robot_state",
+                "prompt_offer_groundable_strategies",
             )
             if getattr(self, name)
         ]
+        if self.refusal_feedback.enabled:
+            requested.append("refusal_feedback")
         if requested and not self.plan_channel_enabled:
             raise ValueError(
                 f"{', '.join(requested)} require plan_channel_enabled (prompt v3); "

@@ -1,0 +1,345 @@
+# v4 refusal feedback, S1b exploratory cell, seed position 1
+# (EXPLORATORY ONLY: not a prereg-v3 cell; never pooled with A32-A36 or with
+# the v4 per-cluster shadow cell).
+# = config/overlays/v4_s1b_pc_shadow/orch_seed1.yaml (md5
+#   38fb03d0370dfa8fbded43350a07fd88) with its own 10 header lines replaced by
+#   this header and exactly one change: the two keys of
+#   refusal_feedback_delta.yaml appended at the end (both default off in
+#   models.py; design and offline evidence in docs/implementation_notes.md,
+#   2026-11-13 refusal-feedback entries).
+# Other seeds: apply refusal_feedback_delta.yaml to that seed's pc-shadow
+# overlay the same way. Not run; no VM kit exists for this cell.
+# Like every p10 overlay this file REPLACES orchestrator.yaml whole.
+# M5 orchestrator config. Loaded by orchestrator_node via the config_file param.
+stall_threshold_sec: 12.0
+progress_epsilon_m: 0.10
+# Arrived robots sit inside Nav2's xy_goal_tolerance (0.1 m); this must exceed
+# that so a parked robot is never re-flagged as stalled.
+goal_reached_tolerance_m: 0.15
+# Once M4 reports a base goal reached, the robot is excused from stall evidence
+# while M1 still sees it within this radius of that goal (M1 can read a parked
+# robot 0.2-0.3 m off near the ROI edge, outside goal_reached_tolerance_m).
+arrived_radius_m: 0.5
+# Nav2's "Goal succeeded" is the primary outcome measure of the experiment and is
+# not evidence the robot is at its goal: run 20260925_124609 had bt_navigator
+# succeed for robot_2 while M1 put it 0.59 m away. Cross-check M4's base-goal
+# arrival report against M1's position before marking the robot arrived.
+arrival_position_check: true
+# Must exceed M1's ~0.1 m camera bias at the goal (0.15 m vs 0.06 m ground truth
+# on 2026-09-17) and stay at or below arrived_radius_m above; 0.59 m was the
+# observed false success.
+arrival_position_tolerance_m: 0.35
+# Older M1 estimates cannot corroborate an arrival; it is then accepted and
+# logged as unverified rather than blocked on an M1 outage.
+arrival_estimate_max_age_sec: 2.0
+proximity_threshold_m: 0.50
+proximity_slow_speed_mps: 0.05
+cooldown_sec: 15.0
+command_timeout_sec: 20.0
+# Window after a command resolves in which the attempt is fed back to the VLM
+# as "previous attempt" context on re-analysis. Must exceed cooldown_sec +
+# stall_threshold_sec (27 s here) or it can never fire; 0 disables it (the RQ5
+# memoryless control).
+failure_context_window_sec: 60.0
+# Ablation axis: false withholds the derived pairwise distance/facing lines so
+# the VLM must judge geometry from coordinates + image (rev-8 modality table).
+prompt_pairwise_geometry: true
+# Ablation axis: true renders the static_obstacles below as world-frame boxes in
+# the VLM prompt. Default false — every decision artifact collected so far was
+# produced without this channel, and an on-by-default flag would silently break
+# comparability with all of them.
+prompt_static_obstacles: false
+# Ablation axis: order the prompt lists robots in — id_asc, id_desc or random.
+# Default id_asc matches every prompt rendered so far; id_desc is the
+# counterbalanced condition that tells a positional default ("yield the robot
+# presented first") apart from an ID or a geometry preference. random draws one
+# of the two per congestion episode, counterbalancing within a run; the drawn
+# order is constant across every re-analysis of one episode, and each decision
+# artifact records it alongside the mode, the seed and the episode index. Only
+# the ordering changes. With three or more robots in the scene (T2b), random
+# draws a uniform permutation of their ids instead (recorded as a list).
+prompt_robot_order: id_asc
+# Seed for the random draw. null derives it from VGU_RUN_ID, falling back to the
+# M5 session id, so paired runs launched with the same run id draw the same
+# sequence; the fixed modes ignore it. The stage-2 retreat letters are drawn
+# from this same seed (a separate, salted stream, one draw per stage-2 call in
+# call order), whatever prompt_robot_order says.
+prompt_robot_order_seed: null
+reasoning_backend_id: openai
+frame_dump_dir: data/logs/m5_frames
+decision_log_dir: data/logs/m5_decisions
+# One M1 scene snapshot per second per M5 session (JSONL, named by session_id)
+# for offline trajectory reconstruction; set to null to disable.
+scene_log_dir: data/logs/m5_scene
+scene_log_period_sec: 1.0
+keep_debug_frames: true
+# With keep_debug_frames, also dump M1's input frame as <request_id>_raw.png
+# beside the annotated one, so the refusal trigger can be tested annotated vs
+# raw on the same instant. The M2 request is unchanged (annotated frame).
+keep_raw_frames: false
+# Camera topic M1 reads (perception.launch.py image_topic); subscribed only
+# while keep_raw_frames is on.
+raw_frame_topic: /camera/image_raw
+frame_scene_max_skew_sec: 1.0
+frame_downscale_width: null
+# M5's task registry takes goals from HERE, not from the scenario yaml, and
+# fc_launch.sh parses only spawn poses out of that yaml. These must therefore be
+# set per scenario by hand, like static_obstacles below:
+#   head_on_deadlock, *_o0 (beyond goals)  -> +-2.5 as written
+#   *_gshort_o0 (goal-short variants)      -> robot_1 [1.5, 0.0], robot_2 [-1.5, 0.0]
+#   w0p2_eopen_bshort_o0 (west blocked)    -> robot_1 [2.6, 0.0], robot_2 [-1.5, 0.0]
+#   wopen_e0p2_bshort_o0 (east blocked)    -> robot_1 [1.5, 0.0], robot_2 [-2.6, 0.0]
+#   normal_flow (T0 lanes, no conflict)    -> robot_1 [2.5, -0.35], robot_2 [-2.5, 0.35]
+#     (also set t0_probe_mode: true; the +-2.5 centreline goals below would
+#     put the two robots head-on)
+#   dynamic_anomaly_v2 (T3c, normal_flow lanes + timed pallet) -> same goals as
+#     normal_flow; t0_probe_mode stays false (the stall trigger is the point)
+#   blocked_path_object / blocked_path_transient (T3a pair) -> robot_1
+#     [2.5, 0.0], robot_2 [0.0, 1.75] (robot_2 parks in the north pocket);
+#     t0_probe_mode stays false
+#   obstacle_in_candidate (T3b, junction head-on) -> +-2.5 as written, AND
+#     scenario_geometry corridor center_m: 1.2, half_length_m: 0.8, AND
+#     grounding_aisle_y_band_m: [-0.55, 1.0] (k = 3; header of
+#     isaac/config/scenarios/obstacle_in_candidate.yaml)
+#   t2b_flow_ordering (T2b, three robots) -> robot_1 [2.5, 0.0], robot_2
+#     [-2.0, 0.0], AND robot_3: { task: cross_narrow_aisle, goal: [1.85, 0.0],
+#     start_delay_sec: 55 } (hold-back: its goal is sent 55 s after M5 starts),
+#     AND scenario_geometry corridor center_m: 0.0, half_length_m: 0.5; the
+#     forced-order harness also needs config/rag.yaml grounding.mode: legacy
+#     (header of isaac/config/scenarios/t2b_flow_ordering.yaml;
+#     scripts/t2b_forced_order.py preflight checks all of it)
+#   intersection_bottleneck (T1, four robots) -> robot_1 [1.75, 0.0], robot_2
+#     [-1.75, 0.0], AND robot_3: { task: cross_intersection, goal: [0.0, 1.75] },
+#     robot_4: { task: cross_intersection, goal: [0.0, -1.75] } (all four
+#     tasks cross_intersection), AND shadow_classical_zones:
+#     [{ zone_id: crossing_1, x: 0.0, y: 0.0, radius_m: 1.5 }] (Arm B cannot
+#     classify `intersection` without it), AND scenario_geometry corridor
+#     { axis: x, center_m: 0.0, half_length_m: 0.6, aisle_half_width_m: 0.6,
+#     occluder_height_m: 0.0 } (the junction box, no barrier) with arms
+#     { robot_1: { axis: x, side: -1 }, robot_2: { axis: x, side: 1 },
+#     robot_3: { axis: y, side: -1 }, robot_4: { axis: y, side: 1 } } (each
+#     robot yields back along the arm it came in on); camera, robot and margins
+#     as shipped (header of isaac/config/scenarios/intersection_bottleneck.yaml)
+#   bottleneck_merge (B1, three robots, merge at the A55-E gate) -> robot_1
+#     [2.45, -0.3], robot_2 [1.9, 0.0], AND robot_3: { task:
+#     cross_narrow_aisle, goal: [2.45, 0.3], start_delay_sec: 80 } (all three
+#     tasks cross_narrow_aisle), AND scenario_geometry corridor { axis: x,
+#     center_m: 0.0, half_length_m: 1.1, aisle_half_width_m: 0.6,
+#     occluder_height_m: 0.0 } (the junction box; half_length_m raised from
+#     0.6 by the rev-19b geometry fix -- header of
+#     isaac/config/scenarios/bottleneck_merge.yaml -- to restore the escort
+#     margin at the measured trigger poses; the barrier at x 1.2 is off
+#     the maneuver) with arms { robot_1: { axis: x, side: -1 }, robot_2:
+#     { axis: y, side: 1 }, robot_3: { axis: x, side: -1 } }, AND
+#     grounding_aisle_x_band_m: [-0.46, 0.46] (robot_2's sidestep stays in
+#     the N-S aisle); shadow_classical_zones stay []; static_obstacles stay
+#     absent and prompt_static_obstacles false: the aperture reaches no text
+#     channel (header of isaac/config/scenarios/bottleneck_merge.yaml)
+#   priority_urgent_r1 / priority_urgent_r2 (B2 pair, two robots) -> robot_1
+#     [2.5, 0.0], robot_2 [-2.5, 0.0] as written, with the member's task
+#     labels: _r1 robot_1 { task: urgent_order_delivery, priority: 1 },
+#     robot_2 { task: routine_order_delivery }; _r2 robot_1 { task:
+#     routine_order_delivery }, robot_2 { task: urgent_order_delivery,
+#     priority: 1 } (priority is read by M3 only, never rendered);
+#     scenario_geometry as shipped (headers of
+#     isaac/config/scenarios/priority_urgent_r{1,2}.yaml)
+#   convoy_counterflow (B3, four robots, A55-J gate) -> robot_1 [2.45, -0.36],
+#     robot_2 [-2.0, 0.0], AND robot_3: { task: cross_narrow_aisle, goal:
+#     [2.45, 0.36], start_delay_sec: 120 }, robot_4: { task:
+#     cross_narrow_aisle, goal: [1.85, 0.0], start_delay_sec: 120 }, AND
+#     scenario_geometry corridor center_m: 0.0, half_length_m: 0.5, AND
+#     config/rag.yaml grounding.mode: legacy (header of
+#     isaac/config/scenarios/convoy_counterflow.yaml). robot_1/robot_3
+#     lateral raised 0.3 -> 0.36 by the Rev 22 B3 goal-table fix (notes
+#     2026-09-30): widest value under this scene's own wall_margin_m
+#     discipline (= pull_off_lateral_m, matching robot_2's own parked
+#     lateral here). Goal-to-goal separation (0.72 m, was 0.6 m with no
+#     headroom vs the 0.45 m floor + 0.15 m margin) is necessary but not the
+#     root cause -- the actual failure was robot_3's dynamic release
+#     approach, modeled (nominally) and pinned as a closest-point-to-segment
+#     check in isaac/config/scenarios/convoy_counterflow.yaml's header
+#     (0.549 m nominal at the old stack, below the margin; 0.636 m nominal
+#     at this one). The nominal model overstates the real gain: measured VM
+#     minima (same header) are 0.463-0.475 m at this stack, clearing the
+#     0.45 m floor but not the fuller 0.15 m margin -- see that header for
+#     the full measured table and why the margin is not reachable by
+#     widening y alone.
+# Running a _gshort or _bshort scenario without changing these dispatches +-2.5
+# and the variant silently degrades to its beyond-goal twin, blocker back on
+# the goal path (isaac/config/scenarios/family/*_{gshort,bshort}_o0.yaml).
+# The _bshort pair is asymmetric on purpose: only the goal that lies past the
+# blocker is shortened, so the passer's goal stays beyond the yielder's park
+# point (1.789 m) and an arrived passer cannot block the yielder's return.
+initial_tasks:
+  robot_1: { task: pickup, goal: [2.3, 0.0] }
+  robot_2: { task: pickup, goal: [-0.25, 1.35] }
+  robot_3: { task: pickup, goal: [-2.3, 1.35] }
+  robot_4: { task: pickup, goal: [-0.25, 1.35] }
+  robot_5: { task: pickup, goal: [-0.25, -1.35] }
+
+# Scene dimensions M3 derives the yield maneuver from. They mirror
+# isaac/config/scenarios/head_on_deadlock.yaml (barrier spans x=+-1.0, 0.9 m
+# tall), isaac/config/warehouse.yaml (nominal_aisle_width_m 1.2) and
+# vgu_sim CameraConfig (camera at z=3.0); keep them in sync by hand until M5
+# reads the scenario file directly. A junction scene also declares `arms`
+# (robot id -> { axis, side }: the arm that robot approached on, side = the
+# arm's outward sign); a listed robot yields along its own arm with the
+# corridor's other dimensions. Absent (as shipped), every robot uses `corridor`.
+scenario_geometry:
+  corridor: { axis: x, center_m: 0.0, half_length_m: 0.6, aisle_half_width_m: 0.6, occluder_height_m: 0.3 }
+  camera: { height_m: 3.0, marker_height_m: 0.21 }
+  robot: { half_width_m: 0.09, marker_half_size_m: 0.06, safety_radius_m: 0.45 }
+  park_margin_m: 0.4
+  wall_margin_m: 0.15
+  passer_margin_m: 0.2
+  junction_declared: true
+  junction_boxes:
+    - { name: NW, x_min_m: -2.5, x_max_m: -1.3, y_min_m: 0.9, y_max_m: 1.8 }
+    - { name: SW, x_min_m: -2.5, x_max_m: -1.3, y_min_m: -1.8, y_max_m: -0.7 }
+    - { name: N, x_min_m: -0.75, x_max_m: 0.25, y_min_m: 0.7, y_max_m: 1.8 }
+    - { name: S, x_min_m: -0.75, x_max_m: 0.25, y_min_m: -1.8, y_max_m: -0.7 }
+
+# Whether M3 may ground a yield to a robot other than the one M2 named, when
+# the named one cannot physically reach its park point:
+#   off    - ground the named yielder verbatim (default; every decision
+#            artifact collected so far was produced this way)
+#   swap   - re-ground the yield to a feasible involved robot, recording
+#            yield_robot_grounded_from in the command; refuse if none is
+#   refuse - never swap; degrade to a temporary_wait instead
+# The gate reads scenario_geometry AND static_obstacles below. static_obstacles
+# ships commented out, so leaving it that way makes this key a no-op whatever
+# it is set to. Quoted because bare `off` is YAML 1.1 boolean false.
+grounding_yield_feasibility: "swap"
+
+# M3 grounding parameters: the `grounding:` section of this file, whose `mode`
+# (legacy | derived) is the single switch for derived grounding. Loaded once at
+# startup; a missing file or an invalid section stops M5.
+grounding_params_path: "config/grounding/s1b_dynamic_shield_escort.yaml"
+# Per-scenario world-frame y band [low, high] that every retreat candidate's
+# swept path must stay inside (derived mode), replacing the grounding file's
+# aisle_y_band_m. Like scenario_geometry above it is scenario geometry and must
+# be set per scenario by hand; null keeps the file's value, which lets the
+# declared aisle bound the sidestep (k = 2 on the head-on family). Recorded in
+# every artifact as grounding_params_source.aisle_y_band_override_m.
+grounding_aisle_y_band_m: null
+# Per-scenario world-frame x band [low, high] for a yielder whose declared
+# junction arm runs along y (scenario_geometry.arms axis: y): the N-S aisle's
+# walls, which the default band centred on the yielder's own x does not know.
+# Every other yielder ignores it; null (every scene but bottleneck_merge)
+# changes nothing. Recorded as grounding_params_source.aisle_x_band_override_m.
+grounding_aisle_x_band_m: null
+# Stage-2 retreat selection (derived mode, yields only): a second VLM call picks
+# one of the validated retreat candidates. false skips the call and every yield
+# grounds the geometry-max candidate (tagged retreat=default:no_choice). With
+# the mock backend, stage 2 answers only when VGU_MOCK_RETREAT_CHOICE_FILE names
+# a script (e.g. config/mock_decisions/retreat_choice_b.json); otherwise the
+# call is skipped and recorded as skip_reason=no_backend.
+stage2_retreat_selection: true
+# M1's calibration, used to draw each stage-2 candidate's letter on a copy of
+# the stage-1 frame (<request_id>_stage2.png, set-of-mark). null uses the file
+# M1 launches with (swarm_perception share config/calibration.yaml). A missing
+# or invalid file never stops M5: stage 2 then gets the unmarked frame, its
+# prompt says the letters are not drawn, and the artifact records
+# stage2.marks_drawn: false with the reason.
+stage2_calibration_path: null
+# Stage-2 call budget, in place of the stage-1 reasoner block's (openai there
+# is 4 attempts x 120 s). Worst case 2 x 8 s = 16 s, inside one
+# command_timeout_sec (20 s) while the deadlocked robots wait on it; 8 s
+# clears every stage-1 call measured so far (gpt-4o 2.1-6.0 s, ER-2
+# 3.2-3.8 s) for a shorter prompt and a one-letter answer. Timeouts, backend
+# errors, refusals and unparsable text each spend an attempt.
+stage2_max_attempts: 2
+stage2_timeout_sec: 8.0
+
+# Arm B shadow (rev-8 shadow logging): on every VLM analysis, also compute the
+# classical answer from a snapshot ring buffer and write it, with the Arm A vs
+# Arm B disagreement flags, to the decision artifact's shadow_classical block.
+# Observational only: it never dispatches or changes the VLM decision, and a
+# failure inside it is recorded as shadow_error. Thresholds come from the
+# `classical:` section of shadow_classical_params_path; a missing file or
+# section is recorded per analysis, an invalid one stops M5 at startup.
+shadow_classical: true
+shadow_classical_params_path: "config/rag.yaml"
+# Ring buffer in M1 stamp seconds: must exceed stall_threshold_sec so zone
+# entries are still buffered at trigger time; the sample period must stay below
+# classical arrival_tie_sec (1.0 s) or FCFS is quantized at its tie scale.
+shadow_classical_window_sec: 60.0
+shadow_classical_sample_period_sec: 0.25
+# Mapped conflict zones for Arm B's intersection rule, per scenario (later
+# tiers). Empty for head-on scenarios: that rule derives its own pair zone.
+# Set per scenario by hand like initial_tasks (goal table above), and keep it
+# empty otherwise: a zone left over at the origin would let the intersection
+# rule fire on any scene with two stopped robots whose goal axes cross near
+# the centre. intersection_bottleneck (T1) declares:
+#   - { zone_id: crossing_1, x: 0.0, y: 0.0, radius_m: 1.5 }
+shadow_classical_zones: []
+
+# T0 negative control (log-only probes): every t0_probe_interval_sec, run the
+# VLM analysis off-trigger on the latest scene and record it (artifact marked
+# probe: true, log line reason=t0_probe). Probes can never be grounded or
+# dispatched. On only for T0 normal_flow runs (set that scenario's goals in
+# initial_tasks above). t0_probe_max_probes: 0 = unlimited.
+t0_probe_mode: false
+t0_probe_interval_sec: 20.0
+t0_probe_max_probes: 0
+# Defer a probe when the latest SceneState arrived more than this many wall
+# seconds ago: after Isaac exits, scene and frame stamps freeze together, so
+# only the receipt age stops probes re-analysing the final frozen scene.
+t0_probe_max_snapshot_age_sec: 3.0
+
+# Fixed obstacles rendered into the VLM prompt when prompt_static_obstacles is
+# true. Like scenario_geometry above, these mirror the scenario file by hand
+# (here the head-on asymmetric family blocker) and must be set per scenario —
+# a list left over from another scenario describes a scene that is not there.
+# Uncomment together with prompt_static_obstacles: true.
+#
+# The ids are rendered verbatim into the VLM prompt, so they are deliberately
+# neutral and must stay that way: an id naming the object's role or side (the
+# scenario yaml's blocker_west) would tell the model both that the box is an
+# obstruction and which side it obstructs — exactly the inference the experiment
+# measures. Do NOT sync these ids to the scenario yaml's descriptive names; that
+# file is Isaac-side and never reaches the prompt. Only the geometry is mirrored.
+# static_obstacles:
+#   - { obstacle_id: obstacle_1, x: -1.85, y: 0.0, size_x_m: 0.3, size_y_m: 0.3 }
+
+# --- S1 pilot overlay (mapd_5 header): keys absent from the pinned base ---
+task_stream:
+  enabled: true
+  seed: 978442588
+  nodes: { Wp: [-2.3, 1.35], Wm: [-2.3, -1.35], N: [-0.25, 1.35], S: [-0.25, -1.35], E: [2.3, 0.0] }
+  tasks_per_robot: 5
+  forbidden_legs: [[Wp, Wm]]
+  task_labels: [pickup, delivery]
+  release_stagger_sim_sec: 2.5
+  dwell_sim_sec: 5.0
+  horizon_sim_sec: 600.0
+  finished_mode: park
+  start_nodes: { robot_1: N, robot_2: Wp, robot_3: S, robot_4: Wm, robot_5: E }
+static_obstacles:
+  - { obstacle_id: obstacle_1, x: -1.025, y: 0.1, size_x_m: 0.55, size_y_m: 1.6 }
+  - { obstacle_id: obstacle_2, x: 0.525, y: -0.1, size_x_m: 0.55, size_y_m: 1.6 }
+  - { obstacle_id: obstacle_3, x: -2.75, y: 0.0, size_x_m: 0.5, size_y_m: 4.6 }
+  - { obstacle_id: obstacle_4, x: 2.75, y: 0.0, size_x_m: 0.5, size_y_m: 4.6 }
+  - { obstacle_id: obstacle_5, x: 0.0, y: 2.05, size_x_m: 5.0, size_y_m: 0.5 }
+  - { obstacle_id: obstacle_6, x: 0.0, y: -2.05, size_x_m: 5.0, size_y_m: 0.5 }
+plan_channel_enabled: true
+dispatch_enabled: true
+reanalysis_suppression: { enabled: true, pose_epsilon_m: 0.05 }
+refusal_no_action: true
+
+per_cluster_shadow:
+  enabled: true
+  max_attempts: null
+  call_timeout_sec: null
+  timeout_sec: 300.0
+  max_backlog: 2
+  include_wait: true
+  option_ids: numbered
+  event_trace: true
+
+# v4 refusal feedback (refusal_feedback_delta.yaml).
+prompt_offer_groundable_strategies: true
+refusal_feedback:
+  enabled: true
+  max_entries: 3
+  window_sec: 300.0

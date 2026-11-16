@@ -208,7 +208,9 @@ def test_replay_fixed_none_scores_negative(tmp_path):
 
 
 def test_registry_lists_baseline_and_grounding_first():
-    assert list_variants() == ["baseline", "grounding_first", "grounding_first_per_cluster"]
+    assert list_variants() == [
+        "baseline", "grounding_first", "grounding_first_per_cluster", "refusal_feedback"
+    ]
     assert get_variant("grounding_first").generator_version == "gf-candidates-v1"
 
 
